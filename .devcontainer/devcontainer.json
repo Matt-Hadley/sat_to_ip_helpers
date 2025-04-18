@@ -1,0 +1,34 @@
+{
+  "name": "Python Codespaces",
+  "image": "mcr.microsoft.com/devcontainers/python:latest",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "latest"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.formatting.provider": "black",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll": "always",
+          "source.organizeImports.ruff": "always"
+        },
+        "editor.rulers": [
+          120
+        ]
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.black-formatter",
+        "charliermarsh.ruff",
+        "editorconfig.editorconfig"
+      ]
+    }
+  },
+  "containerEnv": {
+    "PYTHONPATH": "/workspaces/sat_to_ip_helpers"
+  },
+  "postCreateCommand": "pip install --upgrade pip && pip install -r requirements-dev.txt && pip install -r requirements.txt"
+}

@@ -1,0 +1,22 @@
+[tool.black]
+line-length = 120
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 120
+lint.select = ["E", "F", "W", "C", "N", "B"]
+lint.ignore = ["E501"]  # Black handles line length
+exclude = ["__pycache__", ".git", ".venv", "build", "dist"]
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "--strict-markers --maxfail=3 --disable-warnings"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
