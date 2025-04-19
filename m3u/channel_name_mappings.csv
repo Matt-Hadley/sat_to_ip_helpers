@@ -1,0 +1,103 @@
+﻿Name,Id,Number,Genre
+BBC One NW HD,BBC1NWHD,101,Entertainment
+BBC Two HD,BBC2HD,102,Entertainment
+ITV1 HD,ITV1GHD,103,Entertainment
+Channel 4 HD,C4HD,104,Entertainment
+5 HD,CH5HD,105,Entertainment
+U&Dave,UDAVE,111,Entertainment
+BBC Three HD,BBC3H,115,Entertainment
+BBC Four HD,BBC4HD,116,Entertainment
+ITV2 HD,ITV2HD,118,Entertainment
+ITV3 HD,ITV3HD,119,Entertainment
+ITV4 HD,ITV4HD,120,Entertainment
+5STAR,5ST,128,Entertainment
+Sky Arts,SKYART1,130,Entertainment
+ITV Be HD,ITVBEHD,131,Entertainment
+U&W,UANDW,132,Entertainment
+S4C HD,S4CHDVM,134,Entertainment
+E4 HD,E4HD,135,Entertainment
+More4,MORE4,136,Entertainment
+4seven,4SEVEN,137,Entertainment
+E4 Extra,E4EXTRA,138,Entertainment
+Food Network,FOODNET,140,Entertainment
+5 USA,5USA,141,Entertainment
+Really,REALLY,142,Entertainment
+U&Drama,UDRAMA,143,Entertainment
+Challenge,CHALL,145,Entertainment
+TRUE CRIME,TRUCRUK,146,Entertainment
+TRUE CRIME X,TCEXTRA,147,Entertainment
+LEGEND,LEGENDVM,148,Entertainment
+Quest Red,QREDUK,149,Entertainment
+5ACTION,5ACTION,150,Entertainment
+Sky Mix HD,SMIXIRH,151,Entertainment
+5SELECT,5SELECT,153,Entertainment
+U&Yesterday,UYESTSD,155,Entertainment
+GREAT! tv,GREATUK,157,Entertainment
+HGTV,HGTVUK,158,Entertainment
+DMAX,DMAXD,159,Entertainment
+BLAZE,BLAZUK,164,Entertainment
+BBC ALBA HD,BBCALBH,169,Entertainment
+Together,TOGETUK,170,Entertainment
+That's TV,THATSTV,171,Entertainment
+PBS America,PBSAMEF,174,Entertainment
+Court TV,COURTUK,179,Entertainment
+BBCScotlandHD,BBCSCOT,187,Entertainment
+That's TV 2,THAT2VM,188,Entertainment
+Rewind TV,REWINDUK,190,Entertainment
+That's TV 3,THAT3VM,191,Entertainment
+Film4,FILM4UK,313,Movies
+LEGEND XTRA,LEGEXTR,317,Movies
+GREAT! romance,GREATRO,319,Movies
+GREAT! movies,GRETMOV,321,Movies
+GREAT! action,GRTMACT,323,Movies
+TalkingPictures,TALKPIC,328,Movies
+Clubland TV,CLUBLVM,354,Music
+NOW 70s,NOW70UK,355,Music
+NOW 80s,NOW80UK,356,Music
+NOW 90s & 00s,NOW9000,357,Music
+NOW ROCK,NOWROCK,358,Music
+That's Oldies,THATMEM,359,Music
+That's Dance,THAT90S,360,Music
+That's Melody,THAT80S,361,Music
+Sky News,SKYNEWS,501,News
+Bloomberg HD,BLOMUK,502,News
+BBC NEWS HD,BBCNWHD,503,News
+BBC Parl HD,BBCPAHD,504,News
+CNBC HD,CNBCEHD,505,News
+CNN HD,CNNEUHD,506,News
+NHK World HD,NHKWLD,507,News
+Euronews,EURNWSV,508,News
+NDTV World,NDT247V,509,News
+FRANCE 24 HD,FR24ARA,510,News
+Al Jazeera HD,ALJAZEH,511,News
+GB News HD,GBNEWS,512,News
+TRT World HD,TRTWRLD,513,News
+Channels 24,CHAN24UK,515,News
+Arirang TV HD,ARANG,518,News
+Arise News,ARISE,519,News
+WION HD,WIONHDUK,523,News
+TVC News,TVCNEWS,520,News
+NTD,NEWTANG,524,News
+GOD Channel,GODCH,580,Religion
+revelation,REVEL,581,Religion
+TBN UK,TBNUK,582,Religion
+DAYSTAR HD,DAYSTHD,583,Religion
+LoveWorld HD,LOVEWOR,585,Religion
+EWTN Catholic,EWTNUK,588,Religion
+Faith World TV,FATHWD,589,Religion
+SonLife,SBND,593,Religion
+Faith UK,FAITHUK,594,Religion
+Dunamis TV,DUNAMIS,597,Religion
+Islam Channel,ISLAM,737,Religion
+QVC HD,QVCUKHD,660,Shopping
+TJC HD,TJCHD,662,Shopping
+QVC Beauty,QVCBEAU,663,Shopping
+Gems TV,GEMSTV,665,Shopping
+High Street TV 1,HIGHST,666,Shopping
+High Street TV 2,HIGHSTR2,667,Shopping
+High Street TV 3,HIGHSTR3,668,Shopping
+Best Direct,BESTDIR,669,Shopping
+JewelleryMaker,JEWELMK,674,Shopping
+TV Warehouse,TVWARE,676,Shopping
+QVC Style HD,QVCSTHD,677,Shopping
+QVC Extra,QVCEXUK,682,Shopping
