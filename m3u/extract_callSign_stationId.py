@@ -14,7 +14,7 @@ if isinstance(data, list) and len(data) > 0 and isinstance(data[0], list):
     data = data[0]
 
 # Open CSV file and write rows
-with open(csv_file, "w", newline='') as f:
+with open(csv_file, "w", newline="") as f:
     writer = csv.writer(f)
 
     for item in data:

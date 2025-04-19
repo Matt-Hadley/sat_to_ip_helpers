@@ -20,20 +20,17 @@ import csv
 
 def load_mappings(csv_file):
     mappings = {}
-    with open(csv_file, newline='', encoding='utf-8') as f:
+    with open(csv_file, newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
         for row in reader:
             if len(row) >= 3:
                 name, channel_id, chno = row[:3]
-                mappings[name.strip()] = {
-                    "channel-id": channel_id.strip(),
-                    "channel-number": chno.strip()
-                }
+                mappings[name.strip()] = {"channel-id": channel_id.strip(), "channel-number": chno.strip()}
     return mappings
 
 
 def enrich_m3u(input_m3u, output_m3u, mappings):
-    with open(input_m3u, encoding='utf-8') as infile, open(output_m3u, 'w', encoding='utf-8') as outfile:
+    with open(input_m3u, encoding="utf-8") as infile, open(output_m3u, "w", encoding="utf-8") as outfile:
         outfile.write("#EXTM3U\n")
         lines = infile.readlines()
         i = 0
@@ -48,7 +45,7 @@ def enrich_m3u(input_m3u, output_m3u, mappings):
                     enriched_line = (
                         f'#EXTINF:-1 channel-id="{meta["channel-id"]}"'
                         f' channel-number="{meta["channel-number"]}"'
-                        f',{meta["channel-id"]}'
+                        f",{meta['channel-id']}"
                     )
                 else:
                     enriched_line = f"#EXTINF:-1,{channel_name}"
@@ -61,8 +58,7 @@ def enrich_m3u(input_m3u, output_m3u, mappings):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Enrich M3U with Channels DVR metadata.")
+    parser = argparse.ArgumentParser(description="Enrich M3U with Channels DVR metadata.")
     parser.add_argument("input_m3u", help="Input M3U file")
     parser.add_argument("mappings_csv", help="CSV file with channel mappings")
     parser.add_argument("output_m3u", help="Output enriched M3U file")
