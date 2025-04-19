@@ -18769,69 +18769,6 @@
         "type": "",
         "name": "",
         "channel": "1000",
-        "callSign": "RTE2",
-        "stationId": "25555",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s25555_ll_h15_ab.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "SDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1000",
-        "callSign": "LPTIVM",
-        "stationId": "172246",
-        "preferredImage": {
-            "uri": "sources/generic/generic_sources_h3.png",
-            "height": "",
-            "width": "",
-            "primary": "",
-            "category": "",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1000",
-        "callSign": "MUHAID",
-        "stationId": "162072",
-        "preferredImage": {
-            "uri": "sources/generic/generic_sources_h3.png",
-            "height": "",
-            "width": "",
-            "primary": "",
-            "category": "",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1000",
         "callSign": "GREATMY",
         "stationId": "176390",
         "preferredImage": {
@@ -18853,6 +18790,153 @@
         "type": "",
         "name": "",
         "channel": "1000",
+        "callSign": "40PLUSVM",
+        "stationId": "67876",
+        "preferredImage": {
+            "uri": "sources/generic/generic_sources_h3.png",
+            "height": "",
+            "width": "",
+            "primary": "",
+            "category": "",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "SDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1000",
+        "callSign": "CRUI1ST",
+        "stationId": "170965",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s170965_ll_h15_aa.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1000",
+        "callSign": "PRSPRVM",
+        "stationId": "177002",
+        "preferredImage": {
+            "uri": "sources/generic/generic_sources_h3.png",
+            "height": "",
+            "width": "",
+            "primary": "",
+            "category": "",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1000",
+        "callSign": "RTE2",
+        "stationId": "25555",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s25555_ll_h15_ab.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "SDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1000",
+        "callSign": "EDEN",
+        "stationId": "35806",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s35806_ll_h15_ac.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "SDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1000",
+        "callSign": "HUMEU",
+        "stationId": "116805",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s116805_ll_h15_aa.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "SDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1000",
+        "callSign": "NHKWLD",
+        "stationId": "62096",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s62096_ll_h15_aa.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "SDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1000",
         "callSign": "FAST2VM",
         "stationId": "139535",
         "preferredImage": {
@@ -18861,6 +18945,27 @@
             "width": "360",
             "primary": "true",
             "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1000",
+        "callSign": "QVCUKHD",
+        "stationId": "87231",
+        "preferredImage": {
+            "uri": "sources/generic/generic_sources_h3.png",
+            "height": "",
+            "width": "",
+            "primary": "",
+            "category": "",
             "text": "",
             "tier": ""
         },
@@ -18916,132 +19021,6 @@
         "type": "",
         "name": "",
         "channel": "1000",
-        "callSign": "PRSPRVM",
-        "stationId": "177002",
-        "preferredImage": {
-            "uri": "sources/generic/generic_sources_h3.png",
-            "height": "",
-            "width": "",
-            "primary": "",
-            "category": "",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1000",
-        "callSign": "HUMEU",
-        "stationId": "116805",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s116805_ll_h15_aa.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "SDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1000",
-        "callSign": "CRUI1ST",
-        "stationId": "170965",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s170965_ll_h15_aa.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1000",
-        "callSign": "NHKWLD",
-        "stationId": "62096",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s62096_ll_h15_aa.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "SDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1000",
-        "callSign": "QVCUKHD",
-        "stationId": "87231",
-        "preferredImage": {
-            "uri": "sources/generic/generic_sources_h3.png",
-            "height": "",
-            "width": "",
-            "primary": "",
-            "category": "",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1000",
-        "callSign": "40PLUSVM",
-        "stationId": "67876",
-        "preferredImage": {
-            "uri": "sources/generic/generic_sources_h3.png",
-            "height": "",
-            "width": "",
-            "primary": "",
-            "category": "",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "SDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1000",
         "callSign": "PTVUKNO",
         "stationId": "115047",
         "preferredImage": {
@@ -19063,56 +19042,14 @@
         "type": "",
         "name": "",
         "channel": "1000",
-        "callSign": "EDEN",
-        "stationId": "35806",
+        "callSign": "LPTIVM",
+        "stationId": "172246",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s35806_ll_h15_ac.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "SDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1001",
-        "callSign": "NEWSMX",
-        "stationId": "87925",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s87925_ll_h15_ac.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "SDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1001",
-        "callSign": "BBC1SEHD",
-        "stationId": "120573",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s120573_ll_h15_aa.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
+            "uri": "sources/generic/generic_sources_h3.png",
+            "height": "",
+            "width": "",
+            "primary": "",
+            "category": "",
             "text": "",
             "tier": ""
         },
@@ -19125,15 +19062,15 @@
     {
         "type": "",
         "name": "",
-        "channel": "1001",
-        "callSign": "HIGSTVM",
-        "stationId": "180800",
+        "channel": "1000",
+        "callSign": "MUHAID",
+        "stationId": "162072",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s180800_ll_h15_aa.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
+            "uri": "sources/generic/generic_sources_h3.png",
+            "height": "",
+            "width": "",
+            "primary": "",
+            "category": "",
             "text": "",
             "tier": ""
         },
@@ -19168,10 +19105,10 @@
         "type": "",
         "name": "",
         "channel": "1001",
-        "callSign": "NOSEY",
-        "stationId": "119233",
+        "callSign": "BBC1SEHD",
+        "stationId": "120573",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s119233_ll_h15_ab.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s120573_ll_h15_aa.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -19182,27 +19119,6 @@
         "videoQuality": {
             "signalType": "Digital",
             "videoType": "HDTV",
-            "truResolution": "TruHD Uncooperative"
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1001",
-        "callSign": "USVPLSD",
-        "stationId": "116467",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s116467_ll_h15_aa.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "SDTV",
             "truResolution": ""
         }
     },
@@ -19231,6 +19147,27 @@
         "type": "",
         "name": "",
         "channel": "1001",
+        "callSign": "HIGSTVM",
+        "stationId": "180800",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s180800_ll_h15_aa.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1001",
         "callSign": "WOTIVM",
         "stationId": "176112",
         "preferredImage": {
@@ -19246,6 +19183,48 @@
             "signalType": "Digital",
             "videoType": "HDTV",
             "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1001",
+        "callSign": "USVPLSD",
+        "stationId": "116467",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s116467_ll_h15_aa.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "SDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1001",
+        "callSign": "NOSEY",
+        "stationId": "119233",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s119233_ll_h15_ab.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
+            "truResolution": "TruHD Uncooperative"
         }
     },
     {
@@ -19272,11 +19251,11 @@
     {
         "type": "",
         "name": "",
-        "channel": "1002",
-        "callSign": "SSSVM",
-        "stationId": "169602",
+        "channel": "1001",
+        "callSign": "NEWSMX",
+        "stationId": "87925",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s169602_ll_h15_aa.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s87925_ll_h15_ac.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -19286,7 +19265,28 @@
         },
         "videoQuality": {
             "signalType": "Digital",
-            "videoType": "HDTV",
+            "videoType": "SDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1002",
+        "callSign": "INNHKWJCMS",
+        "stationId": "159114",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s159114_ll_h15_aa.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "SDTV",
             "truResolution": ""
         }
     },
@@ -19298,48 +19298,6 @@
         "stationId": "61182",
         "preferredImage": {
             "uri": "https://tmsimg.fancybits.co/assets/s61182_ll_h15_ab.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1002",
-        "callSign": "IHART",
-        "stationId": "157638",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s157638_ll_h15_aa.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": "HD 1080p"
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1002",
-        "callSign": "BBC1EAHV",
-        "stationId": "121738",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s121738_ll_h15_aa.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -19378,10 +19336,10 @@
         "type": "",
         "name": "",
         "channel": "1002",
-        "callSign": "INNHKWJCMS",
-        "stationId": "159114",
+        "callSign": "SSSVM",
+        "stationId": "169602",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s159114_ll_h15_aa.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s169602_ll_h15_aa.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -19391,18 +19349,18 @@
         },
         "videoQuality": {
             "signalType": "Digital",
-            "videoType": "SDTV",
+            "videoType": "HDTV",
             "truResolution": ""
         }
     },
     {
         "type": "",
         "name": "",
-        "channel": "1003",
-        "callSign": "SCINDRA",
-        "stationId": "24032",
+        "channel": "1002",
+        "callSign": "BBC1EAHV",
+        "stationId": "121738",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s24032_ll_h15_ab.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s121738_ll_h15_aa.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -19412,8 +19370,29 @@
         },
         "videoQuality": {
             "signalType": "Digital",
-            "videoType": "SDTV",
+            "videoType": "HDTV",
             "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1002",
+        "callSign": "IHART",
+        "stationId": "157638",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s157638_ll_h15_aa.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
+            "truResolution": "HD 1080p"
         }
     },
     {
@@ -19441,10 +19420,10 @@
         "type": "",
         "name": "",
         "channel": "1003",
-        "callSign": "MBCAR",
-        "stationId": "115555",
+        "callSign": "SCINDRA",
+        "stationId": "24032",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s115555_ll_h9_aa.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s24032_ll_h15_ab.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -19482,11 +19461,11 @@
     {
         "type": "",
         "name": "",
-        "channel": "1004",
-        "callSign": "BBC1CIHD",
-        "stationId": "120579",
+        "channel": "1003",
+        "callSign": "MBCAR",
+        "stationId": "115555",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s120579_ll_h15_aa.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s115555_ll_h9_aa.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -19496,28 +19475,7 @@
         },
         "videoQuality": {
             "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1004",
-        "callSign": "SSCVM",
-        "stationId": "169603",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s169603_ll_h15_aa.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
+            "videoType": "SDTV",
             "truResolution": ""
         }
     },
@@ -19546,10 +19504,52 @@
         "type": "",
         "name": "",
         "channel": "1004",
-        "callSign": "QVCSTHD",
-        "stationId": "123422",
+        "callSign": "SSCVM",
+        "stationId": "169603",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s123422_ll_h15_aa.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s169603_ll_h15_aa.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1004",
+        "callSign": "THAT2VM",
+        "stationId": "169594",
+        "preferredImage": {
+            "uri": "sources/generic/generic_sources_h3.png",
+            "height": "",
+            "width": "",
+            "primary": "",
+            "category": "",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1004",
+        "callSign": "BBC1CIHD",
+        "stationId": "120579",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s120579_ll_h15_aa.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -19588,14 +19588,14 @@
         "type": "",
         "name": "",
         "channel": "1004",
-        "callSign": "THAT2VM",
-        "stationId": "169594",
+        "callSign": "QVCSTHD",
+        "stationId": "123422",
         "preferredImage": {
-            "uri": "sources/generic/generic_sources_h3.png",
-            "height": "",
-            "width": "",
-            "primary": "",
-            "category": "",
+            "uri": "https://tmsimg.fancybits.co/assets/s123422_ll_h15_aa.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
             "text": "",
             "tier": ""
         },
@@ -19630,10 +19630,10 @@
         "type": "",
         "name": "",
         "channel": "1005",
-        "callSign": "TRTWEGB",
-        "stationId": "116679",
+        "callSign": "TVWARE",
+        "stationId": "118547",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s116679_ll_h15_ab.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s118547_ll_h9_aa.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -19651,10 +19651,10 @@
         "type": "",
         "name": "",
         "channel": "1005",
-        "callSign": "TVWARE",
-        "stationId": "118547",
+        "callSign": "TRTWEGB",
+        "stationId": "116679",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s118547_ll_h9_aa.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s116679_ll_h15_ab.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -19926,6 +19926,27 @@
         "type": "",
         "name": "",
         "channel": "1009",
+        "callSign": "SCINHTS",
+        "stationId": "56141",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s56141_ll_h15_aa.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "SDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1009",
         "callSign": "BOOMRG",
         "stationId": "24341",
         "preferredImage": {
@@ -19961,27 +19982,6 @@
         "videoQuality": {
             "signalType": "Digital",
             "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1009",
-        "callSign": "SCINHTS",
-        "stationId": "56141",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s56141_ll_h15_aa.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "SDTV",
             "truResolution": ""
         }
     },
@@ -20073,6 +20073,48 @@
         "type": "",
         "name": "",
         "channel": "1011",
+        "callSign": "BBC1SCH",
+        "stationId": "78995",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s78995_ll_h15_aa.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1011",
+        "callSign": "FR24EN",
+        "stationId": "60961",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s60961_ll_h9_aa.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1011",
         "callSign": "SCINPRE",
         "stationId": "21107",
         "preferredImage": {
@@ -20114,95 +20156,11 @@
     {
         "type": "",
         "name": "",
-        "channel": "1011",
-        "callSign": "FR24EN",
-        "stationId": "60961",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s60961_ll_h9_aa.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1011",
-        "callSign": "BBC1SCH",
-        "stationId": "78995",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s78995_ll_h15_aa.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
         "channel": "1012",
         "callSign": "TINPOP",
         "stationId": "153519",
         "preferredImage": {
             "uri": "https://tmsimg.fancybits.co/assets/s153519_ll_h9_ab.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1012",
-        "callSign": "BBC1SOHD",
-        "stationId": "120575",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s120575_ll_h15_aa.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1012",
-        "callSign": "SCINPRH",
-        "stationId": "59691",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s59691_ll_h15_ab.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -20234,6 +20192,48 @@
         "videoQuality": {
             "signalType": "Digital",
             "videoType": "SDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1012",
+        "callSign": "SCINPRH",
+        "stationId": "59691",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s59691_ll_h15_ab.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1012",
+        "callSign": "BBC1SOHD",
+        "stationId": "120575",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s120575_ll_h15_aa.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
             "truResolution": ""
         }
     },
@@ -20304,27 +20304,6 @@
         "type": "",
         "name": "",
         "channel": "1014",
-        "callSign": "SCINSHD",
-        "stationId": "61178",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s61178_ll_h15_ab.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1014",
         "callSign": "CRINVEU",
         "stationId": "72308",
         "preferredImage": {
@@ -20339,6 +20318,27 @@
         "videoQuality": {
             "signalType": "Digital",
             "videoType": "SDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1014",
+        "callSign": "SCINSHD",
+        "stationId": "61178",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s61178_ll_h15_ab.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
             "truResolution": ""
         }
     },
@@ -20451,6 +20451,27 @@
         "type": "",
         "name": "",
         "channel": "1016",
+        "callSign": "BBC1YLHD",
+        "stationId": "120569",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s120569_ll_h15_aa.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1016",
         "callSign": "SCINSEH",
         "stationId": "65340",
         "preferredImage": {
@@ -20471,11 +20492,11 @@
     {
         "type": "",
         "name": "",
-        "channel": "1016",
-        "callSign": "BBC1YLHD",
-        "stationId": "120569",
+        "channel": "1017",
+        "callSign": "BBC1LDHV",
+        "stationId": "121745",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s120569_ll_h15_aa.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s121745_ll_h15_aa.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -20534,11 +20555,11 @@
     {
         "type": "",
         "name": "",
-        "channel": "1017",
-        "callSign": "BBC1LDHV",
-        "stationId": "121745",
+        "channel": "1018",
+        "callSign": "SCINTHH",
+        "stationId": "50176",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s121745_ll_h15_aa.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s50176_ll_h15_ab.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -20581,27 +20602,6 @@
         "stationId": "120574",
         "preferredImage": {
             "uri": "https://tmsimg.fancybits.co/assets/s120574_ll_h15_aa.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1018",
-        "callSign": "SCINTHH",
-        "stationId": "50176",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s50176_ll_h15_ab.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -20682,27 +20682,6 @@
         "type": "",
         "name": "",
         "channel": "1020",
-        "callSign": "SKYCOM",
-        "stationId": "113612",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s113612_ll_h15_ab.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1020",
         "callSign": "ZEECISD",
         "stationId": "116922",
         "preferredImage": {
@@ -20717,6 +20696,27 @@
         "videoQuality": {
             "signalType": "Digital",
             "videoType": "SDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1020",
+        "callSign": "SKYCOM",
+        "stationId": "113612",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s113612_ll_h15_ab.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
             "truResolution": ""
         }
     },
@@ -20871,6 +20871,27 @@
         "type": "",
         "name": "",
         "channel": "1026",
+        "callSign": "SKYDOC",
+        "stationId": "114273",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s114273_ll_h15_ab.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1026",
         "callSign": "FR24ENS",
         "stationId": "122442",
         "preferredImage": {
@@ -20891,11 +20912,11 @@
     {
         "type": "",
         "name": "",
-        "channel": "1026",
-        "callSign": "SKYDOC",
-        "stationId": "114273",
+        "channel": "1027",
+        "callSign": "ALIBIHD",
+        "stationId": "75803",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s114273_ll_h15_ab.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s75803_ll_h15_ab.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -20921,27 +20942,6 @@
             "width": "",
             "primary": "",
             "category": "",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "HDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1027",
-        "callSign": "ALIBIHD",
-        "stationId": "75803",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s75803_ll_h15_ab.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
             "text": "",
             "tier": ""
         },
@@ -20997,10 +20997,10 @@
         "type": "",
         "name": "",
         "channel": "1029",
-        "callSign": "NICJIRE",
-        "stationId": "116452",
+        "callSign": "SKHISP1",
+        "stationId": "24699",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s116452_ll_h15_ab.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s24699_ll_h15_ab.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -21018,10 +21018,10 @@
         "type": "",
         "name": "",
         "channel": "1029",
-        "callSign": "SKHISP1",
-        "stationId": "24699",
+        "callSign": "NICJIRE",
+        "stationId": "116452",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s24699_ll_h15_ab.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s116452_ll_h15_ab.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -21060,27 +21060,6 @@
         "type": "",
         "name": "",
         "channel": "1031",
-        "callSign": "SKYHIS2",
-        "stationId": "60500",
-        "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s60500_ll_h15_ad.png?w=360\u0026h=270",
-            "height": "270",
-            "width": "360",
-            "primary": "true",
-            "category": "Logo",
-            "text": "",
-            "tier": ""
-        },
-        "videoQuality": {
-            "signalType": "Digital",
-            "videoType": "SDTV",
-            "truResolution": ""
-        }
-    },
-    {
-        "type": "",
-        "name": "",
-        "channel": "1031",
         "callSign": "SKYCRIT",
         "stationId": "109836",
         "preferredImage": {
@@ -21101,11 +21080,11 @@
     {
         "type": "",
         "name": "",
-        "channel": "1032",
-        "callSign": "MTVMC",
-        "stationId": "100301",
+        "channel": "1031",
+        "callSign": "SKYHIS2",
+        "stationId": "60500",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s100301_ll_h15_aa.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s60500_ll_h15_ad.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -21143,11 +21122,11 @@
     {
         "type": "",
         "name": "",
-        "channel": "1033",
-        "callSign": "SKHISHD",
-        "stationId": "52793",
+        "channel": "1032",
+        "callSign": "MTVMC",
+        "stationId": "100301",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s52793_ll_h15_ac.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s100301_ll_h15_aa.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -21157,7 +21136,7 @@
         },
         "videoQuality": {
             "signalType": "Digital",
-            "videoType": "HDTV",
+            "videoType": "SDTV",
             "truResolution": ""
         }
     },
@@ -21185,11 +21164,11 @@
     {
         "type": "",
         "name": "",
-        "channel": "1034",
-        "callSign": "ALIBI",
-        "stationId": "21258",
+        "channel": "1033",
+        "callSign": "SKHISHD",
+        "stationId": "52793",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s21258_ll_h15_ac.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s52793_ll_h15_ac.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -21199,7 +21178,7 @@
         },
         "videoQuality": {
             "signalType": "Digital",
-            "videoType": "SDTV",
+            "videoType": "HDTV",
             "truResolution": ""
         }
     },
@@ -21227,11 +21206,11 @@
     {
         "type": "",
         "name": "",
-        "channel": "1035",
-        "callSign": "SKYINTR",
-        "stationId": "116682",
+        "channel": "1034",
+        "callSign": "ALIBI",
+        "stationId": "21258",
         "preferredImage": {
-            "uri": "https://tmsimg.fancybits.co/assets/s116682_ll_h15_ab.png?w=360\u0026h=270",
+            "uri": "https://tmsimg.fancybits.co/assets/s21258_ll_h15_ac.png?w=360\u0026h=270",
             "height": "270",
             "width": "360",
             "primary": "true",
@@ -21241,7 +21220,7 @@
         },
         "videoQuality": {
             "signalType": "Digital",
-            "videoType": "HDTV",
+            "videoType": "SDTV",
             "truResolution": ""
         }
     },
@@ -21263,6 +21242,27 @@
         "videoQuality": {
             "signalType": "Digital",
             "videoType": "SDTV",
+            "truResolution": ""
+        }
+    },
+    {
+        "type": "",
+        "name": "",
+        "channel": "1035",
+        "callSign": "SKYINTR",
+        "stationId": "116682",
+        "preferredImage": {
+            "uri": "https://tmsimg.fancybits.co/assets/s116682_ll_h15_ab.png?w=360\u0026h=270",
+            "height": "270",
+            "width": "360",
+            "primary": "true",
+            "category": "Logo",
+            "text": "",
+            "tier": ""
+        },
+        "videoQuality": {
+            "signalType": "Digital",
+            "videoType": "HDTV",
             "truResolution": ""
         }
     },
