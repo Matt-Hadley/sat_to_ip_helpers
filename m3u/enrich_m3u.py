@@ -21,7 +21,7 @@ import json
 
 def load_name_to_callsign(csv_file):
     mapping = {}
-    with open(csv_file, newline='', encoding='utf-8-sig') as f:
+    with open(csv_file, newline="", encoding="utf-8-sig") as f:
         reader = csv.reader(f)
         headers = next(reader)
         name_idx = headers.index("Name")
@@ -38,7 +38,7 @@ def load_name_to_callsign(csv_file):
 
 def load_callsign_to_channel_info(json_file):
     mapping = {}
-    with open(json_file, encoding='utf-8') as f:
+    with open(json_file, encoding="utf-8") as f:
         data = json.load(f)
         for entry in data:
             callsign = entry.get("callSign", "").strip()
@@ -46,7 +46,7 @@ def load_callsign_to_channel_info(json_file):
                 mapping[callsign] = {
                     "channel": entry.get("channel", "").strip(),
                     "stationId": entry.get("stationId", "").strip(),
-                    "name": entry.get("name", "").strip()
+                    "name": entry.get("name", "").strip(),
                 }
     print(
         f"✅ Loaded {len(mapping)} Gracenote channel entries from {json_file}")
@@ -58,7 +58,7 @@ def enrich_m3u(input_m3u, output_m3u, name_to_callsign, callsign_to_info):
     missing_name = 0
     missing_callsign = 0
 
-    with open(input_m3u, encoding='utf-8') as infile, open(output_m3u, 'w', encoding='utf-8') as outfile:
+    with open(input_m3u, encoding="utf-8") as infile, open(output_m3u, "w", encoding="utf-8") as outfile:
         outfile.write("#EXTM3U\n")
         lines = infile.readlines()
         i = 0
@@ -70,29 +70,29 @@ def enrich_m3u(input_m3u, output_m3u, name_to_callsign, callsign_to_info):
 
                 callsign = name_to_callsign.get(channel_name)
                 if not callsign:
-                    print(f"⚠️  No callsign found for: {channel_name}")
-                    enriched_line = f"#EXTINF:-1,{channel_name}"
+                    print(
+                        f"⚠️  No callsign found for: {channel_name} — Skipping")
                     missing_name += 1
-                elif callsign not in callsign_to_info:
-                    print(
-                        f"⚠️  Callsign not found in JSON: {callsign} (from {channel_name})")
-                    enriched_line = f"#EXTINF:-1,{channel_name}"
-                    missing_callsign += 1
-                else:
-                    info = callsign_to_info[callsign]
-                    enriched_line = (
-                        f'#EXTINF:-1 channel-id="{info["stationId"]}" '
-                        # f'channel-number="{info["channel"]}" '
-                        # f'tvc-guide-title="{channel_name}" '
-                        f'tvg-name="{channel_name}"'
-                        f',{callsign}'
-                    )
-                    print(
-                        f"✅ Enriched: {channel_name} → ID: {callsign}, Channel: {info['channel']}")
-                    enriched += 1
+                    i += 2
+                    continue  # Skip this entry entirely
 
+                info = callsign_to_info.get(callsign)
+                if not info:
+                    print(
+                        f"⚠️  Callsign not found in JSON: {callsign} (from {channel_name}) — Skipping")
+                    missing_callsign += 1
+                    i += 2
+                    continue  # Skip this entry entirely
+
+                enriched_line = (
+                    f'#EXTINF:-1 channel-id="{callsign}" '
+                    f'tvg-name="{channel_name}",{callsign}'
+                )
+                print(
+                    f"✅ Enriched: {channel_name} → ID: {callsign}, Channel: {info['channel']}")
                 outfile.write(enriched_line + "\n")
                 outfile.write(stream_url + "\n")
+                enriched += 1
                 i += 2
             else:
                 i += 1

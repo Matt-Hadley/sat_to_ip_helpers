@@ -53,3 +53,4 @@ pytestdebug.log
 
 # Project settings
 output/*
+*.m3u
