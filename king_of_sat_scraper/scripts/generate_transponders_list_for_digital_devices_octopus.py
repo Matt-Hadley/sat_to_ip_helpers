@@ -18,8 +18,8 @@ logging.basicConfig(
 )
 
 
-def build_url(base_url, position, filtre, cl):
-    url = f"{base_url}?pos={position}&standard=All&ordre=freq&filtre={filtre}&cl={cl}"
+def build_url(base_url, position, filter, cl):
+    url = f"{base_url}?pos={position}&standard=All&ordre=freq&filtre={filter}&cl={cl}"
     logging.debug(f"Built URL: {url}")
     return url
 
@@ -40,8 +40,8 @@ def fetch_html_content(url):
         return None
 
 
-def parse_kingofsat(base_url, position, filtre, cl):
-    url = build_url(base_url, position, filtre, cl)
+def parse_kingofsat(base_url, position, filter, cl):
+    url = build_url(base_url, position, filter, cl)
 
     html_content = fetch_html_content(url)
     if html_content is None:
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scrape KingOfSat FTA or encrypted transponders")
     parser.add_argument("--base-url", type=str, default=DEFAULT_BASE_URL, help="Base URL for KingOfSat")
     parser.add_argument("--position", type=str, default="28.2E", help="Satellite position (e.g. 28.2E, 13.0E)")
-    parser.add_argument("--filtre", type=str, default="Clear", help="Filter: Clear (FTA), All, or Encrypted")
+    parser.add_argument("--filter", type=str, default="Clear", help="Filter: Clear (FTA), All, or Encrypted")
     parser.add_argument("--cl", type=str, default="eng", help="Channel language filter (e.g. eng, fra, ger)")
     parser.add_argument("--output-dir", type=str, default="output", help="Directory to save output JSON")
 
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     transponder_data = parse_kingofsat(
         base_url=args.base_url,
         position=args.position,
-        filtre=args.filtre,
+        filter=args.filter,
         cl=args.cl,
     )
 
@@ -104,7 +104,7 @@ if __name__ == "__main__":
         os.makedirs(args.output_dir, exist_ok=True)
         output_path = os.path.join(
             args.output_dir,
-            f"transponders_{args.position.replace('.', '').replace('°', '')}_{args.filtre.lower()}_{args.cl}.json",
+            f"transponders_{args.position.replace('.', '').replace('°', '')}_{args.filter.lower()}_{args.cl}.json",
         )
         try:
             with open(output_path, "w") as f:
