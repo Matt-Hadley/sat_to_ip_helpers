@@ -22,14 +22,14 @@ class KingOfSatScraper:
         expected_columns = [
             "Pos",
             "Satellite",
-            "Frequence",
+            "Frequency",
             "Pol",
             "Txp",
-            "Beam",
+            "Coverage area",
             "Standard",
             "Modulation",
             "SR/FEC",
-            "Network, bitrate",
+            "Network, Bitrate",
             "NID",
             "TID",
         ]

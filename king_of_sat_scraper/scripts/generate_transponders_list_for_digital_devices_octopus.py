@@ -62,17 +62,22 @@ def parse_kingofsat(base_url, position, filter, cl):
 
     transponder_list = [
         {
-            "Request": f"freq={transponder.frequency}&pol={transponder.polarization.lower()}&mtype={transponder.modulation}&msys={transponder.system.lower().replace('-', '')}&sr={transponder.symbol_rate}"
+            "Request": f"freq={int(float(transponder.frequency))}&pol={transponder.polarization.lower()}&mtype={transponder.modulation}&msys={transponder.system.lower().replace('-', '')}&sr={int(float(transponder.symbol_rate))}"
         }
         for transponder in transponders
     ]
 
     # Structure the output as required
-    result = {
+    source = {
         "Title": title,
         "DVBType": "S",  # Assuming DVB-S, adjust if needed
         "Key": key,
         "TransponderList": transponder_list,
+    }
+
+    result = {
+        "GroupList": [],
+        "SourceList": [source]
     }
 
     return result
@@ -81,7 +86,7 @@ def parse_kingofsat(base_url, position, filter, cl):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scrape KingOfSat FTA or encrypted transponders")
     parser.add_argument("--base-url", type=str, default=DEFAULT_BASE_URL, help="Base URL for KingOfSat")
-    parser.add_argument("--position", type=str, default="28.2E", help="Satellite position (e.g. 28.2E, 13.0E)")
+    parser.add_argument("--position", type=str, nargs="+", default=["28.2E"], help="Satellite position(s) (e.g. 28.2E 13.0E)")
     parser.add_argument("--filter", type=str, default="Clear", help="Filter: Clear (FTA), All, or Encrypted")
     parser.add_argument("--cl", type=str, default="eng", help="Channel language filter (e.g. eng, fra, ger)")
     parser.add_argument("--output-dir", type=str, default="output", help="Directory to save output JSON")
@@ -91,26 +96,40 @@ if __name__ == "__main__":
     logging.info("Starting transponder scraping script.")
     logging.debug(f"Arguments: {args}")
 
-    # Fetch and parse the transponder data
-    transponder_data = parse_kingofsat(
-        base_url=args.base_url,
-        position=args.position,
-        filter=args.filter,
-        cl=args.cl,
-    )
+    source_list = []
 
-    if transponder_data:
+    for pos in args.position:
+        logging.info(f"Processing position: {pos}")
+        transponder_data = parse_kingofsat(
+            base_url=args.base_url,
+            position=pos,
+            filter=args.filter,
+            cl=args.cl,
+        )
+        
+        if transponder_data and "SourceList" in transponder_data and transponder_data["SourceList"]:
+            source_list.extend(transponder_data["SourceList"])
+        else:
+            logging.warning(f"⚠️ No transponder data found for position {pos}.")
+
+    if source_list:
+        combined_data = {
+            "GroupList": [],
+            "SourceList": source_list
+        }
+
         # Save parsed transponder data to JSON file
         os.makedirs(args.output_dir, exist_ok=True)
+        positions_str = "_".join([p.replace('.', '').replace('°', '') for p in args.position])
         output_path = os.path.join(
             args.output_dir,
-            f"transponders_{args.position.replace('.', '').replace('°', '')}_{args.filter.lower()}_{args.cl}.json",
+            f"transponders_{positions_str}_{args.filter.lower()}_{args.cl}.json",
         )
         try:
             with open(output_path, "w") as f:
-                json.dump(transponder_data, f, indent=2)
+                json.dump(combined_data, f, indent=2)
             logging.info(f"✅ Transponder data saved to {output_path}")
         except IOError as e:
             logging.error(f"❌ Failed to save data to {output_path}: {e}")
     else:
-        logging.warning("⚠️ No transponder data to save.")
+        logging.warning("⚠️ No transponder data to save for any position.")
