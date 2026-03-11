@@ -87,6 +87,7 @@ def enrich_m3u_text(
     Returns:
         EnrichmentResult(text, enriched_count, skipped_count)
     """
+    explicit_lower = {k.lower(): v for k, v in explicit_mappings.items()}
     lines = m3u_text.splitlines()
     output = ["#EXTM3U"]
     enriched = skipped = 0
@@ -98,7 +99,7 @@ def enrich_m3u_text(
             channel_label = line.split(",", 1)[1].strip()
             stream_url = lines[i + 1].strip() if i + 1 < len(lines) else ""
 
-            callsign = explicit_mappings.get(channel_label)
+            callsign = explicit_lower.get(channel_label.lower())
             if not callsign:
                 callsign = lookups.name_to_callsign.get(normalize_name(channel_label))
 

@@ -56,20 +56,3 @@ def log_scan_diff(before: list[dict], after: list[dict]) -> None:
             logger.warning(f"     ~ {ch_after.get('name', '?')}  {ch_freq(ch_before)} → {ch_freq(ch_after)}")
 
 
-def restore_dms_after_scan(pre_dms: list[dict], post_available: list[dict]) -> tuple[list[dict], list[str]]:
-    """Match pre-scan DMS channels to post-scan available channels by serviceid.
-
-    Returns (restored_channels, missing_names).
-    Restored channels use post-scan objects (updated parameters) with original positions.
-    """
-    post_by_id = {ch["serviceid"]: ch for ch in post_available if "serviceid" in ch}
-    restored, missing = [], []
-    for ch in sorted(pre_dms, key=lambda c: c.get("position", 0)):
-        sid = ch.get("serviceid")
-        if sid and sid in post_by_id:
-            post_ch = dict(post_by_id[sid])
-            post_ch["position"] = ch.get("position", 0)
-            restored.append(post_ch)
-        else:
-            missing.append(ch.get("name", sid))
-    return restored, missing

@@ -32,12 +32,10 @@ Sky Mix HD
 Sky Arts
 Great! TV
 Great! Action
-Great! Mystery
 Great! Romance
 BLAZE
 DMAX
 Food Network
-HGTV
 TalkingPictures
 LEGEND
 LEGEND XTRA
@@ -68,7 +66,6 @@ BBC R3
 BBC R4
 BBC R4 Extra
 BBC R5L
-BBC R5SX
 BBC R6 Music
 Capital
 Capital XTRA

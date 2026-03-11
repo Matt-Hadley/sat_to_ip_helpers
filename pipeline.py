@@ -53,6 +53,7 @@ from utils_pipeline import (
     filter_channels,
     interactive_dms_editor,
     load_region_mappings,
+    log_scan_diff,
 )
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -163,6 +164,8 @@ def step_3(args, state: dict) -> None:
     """Trigger channel scan and wait for completion."""
     logger.info("▶  Step 3: Triggering channel scan")
     client = state.setdefault("octopus", _octopus(args))
+    pre_available = client.get_available_channels([])
+    logger.info(f"   Pre-scan: {len(pre_available)} channels available")
     client.start_scan(args.positions)
     client.poll_scan_until_complete(
         interval=args.scan_poll_interval,
@@ -170,6 +173,7 @@ def step_3(args, state: dict) -> None:
     )
     post_available = client.get_available_channels([])
     logger.info(f"   Post-scan: {len(post_available)} channels found")
+    log_scan_diff(pre_available, post_available)
     logger.info("✅  Step 3 done")
 
 

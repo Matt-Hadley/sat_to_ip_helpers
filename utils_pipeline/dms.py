@@ -3,26 +3,6 @@
 import curses
 
 
-def merge_dms_selections(dms_channels: list[dict], chosen: list[dict]) -> list[dict]:
-    """Build the final DMS list from the current DMS and a new user selection.
-
-    Channels already in the DMS keep their existing position.
-    Newly added channels are appended with sequential positions at the end.
-    """
-    dms_by_id = {ch["serviceid"]: ch for ch in dms_channels}
-    next_pos = max((ch.get("position", 0) for ch in dms_channels), default=-1) + 1
-    final, new_offset = [], 0
-    for ch in chosen:
-        sid = ch.get("serviceid")
-        if sid and sid in dms_by_id:
-            final.append(dms_by_id[sid])
-        else:
-            ch["position"] = next_pos + new_offset
-            new_offset += 1
-            final.append(ch)
-    return final
-
-
 def build_dms_entries(dms_channels: list[dict], available: list[dict]) -> tuple[list[dict], list[str], list[bool]]:
     """Return (channels, origin_labels, selected) sorted video-first then by name.
 

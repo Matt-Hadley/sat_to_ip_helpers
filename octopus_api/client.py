@@ -77,11 +77,16 @@ class OctopusClient:
         done_confirmations = 0
         while time.time() < deadline:
             ts = int(time.time() * 1000)
-            resp = self.session.get(
-                f"{self.base_url}/status/octoscan-satip",
-                params={"_": ts},
-                verify=False,
-            )
+            try:
+                resp = self.session.get(
+                    f"{self.base_url}/status/octoscan-satip",
+                    params={"_": ts},
+                    verify=False,
+                )
+            except (requests.exceptions.ChunkedEncodingError, requests.exceptions.ConnectionError) as exc:
+                logger.warning(f"Transient connection error during scan poll, retrying: {exc}")
+                time.sleep(interval)
+                continue
             if resp.status_code == 404 or not resp.text.strip():
                 done_confirmations += 1
                 if done_confirmations >= 3:

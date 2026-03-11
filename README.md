@@ -204,11 +204,11 @@ sat_to_ip_helpers/
 │       └── test_enrichment.py
 │
 └── utils_pipeline/                  ← pipeline helpers (pure functions + exceptions)
+    ├── channels.py                  ← filter available channels by name/type
     ├── csv_mappings.py              ← load regional Name→Callsign mappings
-    ├── channels.py                  ← DMS channel filtering
-    ├── dms.py                       ← interactive DMS editor
-    ├── scan.py                      ← scan diff + DMS restore logic
+    ├── dms.py                       ← curses-based interactive DMS channel editor
     ├── exceptions.py                ← PipelineError hierarchy
+    ├── scan.py                      ← scan diff helpers (compare pre/post scan channel lists)
     └── tests/
 ```
 

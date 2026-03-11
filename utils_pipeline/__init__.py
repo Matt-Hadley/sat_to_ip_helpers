@@ -9,6 +9,7 @@ from utils_pipeline.exceptions import (
     StateError,
     StepError,
 )
+from utils_pipeline.scan import log_scan_diff
 
 __all__ = [
     "ConfigurationError",
@@ -19,4 +20,5 @@ __all__ = [
     "interactive_dms_editor",
     "available_regions",
     "load_region_mappings",
+    "log_scan_diff",
 ]
