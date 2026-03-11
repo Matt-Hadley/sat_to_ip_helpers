@@ -15,7 +15,12 @@ line_length = 120
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "--strict-markers --maxfail=3 --disable-warnings"
-testpaths = ["tests"]
+testpaths = [
+    "king_of_sat_scraper/tests",
+    "octopus_api/tests",
+    "channels_dvr/tests",
+    "m3u/tests",
+]
 
 [build-system]
 requires = ["setuptools", "wheel"]
