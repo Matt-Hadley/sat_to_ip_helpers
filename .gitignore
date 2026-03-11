@@ -56,3 +56,4 @@ output/*
 *.m3u
 
 .claude/*
+.pipeline_state/*

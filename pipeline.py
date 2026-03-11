@@ -26,12 +26,11 @@ Examples:
   # Trigger an Octopus scan only (step 3):
   python pipeline.py --steps 3 --octopus-host octopus.local --positions 28.2E
 
-  # Re-run enrichment and push after updating your mapping CSV (steps 7-8):
-  python pipeline.py --steps 7 8 --source-id MySource --mapping-csv overrides.csv
+  # Re-run enrichment and push using the built-in UK mappings (steps 7-8):
+  python pipeline.py --steps 7 8 --source-id MySource --mapping-region uk
 """
 
 import argparse
-import csv
 import json
 import logging
 import os
@@ -45,6 +44,16 @@ from king_of_sat_scraper.client import KingOfSatClient
 from m3u.enrichment import build_gracenote_lookups, enrich_m3u_text
 from octopus_api.client import OctopusClient
 from octopus_api.transponders import build_upload_payload, format_source
+from utils_pipeline import (
+    ConfigurationError,
+    PipelineError,
+    StateError,
+    StepError,
+    available_regions,
+    filter_channels,
+    interactive_dms_editor,
+    load_region_mappings,
+)
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-8s %(message)s")
@@ -71,33 +80,9 @@ def save_state(state_dir: str, key: str, data, text: bool = False) -> None:
 def load_state(state_dir: str, key: str, text: bool = False):
     path = _state_path(state_dir, key, text)
     if not os.path.exists(path):
-        sys.exit(f"❌  State file not found: {path}\n   Run earlier steps first.")
+        raise StateError(f"State file not found: {path}\n   Run earlier steps first.")
     with open(path, encoding="utf-8") as f:
         return f.read() if text else json.load(f)
-
-
-# ---------------------------------------------------------------------------
-# Misc helpers
-# ---------------------------------------------------------------------------
-
-
-def _load_csv_mappings(path: str) -> dict[str, str]:
-    """Load a Name→Callsign CSV override file."""
-    mappings: dict[str, str] = {}
-    with open(path, newline="", encoding="utf-8-sig") as f:
-        reader = csv.reader(f)
-        try:
-            headers = next(reader)
-            name_idx = headers.index("Name")
-            callsign_idx = headers.index("Callsign")
-        except (ValueError, StopIteration):
-            logger.warning(f"Invalid CSV headers in {path}, expected Name,Callsign")
-            return mappings
-        for row in reader:
-            if len(row) > max(name_idx, callsign_idx):
-                mappings[row[name_idx].strip()] = row[callsign_idx].strip()
-    logger.info(f"Loaded {len(mappings)} channel mappings from {path}")
-    return mappings
 
 
 # ---------------------------------------------------------------------------
@@ -107,10 +92,10 @@ def _load_csv_mappings(path: str) -> dict[str, str]:
 
 def _octopus(args) -> OctopusClient:
     if not args.octopus_host:
-        sys.exit("❌  --octopus-host is required for Octopus steps (2, 3, 4, 5)")
+        raise ConfigurationError("--octopus-host is required for Octopus steps (2, 3, 4, 5)")
     password = args.octopus_password or os.environ.get("OCTOPUS_PASSWORD")
     if not password:
-        sys.exit("❌  Set OCTOPUS_PASSWORD env var or pass --octopus-password")
+        raise ConfigurationError("Set OCTOPUS_PASSWORD env var or pass --octopus-password")
     return OctopusClient.login(
         base_url=f"http://{args.octopus_host}",
         username=args.octopus_user,
@@ -121,7 +106,7 @@ def _octopus(args) -> OctopusClient:
 def _channels_dvr(args) -> ChannelsDVRClient:
     sid = args.channels_dvr_sid or os.environ.get("CHANNELS_DVR_SID")
     if not sid:
-        sys.exit("❌  Set CHANNELS_DVR_SID env var or pass --channels-dvr-sid")
+        raise ConfigurationError("Set CHANNELS_DVR_SID env var or pass --channels-dvr-sid")
     return ChannelsDVRClient.with_sid(
         host=args.channels_dvr_host,
         port=args.channels_dvr_port,
@@ -157,7 +142,7 @@ def step_1(args, state: dict) -> None:
         logger.info(f"   {pos}: {len(transponders)} transponders ({satellite})")
 
     if not sources:
-        sys.exit("❌  No transponder data scraped. Aborting.")
+        raise StepError("No transponder data scraped. Aborting.")
 
     payload = build_upload_payload(sources)
     save_state(args.state_dir, "transponders", payload)
@@ -178,71 +163,32 @@ def step_3(args, state: dict) -> None:
     """Trigger channel scan and wait for completion."""
     logger.info("▶  Step 3: Triggering channel scan")
     client = state.setdefault("octopus", _octopus(args))
-
-    pre_scan = client.get_dms_channels() + client.get_available_channels([])
-    logger.info(f"   Pre-scan: {len(pre_scan)} channels found")
-
     client.start_scan(args.positions)
     client.poll_scan_until_complete(
         interval=args.scan_poll_interval,
         timeout=args.scan_timeout,
     )
-
-    post_scan = client.get_dms_channels() + client.get_available_channels([])
-    logger.info(f"   Post-scan: {len(post_scan)} channels found")
-
-    _diff_scan_results(pre_scan, post_scan)
+    post_available = client.get_available_channels([])
+    logger.info(f"   Post-scan: {len(post_available)} channels found")
     logger.info("✅  Step 3 done")
 
 
-def _diff_scan_results(before: list[dict], after: list[dict]) -> None:
-    """Log channels added, removed, or changed frequency between two scans."""
-
-    def _ch_freq(ch: dict):
-        return ch.get("frequency") or ch.get("freq")
-
-    before_by_id = {ch["serviceid"]: ch for ch in before if "serviceid" in ch}
-    after_by_id = {ch["serviceid"]: ch for ch in after if "serviceid" in ch}
-
-    added = [ch for sid, ch in after_by_id.items() if sid not in before_by_id]
-    removed = [ch for sid, ch in before_by_id.items() if sid not in after_by_id]
-    freq_changed = [
-        (before_by_id[sid], ch)
-        for sid, ch in after_by_id.items()
-        if sid in before_by_id and _ch_freq(before_by_id[sid]) != _ch_freq(ch)
-    ]
-
-    if not added and not removed and not freq_changed:
-        logger.info("   No changes detected vs previous scan")
-        return
-
-    if added:
-        logger.info(f"   New channels ({len(added)}):")
-        for ch in added:
-            logger.info(f"     + {ch.get('name', '?')}  freq={_ch_freq(ch)}  type={ch.get('type', '?')}")
-
-    if removed:
-        logger.warning(f"   ⚠️  Channels no longer found ({len(removed)}):")
-        for ch in removed:
-            logger.warning(f"     - {ch.get('name', '?')}  freq={_ch_freq(ch)}")
-
-    if freq_changed:
-        logger.warning(f"   ⚠️  Channels with changed frequency ({len(freq_changed)}):")
-        for ch_before, ch_after in freq_changed:
-            logger.warning(f"     ~ {ch_after.get('name', '?')}  " f"{_ch_freq(ch_before)} → {_ch_freq(ch_after)}")
-
-
 def step_4(args, state: dict) -> None:
-    """Add discovered channels to the Octopus DMS."""
+    """Add channels from the last scan to the Octopus DMS."""
     logger.info("▶  Step 4: Adding channels to DMS")
     client = state.setdefault("octopus", _octopus(args))
+    available = client.get_available_channels([])
 
-    dms_channels = client.get_dms_channels()
-    dms_ids = [ch["serviceid"] for ch in dms_channels]
-    logger.info(f"   Existing DMS channels: {len(dms_channels)}")
-
-    available = client.get_available_channels(dms_ids)
-    logger.info(f"   Available (not in DMS): {len(available)}")
+    if not args.add_channels and sys.stdin.isatty():
+        chosen = interactive_dms_editor([], available)
+        if chosen is None:
+            logger.info("   Cancelled — DMS unchanged.")
+            return
+        for i, ch in enumerate(chosen):
+            ch["position"] = i
+        client.save_channels(chosen)
+        logger.info(f"✅  Step 4 done — {len(chosen)} channels saved to DMS")
+        return
 
     if not args.add_channels:
         logger.info("   Channels available to add:")
@@ -260,73 +206,60 @@ def step_4(args, state: dict) -> None:
         logger.info("   Step 4 skipped. Re-run with --steps 4 --add-channels <spec>")
         return
 
-    to_add, unmatched = _filter_channels(available, args.add_channels)
+    to_add, unmatched = filter_channels(available, args.add_channels)
     for entry in unmatched:
         logger.warning(f"   ⚠️  No channel found matching: {entry!r}")
-    logger.info(f"   Channels to add: {len(to_add)}")
 
     if not to_add:
         logger.info("   Nothing matched --add-channels spec.")
         return
 
-    next_pos = max((ch.get("position", 0) for ch in dms_channels), default=-1) + 1
     for i, ch in enumerate(to_add):
-        ch["position"] = next_pos + i
-
-    client.save_channels(dms_channels + to_add)
-    logger.info("✅  Step 4 done")
-
-
-def _match_entry(entry: str, channels: list[dict], seen_ids: set) -> list[dict]:
-    """Return channels matching a single spec entry ('Name' or 'Name@Frequency')."""
-    if "@" in entry:
-        name_part, freq_part = entry.split("@", 1)
-        name_lower, freq = name_part.strip().lower(), freq_part.strip()
-        return [
-            ch
-            for ch in channels
-            if ch.get("name", "").lower() == name_lower
-            and str(ch.get("frequency") or ch.get("freq", "")) == freq
-            and ch.get("serviceid", id(ch)) not in seen_ids
-        ]
-    # No frequency — first match only; use Name@Frequency to be explicit
-    name_lower = entry.lower()
-    for ch in channels:
-        if ch.get("name", "").lower() == name_lower and ch.get("serviceid", id(ch)) not in seen_ids:
-            return [ch]
-    return []
+        ch["position"] = i
+    client.save_channels(to_add)
+    logger.info(f"✅  Step 4 done — {len(to_add)} channels saved to DMS")
 
 
-def _filter_channels(channels: list[dict], spec: str) -> tuple[list[dict], list[str]]:
-    """Return (matched_channels, unmatched_spec_entries).
 
-    spec can be: all | video | audio | comma-separated 'Name' or 'Name@Frequency'
-    """
-    if spec == "all":
-        return channels, []
-    if spec in ("video", "audio"):
-        return [ch for ch in channels if ch.get("type") == spec], []
-    matches: list[dict] = []
-    unmatched: list[str] = []
-    seen_ids: set = set()
-    for entry in (e.strip() for e in spec.split(",")):
-        found = _match_entry(entry, channels, seen_ids)
-        if found:
-            matches.extend(found)
-            seen_ids.update(ch.get("serviceid", id(ch)) for ch in found)
+def _split_m3u(m3u_text: str, audio_names: set[str]) -> tuple[str, str]:
+    """Split an M3U into TV and radio based on a set of audio channel names."""
+    tv_lines = ["#EXTM3U"]
+    radio_lines = ["#EXTM3U"]
+    lines = m3u_text.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if line.startswith("#EXTINF:"):
+            channel_label = line.split(",", 1)[1].strip()
+            stream_url = lines[i + 1].strip() if i + 1 < len(lines) else ""
+            if channel_label in audio_names:
+                radio_lines.extend([line, stream_url])
+            else:
+                tv_lines.extend([line, stream_url])
+            i += 2
         else:
-            unmatched.append(entry)
-    return matches, unmatched
+            i += 1
+    return "\n".join(tv_lines) + "\n", "\n".join(radio_lines) + "\n"
 
 
 def step_5(args, state: dict) -> None:
-    """Download M3U from Octopus."""
+    """Download M3U from Octopus and split into TV and radio."""
     logger.info("▶  Step 5: Downloading M3U from Octopus")
     client = state.setdefault("octopus", _octopus(args))
     m3u_text = client.download_m3u()
-    save_state(args.state_dir, "octopus_m3u", m3u_text, text=True)
-    state["octopus_m3u"] = m3u_text
-    logger.info(f"✅  Step 5 done — {len(m3u_text)} bytes")
+
+    dms = client.get_dms_channels()
+    audio_names = {ch["name"] for ch in dms if ch.get("type") == "audio"}
+    tv_m3u, radio_m3u = _split_m3u(m3u_text, audio_names)
+
+    tv_count = tv_m3u.count("#EXTINF")
+    radio_count = radio_m3u.count("#EXTINF")
+
+    save_state(args.state_dir, "octopus_m3u_tv", tv_m3u, text=True)
+    save_state(args.state_dir, "octopus_m3u_radio", radio_m3u, text=True)
+    state["octopus_m3u_tv"] = tv_m3u
+    state["octopus_m3u_radio"] = radio_m3u
+    logger.info(f"✅  Step 5 done — TV: {tv_count} channels, Radio: {radio_count} channels")
 
 
 def step_6(args, state: dict) -> None:
@@ -340,34 +273,57 @@ def step_6(args, state: dict) -> None:
 
 
 def step_7(args, state: dict) -> None:
-    """Enrich M3U with Gracenote metadata."""
+    """Enrich TV and radio M3Us with Gracenote metadata."""
     logger.info("▶  Step 7: Enriching M3U with Gracenote data")
-    m3u_text = state.get("octopus_m3u") or load_state(args.state_dir, "octopus_m3u", text=True)
+    tv_m3u = state.get("octopus_m3u_tv") or load_state(args.state_dir, "octopus_m3u_tv", text=True)
+    radio_m3u = state.get("octopus_m3u_radio") or load_state(args.state_dir, "octopus_m3u_radio", text=True)
     gracenote_data = state.get("gracenote") or load_state(args.state_dir, "gracenote")
 
-    explicit_mappings = _load_csv_mappings(args.mapping_csv) if args.mapping_csv else {}
+    explicit_mappings = load_region_mappings(args.mapping_region) if args.mapping_region else {}
     lookups = build_gracenote_lookups(gracenote_data)
-    result = enrich_m3u_text(m3u_text, explicit_mappings, lookups)
 
-    save_state(args.state_dir, "enriched_m3u", result.text, text=True)
-    state["enriched_m3u"] = result.text
-    for ch in result.skipped_channels:
+    tv_result = enrich_m3u_text(tv_m3u, explicit_mappings, lookups)
+    radio_result = enrich_m3u_text(radio_m3u, explicit_mappings, lookups)
+
+    save_state(args.state_dir, "enriched_m3u_tv", tv_result.text, text=True)
+    save_state(args.state_dir, "enriched_m3u_radio", radio_result.text, text=True)
+    state["enriched_m3u_tv"] = tv_result.text
+    state["enriched_m3u_radio"] = radio_result.text
+
+    for ch in tv_result.skipped_channels + radio_result.skipped_channels:
         logger.warning(f"   ⚠️  No Gracenote match, channel excluded from M3U: {ch!r}")
-    logger.info(f"✅  Step 7 done — enriched: {result.enriched}, skipped: {result.skipped}")
+    logger.info(
+        f"✅  Step 7 done — "
+        f"TV: {tv_result.enriched} enriched, {tv_result.skipped} skipped  |  "
+        f"Radio: {radio_result.enriched} enriched, {radio_result.skipped} skipped"
+    )
 
 
 def step_8(args, state: dict) -> None:
-    """Push enriched M3U to Channels DVR."""
-    logger.info("▶  Step 8: Updating Channels DVR source")
-    if not args.source_id:
-        sys.exit("❌  --source-id is required for step 8")
-    enriched_m3u = state.get("enriched_m3u") or load_state(args.state_dir, "enriched_m3u", text=True)
+    """Push enriched TV and radio M3Us to Channels DVR."""
+    logger.info("▶  Step 8: Updating Channels DVR source(s)")
+    if not args.source_id and not args.source_id_radio:
+        raise ConfigurationError("--source-id and/or --source-id-radio is required for step 8")
     client = state.setdefault("channels_dvr", _channels_dvr(args))
-    client.update_m3u_source(
-        source_id=args.source_id,
-        display_name=args.source_display_name or args.source_id,
-        m3u_text=enriched_m3u,
-    )
+
+    if args.source_id:
+        tv_m3u = state.get("enriched_m3u_tv") or load_state(args.state_dir, "enriched_m3u_tv", text=True)
+        client.update_m3u_source(
+            source_id=args.source_id,
+            display_name=args.source_display_name or args.source_id,
+            m3u_text=tv_m3u,
+        )
+        logger.info(f"   TV source updated: {args.source_id}")
+
+    if args.source_id_radio:
+        radio_m3u = state.get("enriched_m3u_radio") or load_state(args.state_dir, "enriched_m3u_radio", text=True)
+        client.update_m3u_source(
+            source_id=args.source_id_radio,
+            display_name=args.source_display_name_radio or args.source_id_radio,
+            m3u_text=radio_m3u,
+        )
+        logger.info(f"   Radio source updated: {args.source_id_radio}")
+
     logger.info("✅  Step 8 done")
 
 
@@ -426,7 +382,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     g = p.add_argument_group("Step 3 — Scan options")
     g.add_argument(
-        "--scan-poll-interval", type=int, default=5, metavar="SEC", help="How often to poll scan status (default: 5)"
+        "--scan-poll-interval", type=int, default=1, metavar="SEC", help="How often to poll scan status (default: 1)"
     )
     g.add_argument(
         "--scan-timeout",
@@ -446,7 +402,7 @@ def build_parser() -> argparse.ArgumentParser:
             "all | video | audio | "
             "comma-separated names ('BBC One HD,ITV HD') | "
             "name@frequency in MHz ('BBC One HD@10773,ITV HD@11386'). "
-            "Omit to list available channels without adding any."
+            "Omit to use the interactive editor (if a TTY) or list available channels."
         ),
     )
 
@@ -474,19 +430,30 @@ def build_parser() -> argparse.ArgumentParser:
 
     g = p.add_argument_group("Step 7 — M3U enrichment options")
     g.add_argument(
-        "--mapping-csv",
-        default=None,
-        metavar="PATH",
-        help="CSV with Name,Callsign overrides for channels that don't auto-match",
+        "--mapping-region",
+        default="uk",
+        metavar="REGION",
+        help=(
+            f"Region to use for built-in Name→Callsign mappings "
+            f"(available: {', '.join(available_regions()) or 'none'}). "
+            f"Default: uk"
+        ),
     )
 
     g = p.add_argument_group("Step 8 — Push to Channels DVR")
-    g.add_argument("--source-id", default=None, metavar="ID", help="Channels DVR M3U source ID (required for step 8)")
+    g.add_argument("--source-id", default=None, metavar="ID", help="Channels DVR source ID for TV channels")
     g.add_argument(
         "--source-display-name",
         default=None,
         metavar="NAME",
-        help="Display name for the source (defaults to --source-id)",
+        help="Display name for the TV source (defaults to --source-id)",
+    )
+    g.add_argument("--source-id-radio", default=None, metavar="ID", help="Channels DVR source ID for radio channels")
+    g.add_argument(
+        "--source-display-name-radio",
+        default=None,
+        metavar="NAME",
+        help="Display name for the radio source (defaults to --source-id-radio)",
     )
 
     return p
@@ -497,17 +464,21 @@ def main() -> None:
     steps_to_run = sorted(args.steps) if args.steps else ALL_STEPS
     logger.info(f"Running steps: {steps_to_run}")
     state: dict = {}
-    for n in steps_to_run:
-        try:
+    try:
+        for n in steps_to_run:
             STEPS[n](args, state)
-        except TimeoutError as exc:
-            sys.exit(f"❌  Step {n} timed out: {exc}\n   Try increasing --scan-timeout")
-        except requests.exceptions.ConnectionError as exc:
-            sys.exit(f"❌  Step {n} connection error — is the host reachable?\n   {exc}")
-        except requests.exceptions.HTTPError as exc:
-            sys.exit(f"❌  Step {n} HTTP error: {exc}")
-        except RuntimeError as exc:
-            sys.exit(f"❌  Step {n} failed: {exc}")
+    except PipelineError as exc:
+        sys.exit(f"❌  {exc}")
+    except TimeoutError as exc:
+        sys.exit(f"❌  Step timed out: {exc}\n   Try increasing --scan-timeout")
+    except requests.exceptions.ConnectionError as exc:
+        sys.exit(f"❌  Connection error — is the host reachable?\n   {exc}")
+    except requests.exceptions.HTTPError as exc:
+        sys.exit(f"❌  HTTP error: {exc}")
+    except Exception as exc:
+        logger.exception("Unexpected error")
+        sys.exit(f"❌  An unexpected error occurred: {exc}")
+
     logger.info("🎉  Pipeline complete")
 
 

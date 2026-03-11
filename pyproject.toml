@@ -20,7 +20,9 @@ testpaths = [
     "octopus_api/tests",
     "channels_dvr/tests",
     "m3u/tests",
+    "utils_pipeline/tests",
 ]
+pythonpath = ["."]
 
 [build-system]
 requires = ["setuptools", "wheel"]

@@ -92,8 +92,8 @@ def test_upload_transponders_sends_multipart():
     client, session = _client()
     client.upload_transponders({"GroupList": [], "SourceList": []})
     files = session.post.call_args.kwargs["files"]
-    assert "file" in files
-    filename, content, mime = files["file"]
+    assert "transponderlist" in files
+    filename, content, mime = files["transponderlist"]
     assert filename == "transponders.json"
     assert mime == "application/json"
 
@@ -115,11 +115,13 @@ def test_download_m3u_returns_response_text():
 # ---------------------------------------------------------------------------
 
 
-def test_poll_scan_returns_when_running_is_false():
+def test_poll_scan_returns_when_octopus_returns_404():
     client, session = _client()
-    session.get.return_value.json.return_value = {"running": False, "found": 42}
+    # Mock three 404s to satisfy the done_confirmations check
+    session.get.return_value.status_code = 404
+    session.get.return_value.text = ""
     result = client.poll_scan_until_complete(interval=0)
-    assert result["found"] == 42
+    assert result == {}
 
 
 def test_poll_scan_raises_timeout():

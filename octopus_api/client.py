@@ -43,7 +43,7 @@ class OctopusClient:
         json_bytes = json.dumps(payload, indent=2).encode("utf-8")
         resp = self.session.post(
             f"{self.base_url}/channelsearch/uploadCustom",
-            files={"file": ("transponders.json", json_bytes, "application/json")},
+            files={"transponderlist": ("transponders.json", json_bytes, "application/json")},
             verify=False,
         )
         resp.raise_for_status()
@@ -66,10 +66,15 @@ class OctopusClient:
         resp.raise_for_status()
         logger.info(f"Scan started: {target_s}")
 
-    def poll_scan_until_complete(self, interval: int = 5, timeout: int = 600) -> dict:
-        """Poll /status/octoscan-satip until 'running' is false."""
+    def poll_scan_until_complete(self, interval: int = 1, timeout: int = 600) -> dict:
+        """Poll /status/octoscan-satip until the scan finishes.
+
+        The Octopus returns 200 + JSON progress while scanning, and 404 once
+        the scan is no longer running (its way of signalling completion).
+        """
         logger.info("Polling scan status...")
         deadline = time.time() + timeout
+        done_confirmations = 0
         while time.time() < deadline:
             ts = int(time.time() * 1000)
             resp = self.session.get(
@@ -77,13 +82,26 @@ class OctopusClient:
                 params={"_": ts},
                 verify=False,
             )
+            if resp.status_code == 404 or not resp.text.strip():
+                done_confirmations += 1
+                if done_confirmations >= 3:
+                    logger.info("Scan complete")
+                    return {}
+                time.sleep(interval)
+                continue
+            done_confirmations = 0
             resp.raise_for_status()
-            status = resp.json()
-            logger.debug(f"Scan status response: {status}")
-            if not status.get("running", True):
-                logger.info(f"Scan complete: {status}")
-                return status
-            logger.info(f"Scan in progress... retrying in {interval}s")
+            try:
+                status = resp.json()
+            except ValueError:
+                # Octopus occasionally returns truncated JSON while the scan is initialising
+                time.sleep(interval)
+                continue
+            raw_progress = status.get("Progress", None)
+            progress = f"{float(raw_progress):.2f}" if raw_progress is not None else "?"
+            found = status.get("Channels found", "?")
+            source = status.get("Source List Name", "")
+            logger.info(f"Scan in progress... {progress}% — {found} channels found ({source}) — retrying in {interval}s")
             time.sleep(interval)
         raise TimeoutError(f"Scan did not complete within {timeout}s")
 
