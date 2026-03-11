@@ -9,32 +9,35 @@ BBC Three HD
 BBC Four HD
 ITV3 HD
 ITV4 HD
-ITV Be HD
+ITV Quiz HD
 More4
 Film4
 4seven
+E4 HD
+E4 Extra
 5STAR
 5 USA
 5SELECT
 5ACTION
-E4 HD
-E4 Extra
 U&Dave
 U&Yesterday
 U&Drama
 U&W
+U&Eden
 Really
+Quest HD
 Quest Red
 Challenge
 Sky Mix HD
 Sky Arts
 Great! TV
 Great! Action
+Great! Mystery
+Great! Romance
 BLAZE
 DMAX
 Food Network
 HGTV
-Forces TV
 TalkingPictures
 LEGEND
 LEGEND XTRA
@@ -45,10 +48,10 @@ NOW 70s
 NOW 80s
 
 # News
-Sky News
-GB News HD
 BBC NEWS HD
 BBC Parl HD
+GB News HD
+Sky News
 Bloomberg HD
 CNN HD
 CNBC HD
@@ -65,6 +68,7 @@ BBC R3
 BBC R4
 BBC R4 Extra
 BBC R5L
+BBC R5SX
 BBC R6 Music
 Capital
 Capital XTRA
