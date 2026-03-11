@@ -6,6 +6,7 @@ from m3u.enrichment import EnrichmentResult, build_gracenote_lookups, enrich_m3u
 # normalize_name
 # ---------------------------------------------------------------------------
 
+
 def test_normalize_name_strips_spaces_and_punctuation():
     assert normalize_name("BBC One HD") == "bbconehd"
 
@@ -26,6 +27,7 @@ def test_normalize_name_empty_string():
 # ---------------------------------------------------------------------------
 # build_gracenote_lookups
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def lookups():
@@ -71,17 +73,22 @@ def test_build_gracenote_lookups_empty_data():
 # enrich_m3u_text
 # ---------------------------------------------------------------------------
 
-M3U_INPUT = "\n".join([
-    "#EXTM3U",
-    "#EXTINF:-1,BBC1NWHD",
-    "rtsp://192.168.1.1:554/?freq=10773",
-    "#EXTINF:-1,ITV1GHD",
-    "rtsp://192.168.1.1:554/?freq=11386",
-    "#EXTINF:-1,UNKNOWNCHANNEL",
-    "rtsp://192.168.1.1:554/?freq=99999",
-    "#EXTINF:-1,BBCWAVE", # This channel is not in GRACENOTE_DATA
-    "rtsp://192.168.1.1:554/?freq=12345",
-]) + "\n"
+M3U_INPUT = (
+    "\n".join(
+        [
+            "#EXTM3U",
+            "#EXTINF:-1,BBC1NWHD",
+            "rtsp://192.168.1.1:554/?freq=10773",
+            "#EXTINF:-1,ITV1GHD",
+            "rtsp://192.168.1.1:554/?freq=11386",
+            "#EXTINF:-1,UNKNOWNCHANNEL",
+            "rtsp://192.168.1.1:554/?freq=99999",
+            "#EXTINF:-1,BBCWAVE",  # This channel is not in GRACENOTE_DATA
+            "rtsp://192.168.1.1:554/?freq=12345",
+        ]
+    )
+    + "\n"
+)
 
 
 def test_enrich_m3u_text_returns_enrichment_result(lookups):
@@ -115,7 +122,7 @@ def test_enrich_m3u_text_preserves_stream_url(lookups):
 def test_enrich_m3u_text_with_explicit_mappings(lookups):
     mappings = {"BBCWAVE": "BBC1NWHD"}
     result = enrich_m3u_text(M3U_INPUT, mappings, lookups)
-    assert "tvc-guide-stationid=\"10001\"" in result.text
+    assert 'tvc-guide-stationid="10001"' in result.text
 
 
 def test_enrich_m3u_text_explicit_mapping_overrides_lookup(lookups):
@@ -123,7 +130,7 @@ def test_enrich_m3u_text_explicit_mapping_overrides_lookup(lookups):
     explicit = {"UNKNOWNCHANNEL": "ITV1GHD"}
     result = enrich_m3u_text(M3U_INPUT, explicit, lookups)
     assert result.enriched == 3
-    assert result.skipped == 1 # BBCWAVE is still skipped
+    assert result.skipped == 1  # BBCWAVE is still skipped
 
 
 def test_enrich_m3u_text_skips_unmapped(lookups):

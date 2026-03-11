@@ -12,6 +12,7 @@ def _client(base_url: str = "http://dvr:8089") -> tuple[ChannelsDVRClient, Magic
 # get_gracenote
 # ---------------------------------------------------------------------------
 
+
 def test_get_gracenote_calls_correct_endpoint():
     client, session = _client()
     session.get.return_value.json.return_value = []
@@ -39,6 +40,7 @@ def test_get_gracenote_unwraps_outer_list():
 # ---------------------------------------------------------------------------
 # update_m3u_source
 # ---------------------------------------------------------------------------
+
 
 def test_update_m3u_source_puts_to_correct_endpoint():
     client, session = _client()
@@ -79,6 +81,7 @@ def test_update_m3u_source_custom_options():
 # ---------------------------------------------------------------------------
 # with_sid classmethod
 # ---------------------------------------------------------------------------
+
 
 def test_with_sid_sets_correct_base_url():
     client = ChannelsDVRClient.with_sid("myserver", 8089, "abc123")

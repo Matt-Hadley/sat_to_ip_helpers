@@ -19,6 +19,7 @@ def _mock_session(html: str = "<html></html>", status_code: int = 200) -> MagicM
 # _build_url
 # ---------------------------------------------------------------------------
 
+
 def test_build_url_includes_position():
     client = KingOfSatClient("https://en.kingofsat.net/freqs.php", MagicMock())
     url = client._build_url("28.2E", "Clear", "eng")
@@ -40,6 +41,7 @@ def test_build_url_includes_language():
 # ---------------------------------------------------------------------------
 # fetch_transponders
 # ---------------------------------------------------------------------------
+
 
 def test_fetch_transponders_calls_get_with_correct_url():
     session = _mock_session()

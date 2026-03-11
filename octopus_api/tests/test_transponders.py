@@ -26,6 +26,7 @@ def _make_transponder(**kwargs) -> Transponder:
 # format_source
 # ---------------------------------------------------------------------------
 
+
 def test_format_source_key_strips_dot_and_degree():
     t = _make_transponder()
     source = format_source([t], "28.2E", "Astra 2E")
@@ -74,6 +75,7 @@ def test_format_source_frequency_cast_to_int():
 # ---------------------------------------------------------------------------
 # build_upload_payload
 # ---------------------------------------------------------------------------
+
 
 def test_build_upload_payload_wraps_sources():
     sources = [{"Key": "282E"}, {"Key": "130E"}]

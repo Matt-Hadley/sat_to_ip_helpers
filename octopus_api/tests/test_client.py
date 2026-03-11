@@ -14,6 +14,7 @@ def _client(base_url: str = "http://octopus") -> tuple[OctopusClient, MagicMock]
 # start_scan — position normalisation and tuner-slot padding
 # ---------------------------------------------------------------------------
 
+
 def test_start_scan_normalises_dot_in_position():
     client, session = _client()
     client.start_scan(["28.2E"])
@@ -46,6 +47,7 @@ def test_start_scan_posts_to_correct_endpoint():
 # get_dms_channels — response unwrapping
 # ---------------------------------------------------------------------------
 
+
 def test_get_dms_channels_returns_list_directly():
     client, session = _client()
     session.post.return_value.json.return_value = [{"serviceid": "123"}]
@@ -72,6 +74,7 @@ def test_get_dms_channels_posts_with_selected_param():
 # get_available_channels
 # ---------------------------------------------------------------------------
 
+
 def test_get_available_channels_sends_ignore_ids():
     client, session = _client()
     session.post.return_value.json.return_value = []
@@ -83,6 +86,7 @@ def test_get_available_channels_sends_ignore_ids():
 # ---------------------------------------------------------------------------
 # upload_transponders
 # ---------------------------------------------------------------------------
+
 
 def test_upload_transponders_sends_multipart():
     client, session = _client()
@@ -98,6 +102,7 @@ def test_upload_transponders_sends_multipart():
 # download_m3u
 # ---------------------------------------------------------------------------
 
+
 def test_download_m3u_returns_response_text():
     client, session = _client()
     session.get.return_value.text = "#EXTM3U\n"
@@ -108,6 +113,7 @@ def test_download_m3u_returns_response_text():
 # ---------------------------------------------------------------------------
 # poll_scan_until_complete
 # ---------------------------------------------------------------------------
+
 
 def test_poll_scan_returns_when_running_is_false():
     client, session = _client()
@@ -126,6 +132,7 @@ def test_poll_scan_raises_timeout():
 # ---------------------------------------------------------------------------
 # login classmethod
 # ---------------------------------------------------------------------------
+
 
 def test_login_raises_if_no_session_cookie():
     with patch("octopus_api.client.requests.Session") as mock_session_cls:

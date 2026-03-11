@@ -59,6 +59,7 @@ ALL_STEPS = list(range(1, 9))
 # re-run without repeating earlier ones.
 # ---------------------------------------------------------------------------
 
+
 def _state_path(state_dir: str, key: str, text: bool = False) -> str:
     return os.path.join(state_dir, f"{key}.{'m3u' if text else 'json'}")
 
@@ -80,6 +81,7 @@ def load_state(state_dir: str, key: str, text: bool = False):
 # ---------------------------------------------------------------------------
 # Misc helpers
 # ---------------------------------------------------------------------------
+
 
 def _load_csv_mappings(path: str) -> dict[str, str]:
     """Load a Name→Callsign CSV override file."""
@@ -103,6 +105,7 @@ def _load_csv_mappings(path: str) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 # Client factories
 # ---------------------------------------------------------------------------
+
 
 def _octopus(args) -> OctopusClient:
     if not args.octopus_host:
@@ -135,6 +138,7 @@ def _king_of_sat(args) -> KingOfSatClient:
 # ---------------------------------------------------------------------------
 # Steps
 # ---------------------------------------------------------------------------
+
 
 def step_1(args, state: dict) -> None:
     """Scrape transponders from KingOfSat."""
@@ -195,13 +199,14 @@ def step_3(args, state: dict) -> None:
 
 def _diff_scan_results(before: list[dict], after: list[dict]) -> None:
     """Log channels added, removed, or changed frequency between two scans."""
+
     def _ch_freq(ch: dict):
         return ch.get("frequency") or ch.get("freq")
 
     before_by_id = {ch["serviceid"]: ch for ch in before if "serviceid" in ch}
-    after_by_id  = {ch["serviceid"]: ch for ch in after  if "serviceid" in ch}
+    after_by_id = {ch["serviceid"]: ch for ch in after if "serviceid" in ch}
 
-    added   = [ch for sid, ch in after_by_id.items()  if sid not in before_by_id]
+    added = [ch for sid, ch in after_by_id.items() if sid not in before_by_id]
     removed = [ch for sid, ch in before_by_id.items() if sid not in after_by_id]
     freq_changed = [
         (before_by_id[sid], ch)
@@ -226,10 +231,7 @@ def _diff_scan_results(before: list[dict], after: list[dict]) -> None:
     if freq_changed:
         logger.warning(f"   ⚠️  Channels with changed frequency ({len(freq_changed)}):")
         for ch_before, ch_after in freq_changed:
-            logger.warning(
-                f"     ~ {ch_after.get('name', '?')}  "
-                f"{_ch_freq(ch_before)} → {_ch_freq(ch_after)}"
-            )
+            logger.warning(f"     ~ {ch_after.get('name', '?')}  " f"{_ch_freq(ch_before)} → {_ch_freq(ch_after)}")
 
 
 def step_4(args, state: dict) -> None:
@@ -380,44 +382,70 @@ STEPS = {1: step_1, 2: step_2, 3: step_3, 4: step_4, 5: step_5, 6: step_6, 7: st
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument(
-        "--steps", type=int, nargs="+", choices=ALL_STEPS, metavar="N",
+        "--steps",
+        type=int,
+        nargs="+",
+        choices=ALL_STEPS,
+        metavar="N",
         help="Steps to run (default: all). E.g. --steps 3 or --steps 7 8",
     )
-    p.add_argument("--state-dir", default=".pipeline_state", metavar="DIR",
-                   help="Directory for intermediate state files (default: .pipeline_state)")
+    p.add_argument(
+        "--state-dir",
+        default=".pipeline_state",
+        metavar="DIR",
+        help="Directory for intermediate state files (default: .pipeline_state)",
+    )
 
     g = p.add_argument_group("Step 1 — Scrape KingOfSat transponders")
-    g.add_argument("--positions", nargs="+", default=["28.2E"], metavar="POS",
-                   help="Satellite position(s) to scrape, e.g. 28.2E 13.0E (default: 28.2E)")
-    g.add_argument("--kos-filter", default="Clear", metavar="FILTER",
-                   help="Clear (FTA only), All, or Encrypted (default: Clear)")
-    g.add_argument("--kos-cl", default="eng", metavar="LANG",
-                   help="Channel language filter (default: eng)")
-    g.add_argument("--kos-base-url", default="https://en.kingofsat.net/freqs.php", metavar="URL",
-                   help=argparse.SUPPRESS)
+    g.add_argument(
+        "--positions",
+        nargs="+",
+        default=["28.2E"],
+        metavar="POS",
+        help="Satellite position(s) to scrape, e.g. 28.2E 13.0E (default: 28.2E)",
+    )
+    g.add_argument(
+        "--kos-filter", default="Clear", metavar="FILTER", help="Clear (FTA only), All, or Encrypted (default: Clear)"
+    )
+    g.add_argument("--kos-cl", default="eng", metavar="LANG", help="Channel language filter (default: eng)")
+    g.add_argument(
+        "--kos-base-url", default="https://en.kingofsat.net/freqs.php", metavar="URL", help=argparse.SUPPRESS
+    )
 
     g = p.add_argument_group("Octopus connection — required for steps 2, 3, 4, 5")
-    g.add_argument("--octopus-host", default=None, metavar="HOST",
-                   help="Hostname or IP of the Octopus NET device (e.g. octopus.local)")
+    g.add_argument(
+        "--octopus-host",
+        default=None,
+        metavar="HOST",
+        help="Hostname or IP of the Octopus NET device (e.g. octopus.local)",
+    )
     g.add_argument("--octopus-user", default="admin", metavar="USER")
-    g.add_argument("--octopus-password", default=None, metavar="PASS",
-                   help="Overrides OCTOPUS_PASSWORD env var")
+    g.add_argument("--octopus-password", default=None, metavar="PASS", help="Overrides OCTOPUS_PASSWORD env var")
 
     g = p.add_argument_group("Step 3 — Scan options")
-    g.add_argument("--scan-poll-interval", type=int, default=5, metavar="SEC",
-                   help="How often to poll scan status (default: 5)")
-    g.add_argument("--scan-timeout", type=int, default=600, metavar="SEC",
-                   help="Give up waiting for scan after this many seconds (default: 600)")
+    g.add_argument(
+        "--scan-poll-interval", type=int, default=5, metavar="SEC", help="How often to poll scan status (default: 5)"
+    )
+    g.add_argument(
+        "--scan-timeout",
+        type=int,
+        default=600,
+        metavar="SEC",
+        help="Give up waiting for scan after this many seconds (default: 600)",
+    )
 
     g = p.add_argument_group("Step 4 — Add channels to DMS")
     g.add_argument(
-        "--add-channels", default=None, metavar="SPEC",
+        "--add-channels",
+        default=None,
+        metavar="SPEC",
         help=(
             "Which channels to add. Options: "
             "all | video | audio | "
@@ -428,26 +456,43 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     g = p.add_argument_group("Channels DVR connection — required for steps 6, 8")
-    g.add_argument("--channels-dvr-host", default="localhost", metavar="HOST",
-                   help="Hostname of Channels DVR server (default: localhost)")
-    g.add_argument("--channels-dvr-port", type=int, default=8089, metavar="PORT",
-                   help="Channels DVR port (default: 8089)")
-    g.add_argument("--channels-dvr-sid", default=None, metavar="SID",
-                   help="SID session cookie. Overrides CHANNELS_DVR_SID env var")
+    g.add_argument(
+        "--channels-dvr-host",
+        default="localhost",
+        metavar="HOST",
+        help="Hostname of Channels DVR server (default: localhost)",
+    )
+    g.add_argument(
+        "--channels-dvr-port", type=int, default=8089, metavar="PORT", help="Channels DVR port (default: 8089)"
+    )
+    g.add_argument(
+        "--channels-dvr-sid", default=None, metavar="SID", help="SID session cookie. Overrides CHANNELS_DVR_SID env var"
+    )
 
     g = p.add_argument_group("Step 6 — Gracenote options")
-    g.add_argument("--station-list", default="GBR-1000193-DEFAULT", metavar="NAME",
-                   help="Gracenote station list name (default: GBR-1000193-DEFAULT)")
+    g.add_argument(
+        "--station-list",
+        default="GBR-1000193-DEFAULT",
+        metavar="NAME",
+        help="Gracenote station list name (default: GBR-1000193-DEFAULT)",
+    )
 
     g = p.add_argument_group("Step 7 — M3U enrichment options")
-    g.add_argument("--mapping-csv", default=None, metavar="PATH",
-                   help="CSV with Name,Callsign overrides for channels that don't auto-match")
+    g.add_argument(
+        "--mapping-csv",
+        default=None,
+        metavar="PATH",
+        help="CSV with Name,Callsign overrides for channels that don't auto-match",
+    )
 
     g = p.add_argument_group("Step 8 — Push to Channels DVR")
-    g.add_argument("--source-id", default=None, metavar="ID",
-                   help="Channels DVR M3U source ID (required for step 8)")
-    g.add_argument("--source-display-name", default=None, metavar="NAME",
-                   help="Display name for the source (defaults to --source-id)")
+    g.add_argument("--source-id", default=None, metavar="ID", help="Channels DVR M3U source ID (required for step 8)")
+    g.add_argument(
+        "--source-display-name",
+        default=None,
+        metavar="NAME",
+        help="Display name for the source (defaults to --source-id)",
+    )
 
     return p
 

@@ -193,9 +193,7 @@ class TestParseTransponders(unittest.TestCase):
         """
         Test parser behavior when a transponder row is missing fields.
         """
-        html_snippet = (
-            VALID_HEADER_HTML
-            + """
+        html_snippet = VALID_HEADER_HTML + """
         <table class="frq"><tr>
             <td class="pos">28.2°E</td>
             <td><a>Astra 2E</a></td>
@@ -204,7 +202,6 @@ class TestParseTransponders(unittest.TestCase):
             <!-- Missing transponder ID and other columns -->
         </tr></table>
         """
-        )
         scraper = KingOfSatScraper(html_snippet)
         transponders = scraper.parse_transponders()
         self.assertEqual(len(transponders), 0, "Should skip malformed row with missing fields.")
@@ -213,9 +210,7 @@ class TestParseTransponders(unittest.TestCase):
         """
         Ensure parser handles non-numeric frequency gracefully.
         """
-        html_snippet = (
-            VALID_HEADER_HTML
-            + """
+        html_snippet = VALID_HEADER_HTML + """
         <table class="frq"><tr>
             <td class="pos">28.2°E</td>
             <td><a>Astra 2E</a></td>
@@ -231,7 +226,6 @@ class TestParseTransponders(unittest.TestCase):
             <td>2045</td>
         </tr></table>
         """
-        )
         scraper = KingOfSatScraper(html_snippet)
         transponders = scraper.parse_transponders()
         self.assertEqual(len(transponders), 0, "Should skip rows with non-numeric frequency.")
@@ -240,9 +234,7 @@ class TestParseTransponders(unittest.TestCase):
         """
         Test that parser handles nested tags inside td elements correctly.
         """
-        html_snippet = (
-            VALID_HEADER_HTML
-            + """
+        html_snippet = VALID_HEADER_HTML + """
         <table class="frq"><tr>
             <td class="pos">28.2°E</td>
             <td><span class="nbc">9</span><a>Astra 2E</a></td>
@@ -258,7 +250,6 @@ class TestParseTransponders(unittest.TestCase):
             <td>2045</td>
         </tr></table>
         """
-        )
         scraper = KingOfSatScraper(html_snippet)
         transponders = scraper.parse_transponders()
         self.assertEqual(len(transponders), 1)
@@ -268,9 +259,7 @@ class TestParseTransponders(unittest.TestCase):
         """
         Symbol rate and FEC not inside <a> tags.
         """
-        html_snippet = (
-            VALID_HEADER_HTML
-            + """
+        html_snippet = VALID_HEADER_HTML + """
         <table class="frq"><tr>
             <td class="pos">28.2°E</td>
             <td><a>Astra 2F</a></td>
@@ -286,7 +275,6 @@ class TestParseTransponders(unittest.TestCase):
             <td>2001</td>
         </tr></table>
         """
-        )
         scraper = KingOfSatScraper(html_snippet)
         transponders = scraper.parse_transponders()
         self.assertEqual(len(transponders), 1)
@@ -297,9 +285,7 @@ class TestParseTransponders(unittest.TestCase):
         """
         Transponder row has more columns than expected.
         """
-        html_snippet = (
-            VALID_HEADER_HTML
-            + """
+        html_snippet = VALID_HEADER_HTML + """
         <table class="frq"><tr>
             <td class="pos">28.2°E</td>
             <td><a>Astra 2G</a></td>
@@ -317,7 +303,6 @@ class TestParseTransponders(unittest.TestCase):
             <td>MoreExtra</td>
         </tr></table>
         """
-        )
         scraper = KingOfSatScraper(html_snippet)
         transponders = scraper.parse_transponders()
         self.assertEqual(len(transponders), 1)
@@ -327,16 +312,13 @@ class TestParseTransponders(unittest.TestCase):
         """
         Handle broken HTML structure gracefully.
         """
-        html_snippet = (
-            VALID_HEADER_HTML
-            + """
+        html_snippet = VALID_HEADER_HTML + """
         <table class="frq"><tr>
             <td class="pos">28.2°E<td>
             <td><a>Astra 2E</td>
             <td>10773.00
             <td>H</td><td><a>45</a>
         """
-        )
         scraper = KingOfSatScraper(html_snippet)
         transponders = scraper.parse_transponders()
         self.assertEqual(len(transponders), 0, "Should skip corrupt HTML rows without crashing.")

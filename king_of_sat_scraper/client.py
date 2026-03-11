@@ -25,10 +25,7 @@ class KingOfSatClient:
         return cls(base_url, requests.Session())
 
     def _build_url(self, position: str, channel_filter: str, cl: str) -> str:
-        return (
-            f"{self.base_url}?pos={position}"
-            f"&standard=All&ordre=freq&filtre={channel_filter}&cl={cl}"
-        )
+        return f"{self.base_url}?pos={position}" f"&standard=All&ordre=freq&filtre={channel_filter}&cl={cl}"
 
     def fetch_transponders(
         self,
