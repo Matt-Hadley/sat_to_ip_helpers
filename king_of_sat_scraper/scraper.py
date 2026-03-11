@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 from typing import List
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag, NavigableString
 
 from king_of_sat_scraper.channel import Channel
 from king_of_sat_scraper.transponder import Transponder
@@ -130,16 +130,25 @@ class KingOfSatScraper:
         logging.info(f"🎯 Parsed {len(transponders)} transponders total.")
         return transponders
 
-    def parse_apids(self, apid_cell) -> dict:
-        apids = {}
-        raw_apids = []
+    def parse_apids(self, apid_cell) -> dict[str, int]:
+        apids: dict[str, int] = {}
+        raw_apids: List[int] = []
 
-        # Break into parts based on <br> or newlines
-        parts = list(filter(None, re.split(r"<br\s*/?>|\n", str(apid_cell))))
+        # The cell contains text parts separated by <br> tags.
+        # We iterate over the contents of the cell to avoid re-parsing snippets.
+        for content in apid_cell.contents:
+            if isinstance(content, Tag):
+                text = content.get_text(strip=True)
+            elif isinstance(content, NavigableString):
+                text = str(content).strip()
+            else:
+                continue
 
-        for part in parts:
-            text = BeautifulSoup(part, "html.parser").get_text(strip=True)
-            match = re.match(r"(\d+)\s*([a-zA-Z]+)?", text)
+            if not text:
+                continue
+
+            # Look for "PID [tag]"
+            match = re.search(r"(\d+)\s*([a-zA-Z]+)?", text)
             if match:
                 pid = int(match.group(1))
                 tag = match.group(2).lower() if match.group(2) else None
@@ -150,14 +159,14 @@ class KingOfSatScraper:
                 else:
                     raw_apids.append(pid)
 
-        # Get any additional languages from <font> tags
+        # Get any additional languages from <font> tags (handled by BeautifulSoup)
         lang_tags = apid_cell.find_all("font")
         languages = [tag.get_text(strip=True).lower() for tag in lang_tags]
 
         for pid, lang in zip(raw_apids, languages):
             apids[lang] = pid
 
-        # Move "nar" to the end
+        # Move "nar" to the end if present
         if "__nar_temp__" in apids:
             nar_pid = apids.pop("__nar_temp__")
             apids["nar"] = nar_pid
