@@ -54,5 +54,3 @@ def log_scan_diff(before: list[dict], after: list[dict]) -> None:
         logger.warning(f"   ⚠️  Channels with changed frequency ({len(diff.freq_changed)}):")
         for ch_before, ch_after in diff.freq_changed:
             logger.warning(f"     ~ {ch_after.get('name', '?')}  {ch_freq(ch_before)} → {ch_freq(ch_after)}")
-
-
