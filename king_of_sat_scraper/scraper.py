@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 from typing import List
 
-from bs4 import BeautifulSoup, Tag, NavigableString
+from bs4 import BeautifulSoup, NavigableString, Tag
 
 from king_of_sat_scraper.channel import Channel
 from king_of_sat_scraper.transponder import Transponder
@@ -163,7 +163,7 @@ class KingOfSatScraper:
         lang_tags = apid_cell.find_all("font")
         languages = [tag.get_text(strip=True).lower() for tag in lang_tags]
 
-        for pid, lang in zip(raw_apids, languages):
+        for pid, lang in zip(raw_apids, languages, strict=False):
             apids[lang] = pid
 
         # Move "nar" to the end if present

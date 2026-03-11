@@ -104,7 +104,6 @@ def test_enrich_m3u_text_counts(lookups):
 
 def test_enrich_m3u_text_injects_channel_id_and_station_id(lookups):
     result = enrich_m3u_text(M3U_INPUT, {}, lookups)
-    lines = result.text.splitlines()
     assert 'channel-id="BBC1NWHD"' in result.text
     assert 'tvc-guide-stationid="10001"' in result.text
 

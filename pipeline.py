@@ -31,6 +31,7 @@ Examples:
 """
 
 import argparse
+import csv
 import json
 import logging
 import os
@@ -39,16 +40,13 @@ import sys
 import requests
 import urllib3
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-import csv
-
 from channels_dvr.client import ChannelsDVRClient
 from king_of_sat_scraper.client import KingOfSatClient
 from m3u.enrichment import build_gracenote_lookups, enrich_m3u_text
 from octopus_api.client import OctopusClient
 from octopus_api.transponders import build_upload_payload, format_source
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-8s %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -279,6 +277,26 @@ def step_4(args, state: dict) -> None:
     logger.info("✅  Step 4 done")
 
 
+def _match_entry(entry: str, channels: list[dict], seen_ids: set) -> list[dict]:
+    """Return channels matching a single spec entry ('Name' or 'Name@Frequency')."""
+    if "@" in entry:
+        name_part, freq_part = entry.split("@", 1)
+        name_lower, freq = name_part.strip().lower(), freq_part.strip()
+        return [
+            ch
+            for ch in channels
+            if ch.get("name", "").lower() == name_lower
+            and str(ch.get("frequency") or ch.get("freq", "")) == freq
+            and ch.get("serviceid", id(ch)) not in seen_ids
+        ]
+    # No frequency — first match only; use Name@Frequency to be explicit
+    name_lower = entry.lower()
+    for ch in channels:
+        if ch.get("name", "").lower() == name_lower and ch.get("serviceid", id(ch)) not in seen_ids:
+            return [ch]
+    return []
+
+
 def _filter_channels(channels: list[dict], spec: str) -> tuple[list[dict], list[str]]:
     """Return (matched_channels, unmatched_spec_entries).
 
@@ -286,40 +304,17 @@ def _filter_channels(channels: list[dict], spec: str) -> tuple[list[dict], list[
     """
     if spec == "all":
         return channels, []
-    if spec == "video":
-        return [ch for ch in channels if ch.get("type") == "video"], []
-    if spec == "audio":
-        return [ch for ch in channels if ch.get("type") == "audio"], []
-    # Comma-separated entries of "Name" or "Name@Frequency"
-    matches = []
-    unmatched = []
-    seen_ids: set[str] = set()
+    if spec in ("video", "audio"):
+        return [ch for ch in channels if ch.get("type") == spec], []
+    matches: list[dict] = []
+    unmatched: list[str] = []
+    seen_ids: set = set()
     for entry in (e.strip() for e in spec.split(",")):
-        found = False
-        if "@" in entry:
-            name_part, freq_part = entry.split("@", 1)
-            name_part = name_part.strip().lower()
-            freq_part = freq_part.strip()
-            for ch in channels:
-                ch_freq = str(ch.get("frequency") or ch.get("freq", ""))
-                if ch.get("name", "").lower() == name_part and ch_freq == freq_part:
-                    sid = ch.get("serviceid", id(ch))
-                    if sid not in seen_ids:
-                        matches.append(ch)
-                        seen_ids.add(sid)
-                        found = True
+        found = _match_entry(entry, channels, seen_ids)
+        if found:
+            matches.extend(found)
+            seen_ids.update(ch.get("serviceid", id(ch)) for ch in found)
         else:
-            # No frequency specified — use the first match for that name
-            name_lower = entry.lower()
-            for ch in channels:
-                if ch.get("name", "").lower() == name_lower:
-                    sid = ch.get("serviceid", id(ch))
-                    if sid not in seen_ids:
-                        matches.append(ch)
-                        seen_ids.add(sid)
-                        found = True
-                        break  # stop at first match; use Name@Frequency to be explicit
-        if not found:
             unmatched.append(entry)
     return matches, unmatched
 
