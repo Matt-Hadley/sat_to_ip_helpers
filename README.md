@@ -123,8 +123,9 @@ Step 3 — Scan options:
   --scan-timeout SEC         (default: 600)
 
 Step 4 — Add channels to DMS:
-  --add-channels SPEC        all | video | audio | comma-separated names
-                             or name@frequency e.g. 'BBC One HD@10773,ITV HD@11386'
+  --add-channels SPEC        all | video | audio | comma-separated names |
+                             name@frequency e.g. 'BBC One HD@10773,ITV HD@11386' |
+                             path to a .txt file (one name per line, # comments supported)
                              Omit to use the interactive editor (TTY) or list available channels.
 
 Channels DVR connection (steps 6, 8):

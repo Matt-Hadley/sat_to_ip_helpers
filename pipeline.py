@@ -187,6 +187,8 @@ def step_4(args, state: dict) -> None:
         for i, ch in enumerate(chosen):
             ch["position"] = i
         client.save_channels(chosen)
+        save_state(args.state_dir, "dms_channels", chosen)
+        state["dms_channels"] = chosen
         logger.info(f"✅  Step 4 done — {len(chosen)} channels saved to DMS")
         return
 
@@ -206,7 +208,7 @@ def step_4(args, state: dict) -> None:
         logger.info("   Step 4 skipped. Re-run with --steps 4 --add-channels <spec>")
         return
 
-    to_add, unmatched = filter_channels(available, args.add_channels)
+    to_add, unmatched = filter_channels(available, _resolve_add_channels_spec(args.add_channels))
     for entry in unmatched:
         logger.warning(f"   ⚠️  No channel found matching: {entry!r}")
 
@@ -217,28 +219,58 @@ def step_4(args, state: dict) -> None:
     for i, ch in enumerate(to_add):
         ch["position"] = i
     client.save_channels(to_add)
+    save_state(args.state_dir, "dms_channels", to_add)
+    state["dms_channels"] = to_add
     logger.info(f"✅  Step 4 done — {len(to_add)} channels saved to DMS")
 
 
+def _resolve_add_channels_spec(spec: str) -> str:
+    """Return the spec string, loading from a file if spec is an existing path.
 
-def _split_m3u(m3u_text: str, audio_names: set[str]) -> tuple[str, str]:
-    """Split an M3U into TV and radio based on a set of audio channel names."""
-    tv_lines = ["#EXTM3U"]
-    radio_lines = ["#EXTM3U"]
+    File format: one channel name (or name@freq) per line; blank lines and
+    lines starting with '#' are ignored.  The result is a comma-joined string
+    that filter_channels() can consume unchanged.
+    """
+    if os.path.isfile(spec):
+        with open(spec, encoding="utf-8") as f:
+            names = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+        logger.info(f"   Loaded {len(names)} channel names from {spec}")
+        return ",".join(names)
+    return spec
+
+
+def _split_m3u(m3u_text: str, dms_channels: list[dict]) -> tuple[str, str]:
+    """Split an M3U into TV and radio playlists, preserving dms_channels order.
+
+    Channel labels in the Octopus M3U match DMS channel names, so we parse the
+    M3U into a lookup dict then emit entries in dms_channels list order.
+    """
+    # Parse all M3U entries keyed by channel label
+    entries: dict[str, tuple[str, str]] = {}
     lines = m3u_text.splitlines()
     i = 0
     while i < len(lines):
         line = lines[i].strip()
         if line.startswith("#EXTINF:"):
-            channel_label = line.split(",", 1)[1].strip()
-            stream_url = lines[i + 1].strip() if i + 1 < len(lines) else ""
-            if channel_label in audio_names:
-                radio_lines.extend([line, stream_url])
-            else:
-                tv_lines.extend([line, stream_url])
+            label = line.split(",", 1)[1].strip()
+            url = lines[i + 1].strip() if i + 1 < len(lines) else ""
+            entries[label] = (line, url)
             i += 2
         else:
             i += 1
+
+    tv_lines = ["#EXTM3U"]
+    radio_lines = ["#EXTM3U"]
+    for ch in dms_channels:
+        name = ch.get("name", "")
+        if name not in entries:
+            continue
+        extinf, url = entries[name]
+        if ch.get("type") == "audio":
+            radio_lines.extend([extinf, url])
+        else:
+            tv_lines.extend([extinf, url])
+
     return "\n".join(tv_lines) + "\n", "\n".join(radio_lines) + "\n"
 
 
@@ -248,9 +280,8 @@ def step_5(args, state: dict) -> None:
     client = state.setdefault("octopus", _octopus(args))
     m3u_text = client.download_m3u()
 
-    dms = client.get_dms_channels()
-    audio_names = {ch["name"] for ch in dms if ch.get("type") == "audio"}
-    tv_m3u, radio_m3u = _split_m3u(m3u_text, audio_names)
+    dms = state.get("dms_channels") or load_state(args.state_dir, "dms_channels")
+    tv_m3u, radio_m3u = _split_m3u(m3u_text, dms)
 
     tv_count = tv_m3u.count("#EXTINF")
     radio_count = radio_m3u.count("#EXTINF")
@@ -401,7 +432,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Which channels to add. Options: "
             "all | video | audio | "
             "comma-separated names ('BBC One HD,ITV HD') | "
-            "name@frequency in MHz ('BBC One HD@10773,ITV HD@11386'). "
+            "name@frequency in MHz ('BBC One HD@10773,ITV HD@11386') | "
+            "path to a .txt file with one name per line. "
             "Omit to use the interactive editor (if a TTY) or list available channels."
         ),
     )

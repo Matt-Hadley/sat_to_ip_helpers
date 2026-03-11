@@ -1,4 +1,5 @@
 """Scan diff helpers — compare channel lists across Octopus scans."""
+
 import logging
 from dataclasses import dataclass, field
 
@@ -55,9 +56,7 @@ def log_scan_diff(before: list[dict], after: list[dict]) -> None:
             logger.warning(f"     ~ {ch_after.get('name', '?')}  {ch_freq(ch_before)} → {ch_freq(ch_after)}")
 
 
-def restore_dms_after_scan(
-    pre_dms: list[dict], post_available: list[dict]
-) -> tuple[list[dict], list[str]]:
+def restore_dms_after_scan(pre_dms: list[dict], post_available: list[dict]) -> tuple[list[dict], list[str]]:
     """Match pre-scan DMS channels to post-scan available channels by serviceid.
 
     Returns (restored_channels, missing_names).

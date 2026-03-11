@@ -101,7 +101,9 @@ class OctopusClient:
             progress = f"{float(raw_progress):.2f}" if raw_progress is not None else "?"
             found = status.get("Channels found", "?")
             source = status.get("Source List Name", "")
-            logger.info(f"Scan in progress... {progress}% — {found} channels found ({source}) — retrying in {interval}s")
+            logger.info(
+                f"Scan in progress... {progress}% — {found} channels found ({source}) — retrying in {interval}s"
+            )
             time.sleep(interval)
         raise TimeoutError(f"Scan did not complete within {timeout}s")
 

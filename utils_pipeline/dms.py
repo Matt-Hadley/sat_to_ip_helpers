@@ -1,4 +1,5 @@
 """DMS channel list helpers and curses-based interactive editor."""
+
 import curses
 
 
@@ -22,9 +23,7 @@ def merge_dms_selections(dms_channels: list[dict], chosen: list[dict]) -> list[d
     return final
 
 
-def build_dms_entries(
-    dms_channels: list[dict], available: list[dict]
-) -> tuple[list[dict], list[str], list[bool]]:
+def build_dms_entries(dms_channels: list[dict], available: list[dict]) -> tuple[list[dict], list[str], list[bool]]:
     """Return (channels, origin_labels, selected) sorted video-first then by name.
 
     origin_labels values: "DMS", "available"
@@ -119,7 +118,9 @@ def dms_draw(
     n_sel = sum(selected)
     n_tv = sum(1 for i, ch in enumerate(channels) if selected[i] and ch.get("type") == "video")
     n_radio = sum(1 for i, ch in enumerate(channels) if selected[i] and ch.get("type") == "audio")
-    footer = f"  Selected: {n_sel}/{len(channels)}    TV: {n_tv}    Radio: {n_radio}    row {cursor + 1}/{len(channels)}  "
+    footer = (
+        f"  Selected: {n_sel}/{len(channels)}    TV: {n_tv}    Radio: {n_radio}    row {cursor + 1}/{len(channels)}  "
+    )
     try:
         stdscr.addstr(h - 2, 0, "─" * (w - 1), c_header)
         stdscr.addstr(h - 1, 0, footer[: w - 1], c_header)
