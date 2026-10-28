@@ -1,15 +1,12 @@
 {
   "name": "Python Codespaces",
-  "image": "mcr.microsoft.com/devcontainers/python:latest",
-  "features": {
-    "ghcr.io/devcontainers/features/python:1": {
-      "version": "latest"
-    }
-  },
+  "image": "mcr.microsoft.com/devcontainers/python:3.15",
   "customizations": {
     "vscode": {
       "settings": {
-        "python.formatting.provider": "black",
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.black-formatter"
+        },
         "editor.formatOnSave": true,
         "editor.codeActionsOnSave": {
           "source.fixAll": "always",
