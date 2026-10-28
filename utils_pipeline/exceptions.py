@@ -13,12 +13,6 @@ class ConfigurationError(PipelineError):
     pass
 
 
-class ServiceConnectionError(PipelineError):
-    """Raised when a connection to an external service (Octopus, Channels DVR, KingOfSat) fails."""
-
-    pass
-
-
 class StepError(PipelineError):
     """Raised when a specific step in the pipeline fails."""
 

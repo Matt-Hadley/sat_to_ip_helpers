@@ -27,6 +27,7 @@ class OctopusClient:
             data={"login": username, "passwd": password, "lang": "en", "submit": "Login"},
             allow_redirects=True,
             verify=False,
+            timeout=30,
         )
         resp.raise_for_status()
         if "session_id" not in session.cookies:
@@ -45,6 +46,7 @@ class OctopusClient:
             f"{self.base_url}/channelsearch/uploadCustom",
             files={"transponderlist": ("transponders.json", json_bytes, "application/json")},
             verify=False,
+            timeout=30,
         )
         resp.raise_for_status()
         logger.info("Transponder list uploaded")
@@ -62,6 +64,7 @@ class OctopusClient:
             f"{self.base_url}/startsearch-satip",
             json={"target-s": target_s},
             verify=False,
+            timeout=30,
         )
         resp.raise_for_status()
         logger.info(f"Scan started: {target_s}")
@@ -82,8 +85,13 @@ class OctopusClient:
                     f"{self.base_url}/status/octoscan-satip",
                     params={"_": ts},
                     verify=False,
+                    timeout=30,
                 )
-            except (requests.exceptions.ChunkedEncodingError, requests.exceptions.ConnectionError) as exc:
+            except (
+                requests.exceptions.ChunkedEncodingError,
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout,
+            ) as exc:
                 logger.warning(f"Transient connection error during scan poll, retrying: {exc}")
                 time.sleep(interval)
                 continue
@@ -122,6 +130,7 @@ class OctopusClient:
             f"{self.base_url}/channels/data",
             params={"selected": "1"},
             verify=False,
+            timeout=30,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -133,6 +142,7 @@ class OctopusClient:
             f"{self.base_url}/channels/data",
             data={"ignore": ",".join(ignore_ids)},
             verify=False,
+            timeout=30,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -144,12 +154,13 @@ class OctopusClient:
             f"{self.base_url}/channels/save",
             json=channels,
             verify=False,
+            timeout=30,
         )
         resp.raise_for_status()
         logger.info(f"Saved {len(channels)} channels to DMS")
 
     def download_m3u(self) -> str:
         """Download the M3U playlist for the current DMS channel list."""
-        resp = self.session.get(f"{self.base_url}/channels/m3u", verify=False)
+        resp = self.session.get(f"{self.base_url}/channels/m3u", verify=False, timeout=30)
         resp.raise_for_status()
         return resp.text

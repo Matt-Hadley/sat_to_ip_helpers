@@ -1,11 +1,8 @@
 import logging
-import re
-from datetime import datetime
 from typing import List
 
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup
 
-from king_of_sat_scraper.channel import Channel
 from king_of_sat_scraper.transponder import Transponder
 
 
@@ -97,9 +94,12 @@ class KingOfSatScraper:
                 system = cols[6].get_text(strip=True)
                 mod = cols[7].get_text(strip=True)
 
-                sr_fec_links = cols[8].find_all("a")
-                symbol_rate = int(sr_fec_links[0].get_text(strip=True)) if len(sr_fec_links) > 0 else 0.0
-                fec = sr_fec_links[1].get_text(strip=True) if len(sr_fec_links) > 1 else ""
+                # Usually "<a>27500</a> <a>5/6</a>"; fall back to plain text. No SR raises and skips the row.
+                sr_fec = [a.get_text(strip=True) for a in cols[8].find_all("a")] or cols[8].get_text(
+                    " ", strip=True
+                ).split()
+                symbol_rate = int(sr_fec[0])
+                fec = sr_fec[1] if len(sr_fec) > 1 else ""
 
                 bitrate = cols[9].get_text(strip=True)
                 nid = int(cols[10].get_text(strip=True))
@@ -129,115 +129,3 @@ class KingOfSatScraper:
 
         logging.info(f"🎯 Parsed {len(transponders)} transponders total.")
         return transponders
-
-    def parse_apids(self, apid_cell) -> dict[str, int]:
-        apids: dict[str, int] = {}
-        raw_apids: List[int] = []
-
-        # The cell contains text parts separated by <br> tags.
-        # We iterate over the contents of the cell to avoid re-parsing snippets.
-        for content in apid_cell.contents:
-            if isinstance(content, Tag):
-                text = content.get_text(strip=True)
-            elif isinstance(content, NavigableString):
-                text = str(content).strip()
-            else:
-                continue
-
-            if not text:
-                continue
-
-            # Look for "PID [tag]"
-            match = re.search(r"(\d+)\s*([a-zA-Z]+)?", text)
-            if match:
-                pid = int(match.group(1))
-                tag = match.group(2).lower() if match.group(2) else None
-                if tag and tag != "nar":
-                    apids[tag] = pid
-                elif tag == "nar":
-                    apids["__nar_temp__"] = pid
-                else:
-                    raw_apids.append(pid)
-
-        # Get any additional languages from <font> tags (handled by BeautifulSoup)
-        lang_tags = apid_cell.find_all("font")
-        languages = [tag.get_text(strip=True).lower() for tag in lang_tags]
-
-        for pid, lang in zip(raw_apids, languages, strict=False):
-            apids[lang] = pid
-
-        # Move "nar" to the end if present
-        if "__nar_temp__" in apids:
-            nar_pid = apids.pop("__nar_temp__")
-            apids["nar"] = nar_pid
-
-        return apids
-
-    def parse_channels(self) -> List[Channel]:
-        channels = []
-
-        for table in self.soup.find_all("table", class_="fl"):
-            for row in table.find_all("tr", bgcolor="white"):
-                try:
-                    cols = row.find_all("td")
-
-                    # First td holds the channel type (v, a, f, d)
-                    channel_type_td = cols[0]
-                    class_attr = channel_type_td.get("class", [])
-                    # "v", "a", etc.
-                    channel_type = class_attr[0] if class_attr else None
-
-                    name_tag = cols[2].find("a", class_="A3")
-                    name = name_tag.get_text(strip=True) if name_tag else cols[2].get_text(strip=True)
-
-                    country = cols[3].get_text(strip=True) or None
-                    genre = cols[4].get_text(strip=True) or None
-
-                    # Some rows don't have links in packages
-                    packages = []
-                    pkg_links = cols[5].find_all("a")
-                    if pkg_links:
-                        packages = [a.get_text(strip=True) for a in pkg_links]
-
-                    encryption = cols[6].get_text(strip=True)
-                    sid = int(cols[7].get_text(strip=True))
-
-                    # VPID
-                    vpid_text = cols[8].get_text(strip=True)
-                    vpid_match = re.search(r"\d+", vpid_text) if vpid_text else None
-                    vpid = int(vpid_match.group()) if vpid_match else None
-
-                    apids = self.parse_apids(cols[9])
-                    pmt = int(cols[10].get_text(strip=True)) if cols[10].get_text(strip=True).isdigit() else None
-                    pcr = int(cols[11].get_text(strip=True)) if cols[11].get_text(strip=True).isdigit() else None
-                    txt_col = cols[12].get_text(strip=True)
-                    txt = int(txt_col) if txt_col.isdigit() else None
-
-                    # Date
-                    date_str = cols[13].get_text(strip=True)
-                    date_str = re.sub(r"[^0-9-]", "", date_str)
-                    last_updated = datetime.strptime(date_str, "%Y-%m-%d")
-
-                    channel = Channel(
-                        channel_type=channel_type,
-                        name=name,
-                        country=country,
-                        category=genre,
-                        packages=packages,
-                        encryption=encryption,
-                        sid=sid,
-                        vpid=vpid,
-                        apids=apids,
-                        pmt=pmt,
-                        pcr=pcr,
-                        txt=txt,
-                        last_updated=last_updated,
-                    )
-
-                    channels.append(channel)
-
-                except Exception as e:
-                    logging.warning(f"⚠️ Error parsing channel row: {e}. Row content: {row.get_text(strip=True)}")
-
-        logging.info(f"📺 Parsed {len(channels)} channels.")
-        return channels

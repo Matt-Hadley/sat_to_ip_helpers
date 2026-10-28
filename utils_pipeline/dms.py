@@ -2,6 +2,8 @@
 
 import curses
 
+from utils_pipeline.scan import ch_freq
+
 
 def build_dms_entries(dms_channels: list[dict], available: list[dict]) -> tuple[list[dict], list[str], list[bool]]:
     """Return (channels, origin_labels, selected) sorted video-first then by name.
@@ -86,7 +88,7 @@ def dms_draw(
         ch = channels[idx]
         ch_type = ch.get("type", "?")
         type_label = "TV" if ch_type == "video" else "R " if ch_type == "audio" else "? "
-        freq = str(ch.get("frequency") or ch.get("freq", "?"))
+        freq = str(ch_freq(ch) or "?")
         check = "[x]" if selected[idx] else "[ ]"
         line = f" {check} {type_label}  {ch.get('name', '?'):<34} {freq:>8} MHz  {origins[idx]:<7}"
         colour = c_cursor if idx == cursor else (c_checked if selected[idx] else c_unchecked)

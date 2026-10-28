@@ -26,7 +26,7 @@ class ChannelsDVRClient:
 
     def get_gracenote(self, station_list: str) -> list[dict]:
         """Fetch Gracenote station data for the given station list name."""
-        resp = self.session.get(f"{self.base_url}/dvr/guide/stations/{station_list}")
+        resp = self.session.get(f"{self.base_url}/dvr/guide/stations/{station_list}", timeout=30)
         resp.raise_for_status()
         data = resp.json()
         # Channels DVR occasionally wraps the list in an outer list
@@ -62,6 +62,7 @@ class ChannelsDVRClient:
         resp = self.session.put(
             f"{self.base_url}/providers/m3u/sources/{source_id}",
             json=payload,
+            timeout=30,
         )
         resp.raise_for_status()
         logger.info(f"Updated Channels DVR source '{source_id}'")

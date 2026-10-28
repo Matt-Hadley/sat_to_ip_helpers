@@ -1,5 +1,7 @@
 """Channel spec filtering — match channels by name / name@frequency."""
 
+from utils_pipeline.scan import ch_freq
+
 
 def match_entry(entry: str, channels: list[dict], seen_ids: set) -> list[dict]:
     """Return channels matching a single spec entry ('Name' or 'Name@Frequency')."""
@@ -10,7 +12,7 @@ def match_entry(entry: str, channels: list[dict], seen_ids: set) -> list[dict]:
             ch
             for ch in channels
             if ch.get("name", "").lower() == name_lower
-            and str(ch.get("frequency") or ch.get("freq", "")) == freq
+            and str(ch_freq(ch) or "") == freq
             and ch.get("serviceid", id(ch)) not in seen_ids
         ]
     # No frequency — first match only; use Name@Frequency to be explicit

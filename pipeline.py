@@ -41,7 +41,7 @@ import urllib3
 
 from channels_dvr.client import ChannelsDVRClient
 from king_of_sat_scraper.client import KingOfSatClient
-from m3u.enrichment import build_gracenote_lookups, enrich_m3u_text
+from m3u.enrichment import build_gracenote_lookups, enrich_m3u_text, split_m3u
 from octopus_api.client import OctopusClient
 from octopus_api.transponders import build_upload_payload, format_source
 from utils_pipeline import (
@@ -50,6 +50,7 @@ from utils_pipeline import (
     StateError,
     StepError,
     available_regions,
+    ch_freq,
     filter_channels,
     interactive_dms_editor,
     load_region_mappings,
@@ -119,6 +120,13 @@ def _king_of_sat(args) -> KingOfSatClient:
     return KingOfSatClient.create(base_url=args.kos_base_url)
 
 
+def _cached(state: dict, key: str, factory, args):
+    """Build a client once per run (setdefault would call the factory, and log in, every time)."""
+    if key not in state:
+        state[key] = factory(args)
+    return state[key]
+
+
 # ---------------------------------------------------------------------------
 # Steps
 # ---------------------------------------------------------------------------
@@ -127,7 +135,7 @@ def _king_of_sat(args) -> KingOfSatClient:
 def step_1(args, state: dict) -> None:
     """Scrape transponders from KingOfSat."""
     logger.info("▶  Step 1: Scraping transponders from KingOfSat")
-    client = state.setdefault("king_of_sat", _king_of_sat(args))
+    client = _cached(state, "king_of_sat", _king_of_sat, args)
     sources = []
     for pos in args.positions:
         try:
@@ -155,7 +163,7 @@ def step_2(args, state: dict) -> None:
     """Upload transponder list to Octopus."""
     logger.info("▶  Step 2: Uploading transponders to Octopus")
     payload = state.get("transponders") or load_state(args.state_dir, "transponders")
-    client = state.setdefault("octopus", _octopus(args))
+    client = _cached(state, "octopus", _octopus, args)
     client.upload_transponders(payload)
     logger.info("✅  Step 2 done")
 
@@ -163,7 +171,7 @@ def step_2(args, state: dict) -> None:
 def step_3(args, state: dict) -> None:
     """Trigger channel scan and wait for completion."""
     logger.info("▶  Step 3: Triggering channel scan")
-    client = state.setdefault("octopus", _octopus(args))
+    client = _cached(state, "octopus", _octopus, args)
     pre_available = client.get_available_channels([])
     logger.info(f"   Pre-scan: {len(pre_available)} channels available")
     client.start_scan(args.positions)
@@ -180,11 +188,13 @@ def step_3(args, state: dict) -> None:
 def step_4(args, state: dict) -> None:
     """Add channels from the last scan to the Octopus DMS."""
     logger.info("▶  Step 4: Adding channels to DMS")
-    client = state.setdefault("octopus", _octopus(args))
-    available = client.get_available_channels([])
+    client = _cached(state, "octopus", _octopus, args)
+    dms = client.get_dms_channels()
+    available = client.get_available_channels([str(ch["serviceid"]) for ch in dms if "serviceid" in ch])
 
     if not args.add_channels and sys.stdin.isatty():
-        chosen = interactive_dms_editor([], available)
+        # Pass the current DMS so it starts ticked — saving replaces the whole DMS list
+        chosen = interactive_dms_editor(dms, available)
         if chosen is None:
             logger.info("   Cancelled — DMS unchanged.")
             return
@@ -192,15 +202,13 @@ def step_4(args, state: dict) -> None:
             ch["position"] = i
         client.save_channels(chosen)
         save_state(args.state_dir, "dms_channels", chosen)
-        state["dms_channels"] = chosen
         logger.info(f"✅  Step 4 done — {len(chosen)} channels saved to DMS")
         return
 
     if not args.add_channels:
         logger.info("   Channels available to add:")
         for ch in available:
-            freq = ch.get("frequency") or ch.get("freq", "?")
-            logger.info(f"     {ch.get('name', '?')}  freq={freq}  type={ch.get('type', '?')}")
+            logger.info(f"     {ch.get('name', '?')}  freq={ch_freq(ch)}  type={ch.get('type', '?')}")
         logger.info("")
         logger.info("   Use --add-channels to specify which channels to add:")
         logger.info("     all                       add every available channel")
@@ -212,7 +220,7 @@ def step_4(args, state: dict) -> None:
         logger.info("   Step 4 skipped. Re-run with --steps 4 --add-channels <spec>")
         return
 
-    to_add, unmatched = filter_channels(available, _resolve_add_channels_spec(args.add_channels))
+    to_add, unmatched = filter_channels(dms + available, _resolve_add_channels_spec(args.add_channels))
     for entry in unmatched:
         logger.warning(f"   ⚠️  No channel found matching: {entry!r}")
 
@@ -224,7 +232,6 @@ def step_4(args, state: dict) -> None:
         ch["position"] = i
     client.save_channels(to_add)
     save_state(args.state_dir, "dms_channels", to_add)
-    state["dms_channels"] = to_add
     logger.info(f"✅  Step 4 done — {len(to_add)} channels saved to DMS")
 
 
@@ -243,49 +250,14 @@ def _resolve_add_channels_spec(spec: str) -> str:
     return spec
 
 
-def _split_m3u(m3u_text: str, dms_channels: list[dict]) -> tuple[str, str]:
-    """Split an M3U into TV and radio playlists, preserving dms_channels order.
-
-    Channel labels in the Octopus M3U match DMS channel names, so we parse the
-    M3U into a lookup dict then emit entries in dms_channels list order.
-    """
-    # Parse all M3U entries keyed by channel label
-    entries: dict[str, tuple[str, str]] = {}
-    lines = m3u_text.splitlines()
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-        if line.startswith("#EXTINF:"):
-            label = line.split(",", 1)[1].strip()
-            url = lines[i + 1].strip() if i + 1 < len(lines) else ""
-            entries[label] = (line, url)
-            i += 2
-        else:
-            i += 1
-
-    tv_lines = ["#EXTM3U"]
-    radio_lines = ["#EXTM3U"]
-    for ch in dms_channels:
-        name = ch.get("name", "")
-        if name not in entries:
-            continue
-        extinf, url = entries[name]
-        if ch.get("type") == "audio":
-            radio_lines.extend([extinf, url])
-        else:
-            tv_lines.extend([extinf, url])
-
-    return "\n".join(tv_lines) + "\n", "\n".join(radio_lines) + "\n"
-
-
 def step_5(args, state: dict) -> None:
     """Download M3U from Octopus and split into TV and radio."""
     logger.info("▶  Step 5: Downloading M3U from Octopus")
-    client = state.setdefault("octopus", _octopus(args))
+    client = _cached(state, "octopus", _octopus, args)
     m3u_text = client.download_m3u()
 
-    dms = state.get("dms_channels") or load_state(args.state_dir, "dms_channels")
-    tv_m3u, radio_m3u = _split_m3u(m3u_text, dms)
+    dms = client.get_dms_channels()
+    tv_m3u, radio_m3u = split_m3u(m3u_text, dms)
 
     tv_count = tv_m3u.count("#EXTINF")
     radio_count = radio_m3u.count("#EXTINF")
@@ -300,7 +272,7 @@ def step_5(args, state: dict) -> None:
 def step_6(args, state: dict) -> None:
     """Fetch Gracenote station data from Channels DVR."""
     logger.info("▶  Step 6: Fetching Gracenote data")
-    client = state.setdefault("channels_dvr", _channels_dvr(args))
+    client = _cached(state, "channels_dvr", _channels_dvr, args)
     gracenote_data = client.get_gracenote(args.station_list)
     save_state(args.state_dir, "gracenote", gracenote_data)
     state["gracenote"] = gracenote_data
@@ -339,7 +311,7 @@ def step_8(args, state: dict) -> None:
     logger.info("▶  Step 8: Updating Channels DVR source(s)")
     if not args.source_id and not args.source_id_radio:
         raise ConfigurationError("--source-id and/or --source-id-radio is required for step 8")
-    client = state.setdefault("channels_dvr", _channels_dvr(args))
+    client = _cached(state, "channels_dvr", _channels_dvr, args)
 
     if args.source_id:
         tv_m3u = state.get("enriched_m3u_tv") or load_state(args.state_dir, "enriched_m3u_tv", text=True)

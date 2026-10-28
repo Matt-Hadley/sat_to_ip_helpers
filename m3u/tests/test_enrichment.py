@@ -1,6 +1,6 @@
 import pytest
 
-from m3u.enrichment import EnrichmentResult, build_gracenote_lookups, enrich_m3u_text, normalize_name
+from m3u.enrichment import EnrichmentResult, build_gracenote_lookups, enrich_m3u_text, normalize_name, split_m3u
 
 # ---------------------------------------------------------------------------
 # normalize_name
@@ -153,3 +153,23 @@ def test_enrich_m3u_text_skipped_channels_empty_when_all_matched(lookups):
     explicit = {"UNKNOWNCHANNEL": "ITV1GHD", "BBCWAVE": "BBC1NWHD"}
     result = enrich_m3u_text(M3U_INPUT, explicit, lookups)
     assert result.skipped_channels == []
+
+
+def test_split_m3u_orders_by_dms_splits_radio_and_keeps_duplicate_names_apart():
+    m3u = (
+        "#EXTM3U\n"
+        "#EXTINF:-1,BBC One HD\nhttp://o/1\n"
+        "#EXTINF:-1,Radio 4\nhttp://o/2\n"
+        "#EXTINF:-1,ITV1 HD\nhttp://o/3\n"
+        "#EXTINF:-1,BBC One HD\nhttp://o/4\n"
+    )
+    dms = [
+        {"name": "ITV1 HD", "type": "video"},
+        {"name": "BBC One HD", "type": "video"},
+        {"name": "BBC One HD", "type": "video"},
+        {"name": "Radio 4", "type": "audio"},
+        {"name": "Not In Playlist", "type": "video"},
+    ]
+    tv, radio = split_m3u(m3u, dms)
+    assert [line for line in tv.splitlines() if line.startswith("http")] == ["http://o/3", "http://o/1", "http://o/4"]
+    assert radio == "#EXTM3U\n#EXTINF:-1,Radio 4\nhttp://o/2\n"
