@@ -21,8 +21,17 @@ testpaths = [
     "channels_dvr/tests",
     "m3u/tests",
     "utils_pipeline/tests",
+    "tests",
 ]
 pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["."]
+omit = ["*/tests/*", "tests/*"]
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
 
 [build-system]
 requires = ["setuptools", "wheel"]

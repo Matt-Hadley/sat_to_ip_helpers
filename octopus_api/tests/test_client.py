@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from octopus_api.client import OctopusClient
 
@@ -143,3 +144,65 @@ def test_login_raises_if_no_session_cookie():
         mock_session_cls.return_value = session
         with pytest.raises(RuntimeError, match="Login failed"):
             OctopusClient.login("http://octopus", "admin", "wrong")
+
+
+def test_login_returns_client_with_session():
+    with patch("octopus_api.client.requests.Session") as mock_session_cls:
+        session = MagicMock()
+        session.cookies.__contains__ = lambda self, key: key == "session_id"
+        mock_session_cls.return_value = session
+        client = OctopusClient.login("http://octopus/", "admin", "secret")
+    assert client.base_url == "http://octopus"
+    assert client.session is session
+    assert session.post.call_args.kwargs["data"]["passwd"] == "secret"
+
+
+def _resp(status_code=200, text="", json_value=None, json_error=False):
+    resp = MagicMock(status_code=status_code, text=text)
+    if json_error:
+        resp.json.side_effect = ValueError("truncated")
+    else:
+        resp.json.return_value = json_value
+    return resp
+
+
+def test_poll_scan_survives_transient_errors_and_bad_json_then_completes():
+    client, session = _client()
+    done = _resp(404)
+    session.get.side_effect = [
+        requests.exceptions.ConnectionError("reset"),
+        requests.exceptions.Timeout("slow"),
+        _resp(text="{", json_error=True),
+        _resp(text="{}", json_value={"Progress": "42.5", "Channels found": 7, "Source List Name": "28.2E"}),
+        _resp(text="{}", json_value={}),
+        done,
+        done,
+        done,
+    ]
+    with patch("octopus_api.client.time.sleep"):
+        assert client.poll_scan_until_complete(interval=0) == {}
+    assert session.get.call_count == 8
+
+
+def test_poll_scan_resets_done_count_when_scan_resumes():
+    client, session = _client()
+    done = _resp(404)
+    session.get.side_effect = [done, done, _resp(text="{}", json_value={}), done, done, done]
+    with patch("octopus_api.client.time.sleep"):
+        client.poll_scan_until_complete(interval=0)
+    assert session.get.call_count == 6
+
+
+def test_save_channels_posts_list():
+    client, session = _client()
+    client.save_channels([{"name": "A"}])
+    assert session.post.call_args[0][0] == "http://octopus/channels/save"
+    assert session.post.call_args.kwargs["json"] == [{"name": "A"}]
+
+
+def test_requests_have_timeout():
+    client, session = _client()
+    client.get_dms_channels()
+    client.download_m3u()
+    assert session.post.call_args.kwargs["timeout"] == 30
+    assert session.get.call_args.kwargs["timeout"] == 30
