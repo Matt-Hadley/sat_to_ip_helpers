@@ -61,19 +61,21 @@ curl -fsSLO https://raw.githubusercontent.com/Matt-Hadley/sat_to_ip_helpers/main
 
 ### 3. Choose your channels
 
-Open `channels.txt`. It has one channel name per line, in the order you want them numbered. Delete the ones you don't want, reorder freely, and use `#` for notes:
+Open `channels.txt`. It has one channel name per line, in the order you want them. Delete the ones you don't want, reorder freely, and use `#` for notes:
 
 ```
 # TV
-BBC One HD
+101 = BBC One HD
 ITV1 HD
 Channel 4 HD
 
 # Radio
-BBC Radio 4
+801 = BBC Radio 4
 ```
 
-Use the names exactly as your receiver shows them. If the same name appears twice (e.g. two regions of a channel), add its frequency: `BBC One HD@10773`. You can also write `all`, `tv` or `radio` to take every channel of that kind.
+- **Names:** use them exactly as your receiver shows them. If the same name appears twice (e.g. two regions of a channel), add its frequency: `BBC One HD@10773`.
+- **Several at once:** `all`, `tv` or `radio` take every channel of that kind you haven't already listed.
+- **Channel numbers:** start a line with `<number> =` to set its number. The lines after it count up from there, so above ITV1 HD is 102 and Channel 4 HD is 103. Without any numbers, channels are numbered 1, 2, 3, … in list order. Numbers stay put: if a channel disappears from the satellite, its number is kept free and the others don't move.
 
 ### 4. Fill in the config
 
@@ -167,6 +169,8 @@ Channel 4 HD,Channel4North.uk
 ```
 
 and point the guide at it with `mappings_file = "my-mappings.csv"`. `Name` is the channel name from `channels.txt`. `GuideId` is the guide's own ID for it, which you'll find in the guide file. ITV1 and Channel 4 come in regional versions, so these two lines are the usual ones to add, with your own region.
+
+**Channel numbers changed.** Numbers only move when you change `channels.txt`. Set them explicitly with `<number> =` on the lines you care about (see [Choose your channels](#3-choose-your-channels)). In Channels DVR, also add `channel_numbers = "list"` to its publisher, otherwise Channels numbers the channels itself.
 
 **"Refusing to remove N saved channels".** The scan found fewer channels than you have saved. Check the dish and try again later; if you really meant to drop them, run with `--allow-removals`.
 

@@ -4,7 +4,7 @@
 # Secrets are never stored here: every *_env key names an environment variable.
 
 [receiver]
-type = "octopus"
+type = "octopus_net"
 host = "octopus.local"
 password_env = "OCTOPUS_PASSWORD"
 positions = ["28.2E"]              # satellite positions to scan
@@ -37,6 +37,7 @@ url = "http://localhost:8089"
 guide = "gracenote"
 tv_source = "OctopusTV"
 # radio_source = "OctopusRadio"
+# channel_numbers = "list"           # use the numbers from channels.txt instead of Channels' own
 
 [[publishers]]
 type = "jellyfin"

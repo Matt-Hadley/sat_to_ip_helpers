@@ -1,3 +1,9 @@
+# One channel per line, in the order you want them. Lines starting with # are notes.
+#   BBC One HD           a channel by name
+#   BBC One HD@10773     that name on that frequency (MHz), if the name appears twice
+#   101 = BBC One HD     set its channel number; the lines after count up from it
+#   tv / radio / all     every channel of that kind not already listed
+
 # TV
 BBC One NW HD
 BBC Two HD

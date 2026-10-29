@@ -30,7 +30,7 @@ There are three kinds of part, and they only meet through the data model. [`pipe
 ```mermaid
 flowchart LR
     subgraph R["Receiver"]
-        OCT["octopus/receiver.py"]
+        OCT["octopus_net/receiver.py"]
     end
     subgraph G["Guide sources"]
         GN["channels_dvr/guide.py<br/><small>Gracenote</small>"]
@@ -50,7 +50,7 @@ flowchart LR
 
 | Part | Interface in [`interfaces.py`](sat_to_ip/interfaces.py) | Built in |
 |---|---|---|
-| Receiver | `Receiver`, optionally `SupportsRefresh` (rescan) and `SupportsSelection` (a saved channel list) | `octopus` |
+| Receiver | `Receiver`, optionally `SupportsRefresh` (rescan) and `SupportsSelection` (a saved channel list) | `octopus_net` |
 | Guide source | `GuideSource`, with a `kind`: `gracenote` or `xmltv` | `gracenote`, `xmltv` |
 | Publisher | `Publisher`, declaring the guide kinds it accepts | `channels_dvr`, `jellyfin`, `threadfin` |
 
@@ -116,7 +116,9 @@ sat_to_ip/
   files.py        atomic writes
   http.py         sessions with timeouts; retries for GET/HEAD only
   mappings.py     Name,GuideId tables
-  octopus/        receiver, client, transponders, selection, interactive editor
+  selection.py    channel lists: parsing, matching (Name, Name@MHz, tv/radio/all), channel numbers
+  channel_picker.py  the interactive (curses) channel picker, for any receiver
+  octopus_net/    receiver, client, transponders, scan diff
   kingofsat/      transponder scraper
   channels_dvr/   client, Gracenote guide, publisher
   xmltv/          XMLTV guide (streaming parse, size caps)
@@ -129,6 +131,21 @@ docs/             design notes and per-app setup guides
 ```
 
 ## Adding a receiver, guide or app
+
+### A receiver from another manufacturer
+
+A receiver only talks to the box. Matching the channel list, the interactive picker, channel numbers and every safety check are done for it by the core, so they work the same for every box.
+
+| Method | Required? | What it does |
+|---|---|---|
+| `lineup() -> Lineup` | yes | The saved channels in order, each a `Channel` with a stable `key` (e.g. `"mybox:<service id>"`), name, `kind` (`"tv"`/`"radio"`), stream URL and, if known, frequency. Leave `number` at 0: the pipeline numbers the lineup. |
+| `refresh()` | no | Update the box's transponder list and rescan. [`kingofsat/`](sat_to_ip/kingofsat/) fetches transponder lists for any satellite position, if your box needs one. |
+| `selection_candidates() -> (saved, found)` | no, with `save_selection` | The channels the box has saved, and others it has found, as `ChannelRef`s (key, name, kind, frequency). |
+| `save_selection(channels)` | no, with `selection_candidates` | Make exactly these the box's saved channels, in this order. |
+
+Without the selection methods, the select stage is skipped and the lineup is whatever the box has saved. [`octopus_net/receiver.py`](sat_to_ip/octopus_net/receiver.py) is a complete example; `FakeReceiver` and `BasicReceiver` in [tests/fakes.py](tests/fakes.py) are the smallest ones.
+
+### Any part
 
 1. **Write the class.** Satisfy the matching `Protocol` in [`interfaces.py`](sat_to_ip/interfaces.py). The smallest working examples are in [tests/fakes.py](tests/fakes.py).
 2. **Add a builder,** `def from_config(section: Section) -> YourClass`:

@@ -28,7 +28,7 @@ Get the channels from a SAT>IP receiver into **Channels DVR, Jellyfin and Plex**
 ```
  Receiver ──lineup()──► Lineup ──► GuideSource(s) ──GuideMatch──► checks ──► Publisher(s)
    ▲ refresh()  (transponders + scan)                                      Channels DVR (API push)
-   ▲ plan_selection() / apply_selection()  (channels.txt → saved list)     Jellyfin (files + refresh)
+   ▲ selection_candidates() / save_selection()  (saved list)              Jellyfin (files + refresh)
                                                                            Threadfin (files [+ API])
 ```
 
@@ -51,8 +51,9 @@ sat_to_ip/
   cli.py          sat-to-ip run | check-config
   file_output.py  tv.m3u / radio.m3u / guide.xml writer shared by file-reading DVRs
   kingofsat/      transponder scraper (any SAT>IP receiver can use it)
-  octopus/        client, transponders, receiver.py, selection.py (Name / Name@MHz / all / tv / radio),
-                  dms_editor.py (interactive selection)
+  selection.py    channel lists: "<n> =" numbers, Name / Name@MHz / all / tv / radio matching, numbering
+  channel_picker.py  interactive selection (curses), for any receiver
+  octopus_net/    client, transponders, receiver.py, channels.py (keys, scan diff)
   channels_dvr/   client, guide.py (Gracenote GuideSource), publisher.py
   xmltv/          guide.py (XMLTV GuideSource: download, gzip, streaming parse, match, filter)
   jellyfin/       publisher.py (files + Refresh Guide task)
@@ -61,11 +62,12 @@ sat_to_ip/
 
 ### Data model (`model.py`, frozen dataclasses)
 
-- `Channel(key, name, kind, stream_url, number, frequency_mhz=None, service_id=None)`. `key` is stable and unique per receiver (`octopus:<serviceid>`); `kind` is `"tv"` or `"radio"`; `number` is the 1-based position in the receiver's saved list.
+- `Channel(key, name, kind, stream_url, number=0, frequency_mhz=None, service_id=None)`. `key` is stable and unique per receiver (`octopus_net:<serviceid>`); `kind` is `"tv"` or `"radio"`; `number` is assigned by the pipeline from the channel list (receivers leave it at 0).
 - `Lineup(channels: tuple[Channel, ...])` with `.tv`, `.radio`, `len()`.
 - `GuideRef(guide_id, display_name=None, station_id=None)`: Gracenote call sign + station ID, or an XMLTV channel ID.
 - `GuideMatch(source, kind, refs: Mapping[key, GuideRef], unmatched: tuple[Channel, ...], xmltv: bytes | None)`. `xmltv` is the feed filtered to the matched channels, for file publishers. `match_ratio` property.
-- `SelectionPlan(current, proposed, unmatched_specs)`: channel `(key, name)` pairs; `removed` / `added` properties.
+- `ChannelRef(key, name, kind, frequency_mhz)`: a channel a receiver can save, as the channel list and picker see it.
+- `SelectionPlan(current, proposed, unmatched_specs)`: `ChannelRef`s; `removed` / `added` properties.
 - `PublishResult(target, channels, detail)`.
 
 ### Interfaces (`interfaces.py`)
@@ -81,9 +83,8 @@ class SupportsRefresh(Protocol):          # e.g. upload transponders + rescan
 
 @runtime_checkable
 class SupportsSelection(Protocol):        # the receiver keeps a saved channel list
-    def plan_selection(self, specs: Sequence[str]) -> SelectionPlan: ...
-    def plan_selection_interactive(self) -> SelectionPlan | None: ...
-    def apply_selection(self, plan: SelectionPlan) -> None: ...
+    def selection_candidates(self) -> tuple[Sequence[ChannelRef], Sequence[ChannelRef]]: ...  # (saved, found)
+    def save_selection(self, channels: Sequence[ChannelRef]) -> None: ...
 
 class GuideSource(Protocol):
     name: str
@@ -97,6 +98,8 @@ class Publisher(Protocol):
     def publish(self, lineup: Lineup, guide: GuideMatch | None, *, dry_run: bool) -> PublishResult: ...
 ```
 
+Receivers only talk to the device: matching the channel list, the interactive picker, channel numbering and the safety checks are core (`selection.py`, `channel_picker.py`, `checks.py`), so every manufacturer gets the same behaviour. Channel numbers come from the channel list (`<n> = entry`, then counting up); a listed channel that's missing keeps its number free so the rest don't shift.
+
 Optional receiver capabilities are separate Protocols, so a receiver with no scan or no saved list simply doesn't implement them, and the pipeline skips that stage with a warning.
 
 ## Configuration
@@ -105,7 +108,7 @@ TOML, loaded with `tomllib` (so Python ≥ 3.11). Each section's `type` picks a 
 
 ```toml
 [receiver]
-type = "octopus"
+type = "octopus_net"
 host = "octopus.local"
 password_env = "OCTOPUS_PASSWORD"
 positions = ["28.2E"]
@@ -189,7 +192,7 @@ XMLTV feeds can be large: parsed with `iterparse` and cleared as it goes; gzip d
 
 1. **Core** (lead, sequential): `model`, `interfaces`, `config`, `registry`, `checks`, `pipeline`, `m3u`, `files`, `http`, `names`, `mappings`, with tests. Everything below codes against these.
 2. **In parallel** (one agent each, separate files, own tests):
-   - A. `octopus/receiver.py`: refresh, selection (spec + interactive editor), lineup from DMS + M3U.
+   - A. `octopus_net/receiver.py`: refresh, selection, lineup from DMS + M3U.
    - B. `channels_dvr/guide.py` + `channels_dvr/publisher.py` (golden test against current output).
    - C. `xmltv/guide.py` + a starter UK mapping for the chosen free feed.
    - D. `jellyfin/publisher.py` + `threadfin/publisher.py`, APIs verified against their source code.
