@@ -48,7 +48,7 @@ Plex Web → **Settings → Live TV & DVR → Set up Plex DVR** (check the wordi
 [guides.freeview]
 type = "xmltv"
 url = "https://example.org/epg.xml.gz"
-mappings = "uk"
+mappings = "freeview-epg"
 
 [[publishers]]
 type = "threadfin"

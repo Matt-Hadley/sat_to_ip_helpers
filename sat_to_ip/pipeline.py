@@ -12,7 +12,12 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Literal
 
-from sat_to_ip.checks import check_guide_match, check_lineup_not_empty, check_removals
+from sat_to_ip.checks import (
+    check_guide_match,
+    check_lineup_not_empty,
+    check_removals,
+    check_selection_not_empty,
+)
 from sat_to_ip.config import Config
 from sat_to_ip.exceptions import PipelineError
 from sat_to_ip.interfaces import SupportsRefresh, SupportsSelection
@@ -133,6 +138,7 @@ def _select(config: Config, options: RunOptions, report: RunReport) -> None:
         plan = receiver.plan_selection(read_spec_file(config.channels_file))
 
     _log_plan(plan)
+    check_selection_not_empty(plan)
     if not options.interactive:  # a person choosing in the editor has already decided
         check_removals(plan, config.checks.max_removed, allow=options.allow_removals)
     if options.dry_run:

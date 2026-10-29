@@ -51,6 +51,13 @@ def test_check_removals():
         checks.check_removals(_plan(20, 5), 5, allow=False)
 
 
+def test_check_selection_not_empty():
+    checks.check_selection_not_empty(_plan(3, 1))
+    checks.check_selection_not_empty(_plan(0, 0))
+    with pytest.raises(CheckError, match="refusing to replace the 3 saved ones"):
+        checks.check_selection_not_empty(_plan(3, 0))
+
+
 def test_check_lineup_not_empty():
     checks.check_lineup_not_empty(Lineup((channel(1),)))
     with pytest.raises(CheckError):
@@ -84,6 +91,16 @@ def test_m3u_parse_skips_option_lines_and_handles_missing_url():
 
 def test_m3u_render_strips_double_quotes():
     assert "tvg-name=\"Say 'hi'\"" in m3u.render([m3u.Entry("x", "u", (("tvg-name", 'Say "hi"'),))])
+
+
+def test_m3u_render_cannot_be_injected_into():
+    hostile = m3u.Entry(
+        "BBC\r\n#EXTINF:-1,Evil", "http://o/1\nhttp://evil", (("tvg-name", 'A\n#EXTINF:-1,X\nhttp://evil "q"'),)
+    )
+    text = m3u.render([hostile])
+    lines = text.splitlines()
+    assert len(lines) == 3 and sum(line.startswith("#EXTINF") for line in lines) == 1
+    assert text.splitlines()[2].startswith("http://o/1")  # glued into one line, not a second entry
 
 
 def test_m3u_render_empty():

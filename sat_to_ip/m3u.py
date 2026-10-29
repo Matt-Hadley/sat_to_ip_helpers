@@ -5,6 +5,12 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 _ATTR = re.compile(r'([A-Za-z0-9_-]+)="([^"]*)"')
+_CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
+
+
+def _clean(value: str) -> str:
+    """One line, no double quotes: names come from untrusted guide feeds, and a newline would start a new entry."""
+    return _CONTROL.sub(" ", value).replace('"', "'").strip()
 
 
 @dataclass(frozen=True)
@@ -31,9 +37,9 @@ def parse(text: str) -> list[Entry]:
 
 
 def render(entries: Iterable[Entry]) -> str:
-    """Render entries as an M3U playlist; values lose any double quotes (M3U has no escaping)."""
+    """Render entries as an M3U playlist. M3U has no escaping, so values are cleaned instead."""
     out = ["#EXTM3U"]
     for e in entries:
-        attrs = "".join(f' {k}="{v.replace(chr(34), chr(39))}"' for k, v in e.attrs)
-        out += [f"#EXTINF:-1{attrs},{e.label}", e.url]
+        attrs = "".join(f' {k}="{_clean(v)}"' for k, v in e.attrs)
+        out += [f"#EXTINF:-1{attrs},{_CONTROL.sub(' ', e.label).strip()}", _CONTROL.sub("", e.url)]
     return "\n".join(out) + "\n"

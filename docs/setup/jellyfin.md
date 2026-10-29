@@ -43,7 +43,7 @@ Dashboard → **API Keys → +** (under *Advanced* in recent versions; check you
 [guides.freeview]
 type = "xmltv"
 url = "https://example.org/epg.xml.gz"
-mappings = "uk"
+mappings = "freeview-epg"
 
 [[publishers]]
 type = "jellyfin"

@@ -87,7 +87,8 @@ def test_select_logs_changes_and_unmatched_specs(tmp_path, caplog):
 
 
 def test_interactive_selection_bypasses_removal_check(tmp_path):
-    plan = SelectionPlan(current=tuple(ChannelRef(f"k{i}", f"n{i}") for i in range(10)), proposed=())
+    current = tuple(ChannelRef(f"k{i}", f"n{i}") for i in range(10))
+    plan = SelectionPlan(current=current, proposed=current[:1])
     rx = FakeReceiver(interactive_plan=plan)
     report = pipeline.run(
         _config(tmp_path, receiver=rx), RunOptions(interactive=True, stages=frozenset({Stage.SELECT}))
@@ -183,3 +184,28 @@ def test_select_failure_aborts(tmp_path, stage):
         RunOptions(stages=frozenset({Stage.SELECT, Stage.PUBLISH})),
     )
     assert _statuses(report) == {"select": "failed", "publish": "skipped"}
+
+
+@pytest.mark.parametrize("options", [RunOptions(), RunOptions(allow_removals=True)])
+def test_selection_matching_nothing_never_empties_the_receiver(tmp_path, options):
+    rx = FakeReceiver()
+    report = pipeline.run(_config(tmp_path, receiver=rx, specs="Renamed\n", max_removed=50), options)
+    assert "matches no channels" in report.outcomes[1].detail and rx.applied == []
+
+
+def test_interactive_empty_selection_is_refused(tmp_path):
+    current = (ChannelRef("k", "n"),)
+    rx = FakeReceiver(interactive_plan=SelectionPlan(current=current, proposed=()))
+    report = pipeline.run(
+        _config(tmp_path, receiver=rx), RunOptions(interactive=True, stages=frozenset({Stage.SELECT}))
+    )
+    assert report.outcomes[0].status == "failed" and rx.applied == []
+
+
+def test_added_channels_are_logged(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    current = (ChannelRef("k1", "Old"),)
+    plan = SelectionPlan(current=current, proposed=current + (ChannelRef("k2", "New"),))
+    rx = FakeReceiver(interactive_plan=plan)
+    pipeline.run(_config(tmp_path, receiver=rx), RunOptions(interactive=True, stages=frozenset({Stage.SELECT})))
+    assert "+ New" in caplog.text

@@ -82,3 +82,13 @@ def test_number_in_label_for_jellyfin(tmp_path):
     write_lineup_files(tmp_path, lineup, None, dry_run=False, number_in_label=True)
     entry = m3u.parse((tmp_path / "tv.m3u").read_text())[0]
     assert entry.label == "12 5 USA" and entry.attr("tvg-name") == "5 USA" and entry.attr("tvg-chno") == "12"
+
+
+def test_refuses_to_empty_a_playlist_when_a_kind_matches_nothing(tmp_path):
+    from sat_to_ip.exceptions import CheckError
+
+    lineup = Lineup((channel(1), channel(2, kind="radio")))
+    guide = GuideMatch("g", "xmltv", {"fake:2": GuideRef("r.uk")}, (channel(1),), b"<tv/>")
+    with pytest.raises(CheckError, match="matched none of the 1 tv channels; refusing to empty tv.m3u"):
+        write_lineup_files(tmp_path, lineup, guide, dry_run=False)
+    assert list(tmp_path.iterdir()) == []

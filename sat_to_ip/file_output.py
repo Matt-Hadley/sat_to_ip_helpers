@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sat_to_ip import m3u
+from sat_to_ip.exceptions import CheckError
 from sat_to_ip.files import write_atomic
 from sat_to_ip.model import Channel, GuideMatch, GuideRef, Kind, Lineup
 
@@ -37,6 +38,14 @@ def write_lineup_files(
     number_in_label: label entries "<number> <name>". Jellyfin reads a label starting with a number
     and a space as "number name", so without this "5 USA" would show as "USA".
     """
+    if guide is not None:
+        for kind in PLAYLISTS:
+            channels = lineup.of_kind(kind)
+            if channels and not any(ch.key in guide.refs for ch in channels):
+                raise CheckError(
+                    f"Guide {guide.source!r} matched none of the {len(channels)} {kind} channels; "
+                    f"refusing to empty {PLAYLISTS[kind][0]}."
+                )
     directory = Path(tempfile.mkdtemp(prefix="sat-to-ip-")) if dry_run else output_dir
     paths: list[Path] = []
     if guide is not None and guide.xmltv is not None:

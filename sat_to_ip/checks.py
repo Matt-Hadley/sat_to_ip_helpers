@@ -26,6 +26,15 @@ def check_removals(plan: SelectionPlan, max_removed: int, *, allow: bool) -> Non
         )
 
 
+def check_selection_not_empty(plan: SelectionPlan) -> None:
+    """Never replace a saved channel list with nothing, whatever the flags: no channel matched."""
+    if plan.current and not plan.proposed:
+        raise CheckError(
+            f"The selection matches no channels; refusing to replace the {len(plan.current)} saved ones with nothing. "
+            "Check the channel list file."
+        )
+
+
 def check_lineup_not_empty(lineup: Lineup) -> None:
     if not lineup.channels:
         raise CheckError("The receiver has no saved channels; refusing to publish an empty lineup.")

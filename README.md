@@ -61,15 +61,20 @@ flowchart TD
     START([sat-to-ip run]) --> CONF{Config valid?}
     CONF -- no --> EXIT2([exit 2])
     CONF -- yes --> R{refresh stage?}
-    R -- yes --> REF["Receiver.refresh()<br/>KingOfSat → upload transponders → scan"]
+    R -- yes --> REF["Receiver.refresh()<br/>KingOfSat → upload transponders → scan<br/><small>skipped in a dry run</small>"]
     R -- no --> S
     REF -- error --> ABORT([abort: report failed, exit 1])
     REF --> S{select stage?}
     S -- yes --> PLAN["plan_selection(channels.txt)<br/>or the interactive editor"]
     S -- no --> P
-    PLAN --> CHK1{"removes more than<br/>max_removed?"}
+    PLAN --> CHK0{"matches nothing?"}
+    CHK0 -- yes --> ABORT
+    CHK0 -- "no, from channels.txt" --> CHK1{"removes more than<br/>max_removed?"}
+    CHK0 -- "no, from the editor" --> DRY
     CHK1 -- "yes (and no --allow-removals)" --> ABORT
-    CHK1 -- no --> APPLY["apply_selection()<br/>save the receiver's channel list"]
+    CHK1 -- no --> DRY{"--dry-run?"}
+    DRY -- yes --> P
+    DRY -- no --> APPLY["apply_selection()<br/>save the receiver's channel list"]
     APPLY -- error --> ABORT
     APPLY --> P{publish stage?}
     P -- no --> DONE
@@ -79,7 +84,7 @@ flowchart TD
     CHK2 -- no --> GUIDES["Each guide source in use: match() once"]
     GUIDES --> CHK3{"matched ≥ min_guide_match?"}
     CHK3 -- "no: that guide's publishers fail" --> PUB
-    CHK3 -- yes --> PUB["Each publisher, isolated:<br/>publish(lineup, guide)"]
+    CHK3 -- yes --> PUB["Each publisher, isolated:<br/>publish(lineup, guide)<br/><small>dry run: no pushes, files to a temp dir</small>"]
     PUB --> DONE([summary · exit 0 if all ok, else 1])
 ```
 
@@ -110,7 +115,7 @@ sequenceDiagram
     CLI->>FEED: download XMLTV (gzip ok)
     Note over CLI: match channels,<br/>check match rates
     CLI->>CDVR: PUT TV / radio M3U sources
-    CLI->>FS: write tv.m3u, radio.m3u, guide.xml (atomic)
+    CLI->>FS: write tv.m3u, radio.m3u, guide.xml per target (atomic)
     CLI->>JF: start "Refresh Guide" task
     JF->>FS: read playlists + guide
     TF->>FS: read on its own schedule
@@ -130,13 +135,15 @@ flowchart LR
             JF["Jellyfin :8096"]
             TF["Threadfin :34400"]
         end
-        DIR[("livetv/<br/>tv.m3u · radio.m3u · guide.xml")]
+        JDIR[("jellyfin/livetv/<br/>tv.m3u · radio.m3u · guide.xml")]
+        TDIR[("threadfin/livetv/<br/>tv.m3u · radio.m3u · guide.xml")]
     end
     RUN -- "HTTP" --> OCT
     RUN -- "API" --> CDVR
-    RUN -- "writes" --> DIR
+    RUN -- "writes" --> JDIR & TDIR
     RUN -- "API" --> JF
-    DIR -- "mounted" --> JF & TF
+    JDIR -- "mounted" --> JF
+    TDIR -- "mounted" --> TF
     TF -- "HDHomeRun" --> PLEX
     CDVR & JF & PLEX -- "streams" --> OCT
 ```
@@ -239,6 +246,7 @@ tv_source = "OctopusTV"
 - Secrets are never in the file: any key ending in `_env` names the environment variable to read.
 - Unknown keys are errors, so a typo fails loudly. Every error names the key, e.g. `publishers[1].output_dir: required`.
 - A publisher only accepts guide kinds it can use: Channels DVR takes `gracenote`; Jellyfin and Threadfin take `xmltv`.
+- File-writing publishers (Jellyfin, Threadfin) each need their own `output_dir`: Jellyfin's labels differ (they carry the channel number).
 
 ### The channel list
 
@@ -270,10 +278,11 @@ Exit codes: `0` everything succeeded, `1` something failed (the summary says wha
 
 | Check | Stops | When |
 |---|---|---|
+| empty selection | replacing the receiver's saved channels with nothing, even with `--allow-removals` | `channels.txt` matches nothing (renamed channels, a typo) |
 | `max_removed` | saving a channel list that drops more than N of the receiver's saved channels | a rainy or failed scan finds fewer channels |
 | empty lineup | publishing nothing | the receiver lost its list |
 | `min_guide_match` | publishing to targets that use a guide matching too few channels | the feed is down, empty or changed its IDs |
-| empty source | Channels DVR: pushing an empty playlist over a source that had channels | |
+| emptied playlist | any target: writing or pushing an empty TV or radio playlist when the lineup has channels of that kind | the guide matches radio but no TV, or the reverse |
 
 One target failing never stops the others; the run still exits `1`.
 

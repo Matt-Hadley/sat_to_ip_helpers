@@ -109,6 +109,8 @@ type = "octopus"
 host = "octopus.local"
 password_env = "OCTOPUS_PASSWORD"
 positions = ["28.2E"]
+
+[selection]
 channels = "channels.txt"          # relative paths resolve against the config file
 
 [checks]
@@ -123,8 +125,8 @@ mappings = "uk"
 
 [guides.freeview]
 type = "xmltv"
-url = "https://example.org/epg.xml.gz"
-mappings = "uk"
+url = "https://raw.githubusercontent.com/dp247/Freeview-EPG/master/epg.xml"
+mappings = "freeview-epg"
 
 [[publishers]]
 type = "channels_dvr"
@@ -152,12 +154,13 @@ Config-time validation also checks that every publisher's `guide` exists and is 
 `sat-to-ip run -c CONFIG [--stages refresh select publish] [--allow-removals] [--interactive] [--dry-run]`
 
 1. **refresh** (if the receiver supports it): KingOfSat → upload transponders → scan. Failure aborts the run.
-2. **select** (if supported): plan from `channels` (or the interactive editor), log the diff, run the removal check, apply. Dry run: plan and check, don't apply. Failure aborts the run.
+2. **select** (if supported): plan from `channels` (or the interactive editor), log the diff, refuse a plan that matches nothing, run the removal check (not for the interactive editor), apply. Dry run: plan and check, don't apply. Failure aborts the run.
 3. **publish**:
    - `lineup = receiver.lineup()`; an empty lineup fails the stage.
    - Each guide source that a publisher uses runs once. If it errors or is below `min_guide_match`, it fails, and its publishers are reported failed without running.
    - Each publisher runs in isolation; an exception is recorded and the next one runs.
    - Unmatched channels are left out of that target's playlist (the current Channels DVR behaviour) and logged.
+   - A target never gets an emptied playlist: if a kind (TV or radio) has channels but none matched, that target fails.
 4. The `RunReport` lists every stage and target as ok / failed / skipped with a reason, logged as a summary. Exit code: 0 all ok, 1 any failure, 2 configuration error.
 
 File publishers write `tv.m3u`, `radio.m3u` and `guide.xml` atomically (temp file + `os.replace`) so a reader never sees half a file. Dry run writes nothing outside a temp directory and calls no write APIs.

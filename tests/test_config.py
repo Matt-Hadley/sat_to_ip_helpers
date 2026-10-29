@@ -41,6 +41,7 @@ name = "two"
 
 
 def _load(tmp_path: Path, text: str, env=None):
+    (tmp_path / "channels.txt").write_text("BBC One HD\n")
     path = tmp_path / "sat-to-ip.toml"
     path.write_text(text)
     return load_config(path, env or {})
@@ -164,3 +165,26 @@ def test_unloadable_builder_is_a_config_error(tmp_path, monkeypatch):
         ConfigError, match="publishers\\[0\\].type: publisher type 'broken' is registered but can't be loaded"
     ):
         _load(tmp_path, '[receiver]\ntype = "fake"\n[[publishers]]\ntype = "broken"\n')
+
+
+def test_missing_channels_file_is_a_config_error(tmp_path):
+    path = tmp_path / "c.toml"
+    path.write_text('[receiver]\ntype = "fake"\n[selection]\nchannels = "nope.txt"\n[[publishers]]\ntype = "fake"\n')
+    with pytest.raises(ConfigError, match="selection.channels: no such file"):
+        load_config(path, {})
+
+
+def test_publishers_may_not_share_an_output_dir(tmp_path, monkeypatch):
+    from tests.fakes import FakePublisher
+
+    def build(section):
+        pub = FakePublisher(name=section.name, guide=None)
+        pub.output_dir = section.get_path("output_dir")  # type: ignore[attr-defined]
+        return pub
+
+    monkeypatch.setattr("tests.fakes.build_publisher", build)
+    text = '[receiver]\ntype = "fake"\n'
+    text += '[[publishers]]\ntype = "fake"\nname = "a"\noutput_dir = "out"\n'
+    text += '[[publishers]]\ntype = "fake"\nname = "b"\noutput_dir = "./out/"\n'
+    with pytest.raises(ConfigError, match="publishers\\[1\\].output_dir: also used by 'a'"):
+        _load(tmp_path, text)

@@ -150,6 +150,8 @@ def load_config(path: Path, env: Mapping[str, str] | None = None) -> Config:
 
     sel = section("selection", raw.get("selection", {}))
     channels_file = sel.get_optional_path("channels")
+    if channels_file is not None and not channels_file.is_file():
+        raise sel.error("channels", f"no such file: {channels_file}")
     sel.finish()
     checks = _load_checks(section("checks", raw.get("checks", {})))
     guides = _load_guides(raw.get("guides", {}), section)
@@ -188,10 +190,17 @@ def _load_publishers(path: Path, pubs_raw: Any, section: Callable[..., Section])
 
 def _validate_publishers(publishers: list[Publisher], guides: Mapping[str, GuideSource]) -> None:
     seen: set[str] = set()
+    dirs: dict[Path, str] = {}
     for i, pub in enumerate(publishers):
         if pub.name in seen:
             raise ConfigError(f"publishers[{i}].name: {pub.name!r} is used twice; give each publisher a unique name")
         seen.add(pub.name)
+        # Publishers that write files expose output_dir; two sharing one would overwrite each other's files
+        out = getattr(pub, "output_dir", None)
+        if isinstance(out, Path):
+            if out in dirs:
+                raise ConfigError(f"publishers[{i}].output_dir: also used by {dirs[out]!r}; give each its own folder")
+            dirs[out] = pub.name
         if pub.guide is None:
             continue
         if pub.guide not in guides:
