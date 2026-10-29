@@ -119,8 +119,8 @@ def test_logs_in_once_lazily():
 # refresh -------------------------------------------------------------------------------------
 
 
-def _transponder(sat="Astra 2E"):
-    return Transponder(sat, 10773, "H", "DVB-S2", "8PSK", 23000)
+def _transponder(sat="Astra 2E", freq=10773):
+    return Transponder(sat, freq, "H", "DVB-S2", "8PSK", 23000)
 
 
 def _refresh(rx, fetch):
@@ -147,29 +147,47 @@ def test_refresh_uploads_scans_and_logs_diff(rx, caplog):
     assert "+ New" in caplog.text
 
 
-def test_refresh_retunes_saved_channels_the_scan_found_on_a_new_frequency(rx, caplog):
+def _moved(sid, name, freq, dvb, kind="video"):
+    return {**_ch(sid, name, kind, freq), "dvb_serviceid": dvb}
+
+
+SAVED = [_moved(1, "BBC One HD", 10773, 6301), _moved(2, "Radio 4", 11954, 6401, "audio")]
+
+
+def test_refresh_retunes_a_saved_channel_whose_frequency_is_gone(rx, caplog):
     caplog.set_level(logging.INFO)
-    moved = _ch(1, "BBC One HD", freq=10847)
-    clash = [_ch(2, "Radio 4", "audio", 11000), _ch(2, "Radio 4", "audio", 12000)]  # ambiguous: left alone
-    rx._client.get_available_channels.side_effect = [DMS, [moved, *clash]]
-    _refresh(rx, lambda pos, **_: [_transponder()])
+    rx._client = _client(dms=SAVED)
+    # BBC One HD moved: a new serviceid on 10847 (KingOfSat no longer lists 10773); Radio 4 didn't
+    scanned = [*SAVED, _moved(9, "BBC One HD", 10847, 6301), _moved(8, "BBC One HD", 11000, 9999)]
+    rx._client.get_available_channels.side_effect = [SAVED, scanned]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=10847), _transponder(freq=11954), _transponder(freq=11000)])
     records = rx._client.save_channels.call_args.args[0]
-    assert [(r["serviceid"], r["frequency"], r["position"]) for r in records] == [(1, 10847, 0), (2, 11954, 1)]
-    assert "Retuning 'BBC One HD': 10773.0 → 10847.0 MHz" in caplog.text
+    assert [(r["serviceid"], r["frequency"], r["position"]) for r in records] == [(9, 10847, 0), (2, 11954, 1)]
+    assert "Retuning 'BBC One HD': 10773 → 10847 MHz" in caplog.text
 
 
 @pytest.mark.parametrize(
-    "scanned",
+    "scanned, live",
     [
-        [_ch(1, "BBC One HD"), _ch(2, "Radio 4", "audio", 11954)],  # nothing moved
-        [_ch(1, "Some Other Channel", freq=10847)],  # same service ID, different channel
-        [_ch(1, "BBC One HD", freq="?")],  # no usable frequency
-        [_ch(1, "BBC One HD", freq=10773.25), _ch(2, "Radio 4", "audio", 11954)],  # same transponder, written finer
+        ([], [10773, 11954.25]),  # every saved frequency is still listed (to within 1 MHz)
+        ([_moved(9, "BBC One HD", 10847, 6301)], [10773, 11954, 10847]),  # moved copy, but the old one still airs
+        ([_moved(9, "BBC One HD", 10847, 1234)], [10847, 11954]),  # same name, different DVB service ID
+        ([_moved(9, "BBC One HD", 10847, 6301), _moved(8, "BBC One HD", 10850, 6301)], [10847, 10850, 11954]),
+        ([_moved(9, "BBC One HD", 12000, 6301)], [10847, 11954]),  # found only on a frequency KingOfSat doesn't list
     ],
 )
-def test_refresh_saves_nothing_when_no_saved_channel_clearly_moved(rx, scanned):
-    rx._client.get_available_channels.side_effect = [DMS, scanned]
-    _refresh(rx, lambda pos, **_: [_transponder()])
+def test_refresh_saves_nothing_without_one_clear_replacement(rx, scanned, live):
+    rx._client = _client(dms=SAVED)
+    rx._client.get_available_channels.side_effect = [SAVED, [*SAVED, *scanned]]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=f) for f in live])
+    rx._client.save_channels.assert_not_called()
+
+
+def test_refresh_retunes_nothing_when_a_position_failed(rx):
+    rx.positions = ["1E", "28.2E"]
+    rx._client = _client(dms=SAVED)
+    rx._client.get_available_channels.side_effect = [SAVED, [*SAVED, _moved(9, "BBC One HD", 10847, 6301)]]
+    _refresh(rx, lambda pos, **_: [] if pos == "1E" else [_transponder(freq=10847), _transponder(freq=11954)])
     rx._client.save_channels.assert_not_called()
 
 

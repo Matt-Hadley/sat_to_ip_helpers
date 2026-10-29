@@ -51,6 +51,7 @@ class OctopusNetReceiver:
     def refresh(self) -> None:
         kos = KingOfSatClient.create()
         sources = []
+        live_mhz: list[float] = []  # every transponder frequency KingOfSat lists now
         for pos in self.positions:
             try:
                 transponders = kos.fetch_transponders(
@@ -63,6 +64,7 @@ class OctopusNetReceiver:
                 logger.warning(f"KingOfSat: no transponders found for {pos}")
                 continue
             sources.append(format_source(transponders, pos, transponders[0].satellite))
+            live_mhz += [t.frequency for t in transponders]
         if not sources:
             raise IntegrationError(f"KingOfSat: no transponders for any position ({', '.join(self.positions)})")
 
@@ -75,27 +77,33 @@ class OctopusNetReceiver:
         after = client.get_available_channels([])
         logger.info(f"   Post-scan: {len(after)} channels found")
         log_scan_diff(before, after)
-        self._retune_moved(client, after)
+        if len(sources) == len(self.positions):  # with a position missing, its channels would all look moved
+            self._retune_moved(client, after, live_mhz)
 
-    def _retune_moved(self, client: OctopusClient, scanned: list[OctopusChannel]) -> None:
-        """Give saved channels the scan found on a new frequency their new record, so they keep streaming.
+    def _retune_moved(self, client: OctopusClient, scanned: list[OctopusChannel], live_mhz: list[float]) -> None:
+        """Swap a saved channel whose frequency KingOfSat no longer lists for the same channel the scan found.
 
-        Only when the scan has exactly one channel with that service ID and the same name: service IDs are
-        only unique per transponder, so anything else could be a different channel.
+        The Octopus NET's serviceid includes the frequency, so a channel that moved comes back from the scan
+        as a new record: the same name and DVB service ID, on a live frequency. Only an unambiguous match is used.
         """
-        by_sid: dict[str, list[OctopusChannel]] = {}
-        for ch in scanned:
-            if ch.get("serviceid") not in (None, ""):
-                by_sid.setdefault(str(ch["serviceid"]), []).append(ch)
+
+        def live(freq: float | None) -> bool:
+            return freq is not None and any(abs(freq - f) < 1 for f in live_mhz)
+
         records, moved = [], 0
         for i, saved in enumerate(client.get_dms_channels()):
-            found = by_sid.get(str(saved.get("serviceid")), [])
-            new = found[0] if len(found) == 1 else None
-            old_mhz, new_mhz = mhz(ch_freq(saved)), mhz(ch_freq(new)) if new else None
-            moved_far = new_mhz is not None and old_mhz is not None and abs(new_mhz - old_mhz) >= 1
-            if new and moved_far and new.get("name") == saved.get("name"):
-                logger.info(f"   Retuning {saved.get('name')!r}: {old_mhz} → {new_mhz} MHz")
-                saved, moved = new.copy(), moved + 1
+            old_mhz = mhz(ch_freq(saved))
+            if old_mhz is not None and not live(old_mhz):
+                same = [
+                    ch
+                    for ch in scanned
+                    if ch.get("name") == saved.get("name")
+                    and ch.get("dvb_serviceid") == saved.get("dvb_serviceid")
+                    and live(mhz(ch_freq(ch)))
+                ]
+                if len(same) == 1:
+                    logger.info(f"   Retuning {saved.get('name')!r}: {old_mhz:g} → {mhz(ch_freq(same[0])):g} MHz")
+                    saved, moved = same[0].copy(), moved + 1
             saved["position"] = i
             records.append(saved)
         if moved:

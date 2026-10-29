@@ -19,7 +19,8 @@ class OctopusChannel(TypedDict, total=False):
     """A channel as the Octopus API returns it (only the keys we read; the rest pass through untouched)."""
 
     name: str
-    serviceid: str | int
+    serviceid: str | int  # on the Octopus NET this includes the frequency, so it changes when a channel moves
+    dvb_serviceid: int  # the broadcast service ID, which stays
     type: str  # "video" | "audio"
     frequency: int | float | str
     freq: int | float | str
