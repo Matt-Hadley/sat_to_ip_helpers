@@ -7,11 +7,16 @@ and number the lineup.
       "BBC One HD",                               # a channel by name (the first one with that name)
       { name = "BBC One HD", frequency = 10773 }, # that name on that frequency (MHz), when it appears twice
       { name = "5DRAMA", service = 2105 },        # that broadcast service, whatever it's called now
+      { name = "BBC Three HD", additional_names = ["CBBC HD"] },  # a timeshare, see below
       { rest = "tv" },                            # every TV / radio / channel ("all") not listed before
     ]
 
 Numbers stay stable: a listed channel that's missing from the receiver keeps its number free, so the
 channels after it don't move.
+
+A timeshare is one broadcast slot that two channels take turns on (CBBC by day, BBC Three in the evening):
+a scan finds it under whichever name is on air. Its entry matches any of its names, and the channel is
+published once per name, numbered in that order, all with the same stream.
 """
 
 from collections.abc import Sequence
@@ -19,7 +24,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from sat_to_ip.exceptions import CheckError, ConfigError
-from sat_to_ip.model import ChannelRef, Kind, Lineup, SelectionPlan
+from sat_to_ip.model import Channel, ChannelRef, Kind, Lineup, SelectionPlan
 
 KEYWORDS: dict[str, Kind | None] = {"all": None, "tv": "tv", "radio": "radio"}
 _FREQ_TOLERANCE_MHZ = 0.5  # receivers report e.g. 10773, 10773.0 or 10773.25 for the same transponder
@@ -36,6 +41,11 @@ class Spec:
     name: str | None = None
     frequency_mhz: float | None = None
     service: str | None = None  # matched instead of the name, which is then only a label
+    additional_names: tuple[str, ...] = ()  # a timeshare's other names: matched too, and each published
+
+    @property
+    def names(self) -> tuple[str, ...]:
+        return () if self.name is None else (self.name, *self.additional_names)
 
     def matches(self, ch: ChannelRef) -> bool:
         if self.keyword is not None:
@@ -43,7 +53,7 @@ class Spec:
         if self.service is not None:
             if ch.service_id != self.service:
                 return False
-        elif self.name is None or ch.name.lower() != self.name.lower():
+        elif ch.name.lower() not in {name.lower() for name in self.names}:
             return False
         if self.frequency_mhz is None:
             return True
@@ -57,7 +67,7 @@ def _entry(value: Any, where: str, number: int | None) -> Spec:
         return Spec(value.strip(), where, number, name=value.strip())
     if not isinstance(value, dict):
         raise ConfigError(f'{where}: must be a channel name or a table like {{ name = "…" }}, got {value!r}')
-    unknown = sorted(set(value) - {"name", "frequency", "service", "rest"})
+    unknown = sorted(set(value) - {"name", "additional_names", "frequency", "service", "rest"})
     if unknown:
         raise ConfigError(f"{where}: unknown key(s) {', '.join(unknown)}")
     if "rest" in value:
@@ -65,17 +75,24 @@ def _entry(value: Any, where: str, number: int | None) -> Spec:
         if set(value) != {"rest"} or rest not in KEYWORDS:
             raise ConfigError(f'{where}: use {{ rest = "tv" }}, "radio" or "all" on its own, got {value!r}')
         return Spec(f"rest = {rest}", where, number, keyword=rest)
+    return _named(value, where, number)
+
+
+def _named(value: dict[str, Any], where: str, number: int | None) -> Spec:
     name = value.get("name")
     if not isinstance(name, str) or not name.strip():
         raise ConfigError(f"{where}.name: required, the channel name as your receiver shows it")
     service = value.get("service")
     if service is not None and (isinstance(service, bool) or not isinstance(service, int) or service < 0):
         raise ConfigError(f"{where}.service: must be the broadcast service ID, a whole number, got {service!r}")
+    additional = value.get("additional_names", [])
+    if not isinstance(additional, list) or not all(isinstance(n, str) and n.strip() for n in additional):
+        raise ConfigError(f"{where}.additional_names: must be a list of channel names, got {additional!r}")
     frequency = value.get("frequency")
     if frequency is not None and (isinstance(frequency, bool) or not isinstance(frequency, (int, float))):
         raise ConfigError(f"{where}.frequency: must be a number in MHz, got {frequency!r}")
     text = (
-        name.strip()
+        "/".join(n.strip() for n in [name, *additional])
         + (f"@{frequency:g}" if frequency is not None else "")
         + (f"#{service}" if service is not None else "")
     )
@@ -86,6 +103,7 @@ def _entry(value: Any, where: str, number: int | None) -> Spec:
         name=name.strip(),
         frequency_mhz=float(frequency) if frequency is not None else None,
         service=str(service) if service is not None else None,
+        additional_names=tuple(n.strip() for n in additional),
     )
 
 
@@ -117,7 +135,7 @@ def specs_from_config(blocks: Any) -> list[Spec] | None:
             spec = _entry(value, f"{where}.names[{j}]", start if j == 0 else None)
             specs.append(spec)
             # how many channels a `rest` entry takes is only known at run time; number_lineup checks that
-            next_number = (spec.number or next_number) + (0 if spec.keyword else 1)
+            next_number = (spec.number or next_number) + len(spec.names)
         prev = where
     return specs
 
@@ -139,6 +157,11 @@ def match_specs(specs: Sequence[Spec], channels: Sequence[ChannelRef]) -> list[t
     return result
 
 
+def timeshares(specs: Sequence[Spec]) -> list[frozenset[str]]:
+    """Each timeshare entry's names, in lowercase."""
+    return [frozenset(name.lower() for name in spec.names) for spec in specs if spec.additional_names]
+
+
 def plan_selection(
     saved: Sequence[ChannelRef], available: Sequence[ChannelRef], specs: Sequence[Spec]
 ) -> SelectionPlan:
@@ -156,10 +179,13 @@ def number_lineup(lineup: Lineup, specs: Sequence[Spec] | None) -> Lineup:
 
     With channel blocks: a block's start, then one more for each entry. A missing channel keeps its
     number free so later channels don't move. Channels the blocks don't mention come after.
+    A timeshare is published once per name, under its entry's names whatever the receiver calls it now;
+    the copies after the first are keyed "<key>/<name>".
     Without blocks: 1, 2, 3, … in the receiver's order.
     """
     refs = [ChannelRef(ch.key, ch.name, ch.kind, ch.frequency_mhz, ch.service_id) for ch in lineup]
-    numbers: dict[str, int] = {}
+    by_key = {ch.key: ch for ch in lineup}
+    numbered: list[Channel] = []
     next_number = 1
     for spec, found in match_specs(specs or (), refs):
         if spec.number is not None:
@@ -169,16 +195,15 @@ def number_lineup(lineup: Lineup, specs: Sequence[Spec] | None) -> Lineup:
                     f"(a `rest` entry matched more channels than there was room for). Start this block higher."
                 )
             next_number = spec.number
-        if not found and spec.keyword is None:
-            next_number += 1  # keep the missing channel's number free
+        if not found:
+            next_number += len(spec.names)  # keep the missing channel's numbers free
         for ref in found:
-            numbers[ref.key] = next_number
-            next_number += 1
-    unlisted = max(numbers.values(), default=0) + 1
-    numbered = []
-    for channel in lineup:
-        if channel.key not in numbers:
-            numbers[channel.key] = unlisted
-            unlisted += 1
-        numbered.append(replace(channel, number=numbers[channel.key]))
+            channel = by_key.pop(ref.key)
+            names = spec.names if spec.additional_names else (channel.name,)
+            for i, name in enumerate(names):
+                key = f"{channel.key}/{name}" if i else channel.key
+                numbered.append(replace(channel, key=key, name=name, number=next_number))
+                next_number += 1
+    unlisted = max((ch.number for ch in numbered), default=0) + 1
+    numbered += [replace(ch, number=n) for n, ch in enumerate(by_key.values(), unlisted)]
     return Lineup(tuple(sorted(numbered, key=lambda c: c.number)))

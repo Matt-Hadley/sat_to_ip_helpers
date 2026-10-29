@@ -22,6 +22,7 @@ class FakeReceiver:
     found: list[Channel] = field(default_factory=list)
     name: str = "fake"
     refreshed: int = 0
+    timeshares: list[frozenset[str]] = field(default_factory=list)  # what the last refresh was given
     saved: list[tuple[ChannelRef, ...]] = field(default_factory=list)
     fail_on: str | None = None
     unstreamable: frozenset[str] = frozenset()  # saved channels lineup() leaves out (no stream)
@@ -34,9 +35,10 @@ class FakeReceiver:
         self._maybe_fail("lineup")
         return Lineup(tuple(c for c in self.channels if c.name not in self.unstreamable))
 
-    def refresh(self) -> None:
+    def refresh(self, timeshares: Sequence[frozenset[str]] = ()) -> None:
         self._maybe_fail("refresh")
         self.refreshed += 1
+        self.timeshares = list(timeshares)
 
     def selection_candidates(self) -> tuple[list[ChannelRef], list[ChannelRef]]:
         self._maybe_fail("select")

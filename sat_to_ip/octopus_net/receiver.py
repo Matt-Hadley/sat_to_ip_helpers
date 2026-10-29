@@ -13,7 +13,6 @@ from sat_to_ip.config import Section
 from sat_to_ip.exceptions import IntegrationError
 from sat_to_ip.kingofsat.client import KingOfSatClient
 from sat_to_ip.model import Channel, ChannelRef, Kind, Lineup
-from sat_to_ip.names import slot_name
 from sat_to_ip.octopus_net.channels import ch_freq, channel_key, log_scan_diff, mhz
 from sat_to_ip.octopus_net.client import OctopusChannel, OctopusClient
 from sat_to_ip.octopus_net.transponders import build_upload_payload, format_source
@@ -31,13 +30,7 @@ def _service_id(ch: OctopusChannel) -> str | None:
 
 
 def _ref(ch: OctopusChannel) -> ChannelRef:
-    return ChannelRef(channel_key(ch), slot_name(ch.get("name", "")), _kind(ch), mhz(ch_freq(ch)), _service_id(ch))
-
-
-def _slot_named(ch: OctopusChannel) -> OctopusChannel:
-    """The record under the name it's kept by (see names.SHARED_SLOTS)."""
-    name = ch.get("name")
-    return {**ch, "name": slot_name(name)} if name is not None and slot_name(name) != name else ch
+    return ChannelRef(channel_key(ch), ch.get("name", ""), _kind(ch), mhz(ch_freq(ch)), _service_id(ch))
 
 
 def _log_tuners(client: OctopusClient) -> None:
@@ -61,30 +54,40 @@ def _log_tuners(client: OctopusClient) -> None:
     )
 
 
-def _candidates(ch: OctopusChannel, scanned: list[OctopusChannel], found: set[str]) -> list[OctopusChannel] | None:
+def _candidates(
+    ch: OctopusChannel, scanned: list[OctopusChannel], found: set[str], timeshares: Sequence[frozenset[str]]
+) -> list[OctopusChannel] | None:
     """None when the scan found the saved channel where it was; else the scanned channels it may have moved to.
 
     The Octopus NET's serviceid includes the frequency, so a channel that moved comes back from the scan
-    as a new record: the same name and DVB service ID, on another frequency.
+    as a new record: the same name and DVB service ID, on another frequency. A timeshare's DVB service ID
+    changes with the name on air, so it's looked for first on its own frequency, under any of its names.
     """
-    if mhz(ch_freq(ch)) is None or str(ch.get("serviceid")) in found:
+    here = mhz(ch_freq(ch))
+    if here is None or str(ch.get("serviceid")) in found:
         return None
-    return [
+    names = next((ts for ts in timeshares if ch.get("name", "").lower() in ts), frozenset())
+    on_air = [new for new in scanned if new.get("name", "").lower() in names and mhz(ch_freq(new)) == here]
+    return on_air[:1] or [  # the first, as a channel list entry takes the first match
         new
         for new in scanned
-        if slot_name(new.get("name", "")) == slot_name(ch.get("name", ""))
+        if new.get("name") == ch.get("name")
         and new.get("dvb_serviceid") == ch.get("dvb_serviceid")
         and mhz(ch_freq(new)) is not None
     ]
 
 
-def _lost(saved: list[OctopusChannel], scanned: list[OctopusChannel]) -> list[OctopusChannel]:
+def _lost(
+    saved: list[OctopusChannel], scanned: list[OctopusChannel], timeshares: Sequence[frozenset[str]]
+) -> list[OctopusChannel]:
     """Saved channels the scan found neither where they were nor, unambiguously, anywhere else."""
     found = {str(ch.get("serviceid")) for ch in scanned}
-    return [ch for ch in saved if (same := _candidates(ch, scanned, found)) is not None and len(same) != 1]
+    return [ch for ch in saved if (same := _candidates(ch, scanned, found, timeshares)) is not None and len(same) != 1]
 
 
-def _retune_moved(saved: list[OctopusChannel], scanned: list[OctopusChannel]) -> list[OctopusChannel]:
+def _retune_moved(
+    saved: list[OctopusChannel], scanned: list[OctopusChannel], timeshares: Sequence[frozenset[str]]
+) -> list[OctopusChannel]:
     """The saved channels as the scan found them now: renamed ones under their new name, and each one the scan
     no longer found swapped for the same channel the scan found elsewhere.
 
@@ -96,17 +99,20 @@ def _retune_moved(saved: list[OctopusChannel], scanned: list[OctopusChannel]) ->
     for ch in saved:
         fresh = found.get(str(ch.get("serviceid")))
         if fresh is not None:  # found where it was: take the scan's current details, its name included
-            fresh = _slot_named(fresh)
             if fresh.get("name") != ch.get("name"):
                 logger.info(f"   Renamed {ch.get('name')!r} → {fresh.get('name')!r}")
             records.append(fresh)
             continue
-        same = _candidates(ch, scanned, set(found))
+        same = _candidates(ch, scanned, set(found), timeshares)
         if same is not None:
             old_mhz = mhz(ch_freq(ch))
             if len(same) == 1:
-                logger.info(f"   Retuning {ch.get('name')!r}: {old_mhz:g} → {mhz(ch_freq(same[0])):g} MHz")
-                ch = _slot_named(same[0])
+                new_name, new_mhz = same[0].get("name"), mhz(ch_freq(same[0]))
+                if new_mhz == old_mhz:  # a timeshare: the other channel is on air
+                    logger.info(f"   {ch.get('name')!r} is on air as {new_name!r} now")
+                else:
+                    logger.info(f"   Retuning {ch.get('name')!r}: {old_mhz:g} → {new_mhz:g} MHz")
+                ch = same[0]
             else:
                 logger.warning(
                     f"   {ch.get('name')!r} is saved on {old_mhz:g} MHz, but the scan didn't find it there"
@@ -143,7 +149,7 @@ class OctopusNetReceiver:
 
     # SupportsRefresh ---------------------------------------------------------------------------
 
-    def refresh(self) -> None:
+    def refresh(self, timeshares: Sequence[frozenset[str]] = ()) -> None:
         kos = KingOfSatClient.create()
         sources = []
         for pos in self.positions:
@@ -168,7 +174,7 @@ class OctopusNetReceiver:
         logger.info(f"   Pre-scan: {len(before)} channels available")
         complete = len(sources) == len(self.positions)  # with a position missing, its channels would all look lost
         after = self._scan(client)
-        if complete and (lost := _lost(saved, after)):
+        if complete and (lost := _lost(saved, after, timeshares)):
             # A scan can miss a whole transponder (each of three on 2026-10-29 missed different ones): try once more
             logger.info(f"   {len(lost)} saved channel(s) not found; scanning once more")
             after = list({str(ch.get("serviceid")): ch for ch in [*after, *self._scan(client)]}.values())
@@ -176,7 +182,7 @@ class OctopusNetReceiver:
             _log_tuners(client)
         log_scan_diff(before, after)
         if saved:
-            records = _retune_moved(saved, after) if complete else saved
+            records = _retune_moved(saved, after, timeshares) if complete else saved
             client.save_channels([{**ch, "position": i} for i, ch in enumerate(records)])
 
     def _scan(self, client: OctopusClient) -> list[OctopusChannel]:
@@ -215,7 +221,7 @@ class OctopusNetReceiver:
             raise IntegrationError(f"Octopus NET: channel(s) not found, nothing saved: {', '.join(missing)}")
         records = []
         for i, ref in enumerate(channels):
-            record = _slot_named(self._known[ref.key]).copy()
+            record = self._known[ref.key].copy()
             record["position"] = i
             records.append(record)
         self._octopus().save_channels(records)

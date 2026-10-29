@@ -220,6 +220,17 @@ def test_editing_keeps_every_block_start_and_missing_channels_so_numbers_stay_pu
     assert "(TV 101–102, TV 201–201, radio 801–801)" in said[0] and said[1].startswith("Kept 1 listed")
 
 
+def test_a_timeshare_entry_is_kept_and_takes_a_number_per_name(tmp_path):
+    rx = FakeReceiver(channels=[channel(1, "CBBC HD"), channel(2)], found=[channel(3)])
+    entry = '{ name = "BBC Three HD", additional_names = ["CBBC HD"] }'
+    config = _config(tmp_path, f'[[channels]]\nstart = 101\nnames = [{entry}, "Ch 2"]\n', receiver=rx)
+    _, said, _ = _run(config, answers=())
+    assert _blocks(config) == [
+        {"start": 101, "names": [{"name": "BBC Three HD", "additional_names": ["CBBC HD"]}, "Ch 2", "Ch 3"]}
+    ]
+    assert "(TV 101–104)" in said[0]
+
+
 def test_rest_is_kept_while_all_its_channels_are_ticked_and_listed_by_name_once_one_is_not(tmp_path):
     rx = FakeReceiver(channels=[channel(1), channel(2)], found=[channel(3)])
     config = _config(tmp_path, '[[channels]]\nstart = 1\nnames = [{ rest = "tv" }]\n', receiver=rx)

@@ -125,11 +125,11 @@ def _transponder(sat="Astra 2E", freq=10773):
     return Transponder(sat, freq, "H", "DVB-S2", "8PSK", 23000)
 
 
-def _refresh(rx, fetch):
+def _refresh(rx, fetch, timeshares=()):
     kos = MagicMock()
     kos.fetch_transponders.side_effect = fetch
     with patch("sat_to_ip.octopus_net.receiver.KingOfSatClient.create", return_value=kos):
-        rx.refresh()
+        rx.refresh(timeshares)
     return kos
 
 
@@ -250,38 +250,57 @@ def test_refresh_follows_a_rename_and_takes_the_scans_current_details(rx, caplog
     assert rx._client.start_scan.call_count == 1  # nothing was lost
 
 
-@pytest.mark.parametrize(
-    "saved_name, scanned_name, kept, logged",
-    [
-        ("BBC Three HD", "CBBC HD", "BBC Three HD", False),  # a daytime scan: not a rename
-        ("CBBC HD", "BBC Three HD", "BBC Three HD", True),  # saved during the day: settles on the main name
-        ("CBBC HD", "CBBC HD", "BBC Three HD", True),
-    ],
-)
-def test_refresh_keeps_shared_slot_channels_under_their_main_name(rx, caplog, saved_name, scanned_name, kept, logged):
+BBC_THREE = [frozenset({"bbc three hd", "cbbc hd"})]
+
+
+@pytest.mark.parametrize("saved_name, on_air", [("BBC Three HD", "CBBC HD"), ("CBBC HD", "BBC Three HD")])
+def test_refresh_follows_a_timeshare_to_the_channel_on_air(rx, caplog, saved_name, on_air):
+    # its DVB service ID changes with the name on air (6951 in the evening, 6952 by day); twins share the slot
     caplog.set_level(logging.INFO)
-    saved = [_moved(1, saved_name, 10847, 6952)]
+    saved = [_moved(1, saved_name, 10847, 6951)]
     rx._client = _client(dms=saved)
-    rx._client.get_available_channels.side_effect = [saved, [_moved(1, scanned_name, 10847, 6952)]]
+    scanned = [_moved(2, "BBC One HD", 10847, 6940), _moved(3, on_air, 10847, 6952), _moved(4, on_air, 10847, 6972)]
+    rx._client.get_available_channels.side_effect = [saved, scanned]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=10847)], BBC_THREE)
+    assert [(r["serviceid"], r["name"]) for r in rx._client.save_channels.call_args.args[0]] == [(3, on_air)]
+    assert f"{saved_name!r} is on air as {on_air!r} now" in caplog.text
+    assert rx._client.start_scan.call_count == 1  # found, so no second scan
+
+
+def test_a_timeshare_off_its_frequency_is_lost(rx, caplog):
+    saved = [_moved(1, "BBC Three HD", 10847, 6951)]
+    rx._client = _client(dms=saved)
+    rx._client.get_available_channels.side_effect = [saved, [_moved(3, "CBBC HD", 10818, 6952)], []]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=10847)], BBC_THREE)
+    assert rx._client.save_channels.call_args.args[0][0]["serviceid"] == 1  # kept as it was
+    assert "scan didn't find it there or anywhere else" in caplog.text
+
+
+def test_a_timeshare_that_moved_frequency_is_retuned(rx, caplog):
+    caplog.set_level(logging.INFO)
+    saved = [_moved(1, "BBC Three HD", 10847, 6951)]
+    rx._client = _client(dms=saved)
+    rx._client.get_available_channels.side_effect = [saved, [_moved(9, "BBC Three HD", 10818, 6951)]]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=10818)], BBC_THREE)
+    assert rx._client.save_channels.call_args.args[0][0]["serviceid"] == 9
+    assert "Retuning 'BBC Three HD': 10847 → 10818 MHz" in caplog.text
+
+
+def test_without_timeshares_a_channel_on_air_under_another_name_is_lost(rx, caplog):
+    saved = [_moved(1, "BBC Three HD", 10847, 6951)]
+    rx._client = _client(dms=saved)
+    rx._client.get_available_channels.side_effect = [saved, [_moved(3, "CBBC HD", 10847, 6952)], []]
     _refresh(rx, lambda pos, **_: [_transponder(freq=10847)])
-    assert [r["name"] for r in rx._client.save_channels.call_args.args[0]] == [kept]
-    assert ("Renamed" in caplog.text) == logged
+    assert rx._client.save_channels.call_args.args[0][0]["serviceid"] == 1
+    assert rx._client.start_scan.call_count == 2
 
 
-def test_a_moved_shared_slot_channel_is_retuned_under_its_main_name(rx):
-    saved = [_moved(1, "BBC Four HD", 10818, 10366)]
-    rx._client = _client(dms=saved)
-    rx._client.get_available_channels.side_effect = [saved, [_moved(9, "CBeebies HD", 10817, 10366)]]
-    _refresh(rx, lambda pos, **_: [_transponder(freq=10817)])
-    assert [(r["serviceid"], r["name"]) for r in rx._client.save_channels.call_args.args[0]] == [(9, "BBC Four HD")]
-
-
-def test_a_shared_slot_channel_picked_during_the_day_is_saved_under_its_main_name(rx):
+def test_a_channel_picked_is_saved_under_the_name_on_air(rx):
     rx._client = _client(dms=[], available=[_moved(3, "CBBC HD", 10847, 6952)])
     _, found = rx.selection_candidates()
-    assert [r.name for r in found] == ["BBC Three HD"]
+    assert [r.name for r in found] == ["CBBC HD"]
     rx.save_selection(found)
-    assert [r["name"] for r in rx._client.save_channels.call_args.args[0]] == ["BBC Three HD"]
+    assert [r["name"] for r in rx._client.save_channels.call_args.args[0]] == ["CBBC HD"]
 
 
 def test_channels_carry_their_dvb_service_id(rx):

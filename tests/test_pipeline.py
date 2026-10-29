@@ -1,4 +1,5 @@
 import logging
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,18 @@ def test_full_run_refreshes_selects_and_publishes(tmp_path):
     assert rx.refreshed == 1 and len(rx.saved) == 1
     lineup, match, dry = pub.published[0]
     assert len(lineup) == 3 and len(match.refs) == 3 and dry is False
+
+
+def test_refresh_is_given_the_channel_lists_timeshares(tmp_path):
+    rx = FakeReceiver()
+    config = replace(
+        _config(tmp_path, receiver=rx),
+        channel_specs=tuple(
+            specs_from_config([{"names": [{"name": "BBC Three HD", "additional_names": ["CBBC HD"]}]}])
+        ),
+    )
+    pipeline.run(config, RunOptions(stages=frozenset({Stage.REFRESH})))
+    assert rx.timeshares == [frozenset({"bbc three hd", "cbbc hd"})]
 
 
 def test_unchanged_selection_is_not_saved_again(tmp_path):

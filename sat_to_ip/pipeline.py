@@ -24,7 +24,7 @@ from sat_to_ip.config import Config
 from sat_to_ip.exceptions import CheckError, PipelineError
 from sat_to_ip.interfaces import SupportsRefresh, SupportsSelection
 from sat_to_ip.model import GuideMatch, Lineup, SelectionPlan
-from sat_to_ip.selection import number_lineup, plan_selection
+from sat_to_ip.selection import number_lineup, plan_selection, timeshares
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ def _refresh(config: Config, options: RunOptions, report: RunReport) -> None:
     if options.dry_run:
         report.add(Stage.REFRESH, "skipped", "dry run")
         return
-    receiver.refresh()
+    receiver.refresh(timeshares(config.channel_specs or ()))
     report.add(Stage.REFRESH, "ok")
 
 

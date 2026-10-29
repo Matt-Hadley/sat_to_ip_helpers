@@ -140,7 +140,7 @@ def _edit_blocks(
                 block.entries.append(value)  # as written: a placeholder, a name, or a whole `rest`
             else:  # some of what it matched was unticked: list the rest by name
                 block.entries += [_entry(ch, everything) for ch in ticked]
-            block.size += len(ticked) if chs else int(spec.keyword is None)
+            block.size += len(ticked) * len(spec.names) if chs else len(spec.names)
             block.kinds.update(ch.kind for ch in ticked)
         if not block.entries:
             # shortcut: an emptied block is dropped, so a following block without `start` moves up; give

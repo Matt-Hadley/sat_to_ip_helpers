@@ -2,7 +2,7 @@ import pytest
 
 from sat_to_ip.exceptions import CheckError, ConfigError
 from sat_to_ip.model import Channel, ChannelRef, Lineup
-from sat_to_ip.selection import Spec, match_specs, number_lineup, plan_selection, specs_from_config
+from sat_to_ip.selection import Spec, match_specs, number_lineup, plan_selection, specs_from_config, timeshares
 
 BBC = ChannelRef("k1", "BBC One HD", "tv", 10773.0)
 BBC_SCOT = ChannelRef("k2", "BBC One HD", "tv", 10847.0)
@@ -76,6 +76,12 @@ def test_names_are_trimmed_and_a_block_may_have_no_start():
         ([{"names": [{"name": "A", "freq": 1}]}], "names\\[0\\]: unknown key\\(s\\) freq"),
         ([{"names": [{"frequency": 1}]}], "names\\[0\\].name: required"),
         ([{"names": [{"name": "A", "frequency": "x"}]}], "names\\[0\\].frequency: must be a number"),
+        ([{"names": [{"name": "A", "additional_names": "B"}]}], "additional_names: must be a list of channel names"),
+        ([{"names": [{"name": "A", "additional_names": [" "]}]}], "additional_names: must be a list of channel names"),
+        (
+            [{"start": 10, "names": [{"name": "A", "additional_names": ["B"]}]}, {"start": 11, "names": ["C"]}],
+            "channels\\[1\\].start: 11 overlaps channels\\[0\\] \\(its channels run up to 11\\)",
+        ),
         ([{"names": [{"rest": "films"}]}], 'use { rest = "tv" }'),
         ([{"names": [{"rest": "tv", "name": "A"}]}], 'use { rest = "tv" }'),
         (
@@ -87,6 +93,13 @@ def test_names_are_trimmed_and_a_block_may_have_no_start():
 def test_bad_blocks_name_the_key(blocks, message):
     with pytest.raises(ConfigError, match=message):
         specs_from_config(blocks)
+
+
+def test_a_timeshare_entry_matches_any_of_its_names():
+    spec = specs_from_config([{"names": [{"name": "BBC Three HD", "additional_names": [" CBBC HD"]}]}])[0]
+    assert spec.text == "BBC Three HD/CBBC HD" and spec.names == ("BBC Three HD", "CBBC HD")
+    assert [spec.matches(ChannelRef("k", n)) for n in ("cbbc hd", "BBC Three HD", "CBBC")] == [True, True, False]
+    assert timeshares([spec, *_specs("A")]) == [frozenset({"bbc three hd", "cbbc hd"})]
 
 
 def test_rest_entries_leave_room_checks_to_run_time():
@@ -163,6 +176,21 @@ def test_a_missing_channel_keeps_its_number_free():
 
 def test_unlisted_channels_come_after_the_listed_ones():
     assert _numbers(number_lineup(_lineup("X", "A", "Y"), _specs("A", start=10))) == [(10, "A"), (11, "X"), (12, "Y")]
+
+
+def test_a_timeshare_is_published_once_per_name_whatever_is_on_air():
+    specs = specs_from_config([{"start": 9, "names": [{"name": "BBC Three HD", "additional_names": ["CBBC HD"]}, "B"]}])
+    lineup = number_lineup(_lineup("B", "CBBC HD"), specs)
+    assert [(c.number, c.name, c.key, c.stream_url) for c in lineup] == [
+        (9, "BBC Three HD", "k-CBBC HD", "u"),
+        (10, "CBBC HD", "k-CBBC HD/CBBC HD", "u"),
+        (11, "B", "k-B", "u"),
+    ]
+
+
+def test_a_missing_timeshare_keeps_a_number_free_for_each_name():
+    specs = specs_from_config([{"names": [{"name": "BBC Four HD", "additional_names": ["CBeebies HD"]}, "B"]}])
+    assert _numbers(number_lineup(_lineup("B"), specs)) == [(3, "B")]
 
 
 def test_rest_overflowing_into_the_next_block_is_a_check_error():

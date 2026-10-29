@@ -28,9 +28,13 @@ class Receiver(Protocol):
 
 @runtime_checkable
 class SupportsRefresh(Protocol):
-    """A receiver that can update its transponder list and rescan."""
+    """A receiver that can update its transponder list and rescan.
 
-    def refresh(self) -> None: ...
+    timeshares: the channel list's timeshares, each the set of its names in lowercase; a scan can find
+    one under any of them.
+    """
+
+    def refresh(self, timeshares: Sequence[frozenset[str]] = ()) -> None: ...
 
 
 @runtime_checkable

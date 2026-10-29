@@ -63,7 +63,7 @@ Run it once, or let it run by itself once a week. If something looks wrong, for 
 If you don't have [pipx](https://pipx.pypa.io/stable/installation/) yet, install it first (on a Mac: `brew install pipx`). Then:
 
 ```bash
-pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers@v0.4.1
+pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers@v0.5.0
 ```
 
 That's the latest [release](https://github.com/Matt-Hadley/sat_to_ip_helpers/releases). To update later, run the same command with `--force` and the new release's tag.
@@ -133,6 +133,7 @@ names = [
 
 - **Names** must match your receiver exactly. If a name appears twice (e.g. two regions of a channel), write `{ name = "BBC One HD", frequency = 10773 }` with the frequency in MHz.
 - **Renamed channels:** `{ name = "5DRAMA", service = 2105 }` matches the broadcast service itself, whatever it's called now, so the entry keeps working when a channel is renamed (5SELECT became 5DRAMA) or takes a seasonal name (Great! Romance is Great!Christmas until January). Each rescan picks up the new name, so your apps show what's on air. `sat-to-ip channels` writes `service` for you; an entry that only has a name stops matching once that channel is renamed, and the run says so.
+- **Timeshares:** some channels take turns on one broadcast slot, like CBBC by day and BBC Three in the evening, so a scan finds whichever is on air at the time. `{ name = "BBC Three HD", additional_names = ["CBBC HD"] }` matches either name, and the channel is published once under each name, numbered in that order. Both share the same stream, and each gets its own guide. A rescan follows the slot from one name to the other, whatever the time of day. (With `service` as well, only the service is matched; the names are just published.)
 - **`{ rest = "tv" }`**, `"radio"` or `"all"` takes every channel of that kind you haven't already listed.
 - **Numbers stay put:** if a channel disappears from the satellite, its number is kept free and the channels after it don't move.
 
@@ -215,7 +216,7 @@ Any scheduler works. On a Mac or Linux, `crontab -e` and add a line like this on
 
 Here `secrets.env` holds your `export OCTOPUS_PASSWORD=…` lines. Make it private with `chmod 600 secrets.env`.
 
-The scan briefly takes over the receiver's tuners, so pick a time when nothing is recording. A GitHub Actions workflow on a self-hosted runner works too; keep your config in a private repo. A job that installs from GitHub should pin a [release](https://github.com/Matt-Hadley/sat_to_ip_helpers/releases) (`pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers@v0.4.1`) rather than `@main`, so an update only reaches your setup when you choose it.
+The scan briefly takes over the receiver's tuners, so pick a time when nothing is recording. A GitHub Actions workflow on a self-hosted runner works too; keep your config in a private repo. A job that installs from GitHub should pin a [release](https://github.com/Matt-Hadley/sat_to_ip_helpers/releases) (`pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers@v0.5.0`) rather than `@main`, so an update only reaches your setup when you choose it.
 
 ## Everyday commands
 
@@ -245,7 +246,7 @@ The name on the left is the channel name from your list; the ID on the right is 
 
 **Channel numbers changed.** Numbers only move when you change your channel list; each block's `start` sets where it begins (see [Choose your channels](#5-choose-your-channels)). In Channels DVR, also add `channel_numbers = "list"` to its publisher, otherwise Channels numbers the channels itself.
 
-**A rescan says a saved channel wasn't found.** A scan sometimes misses a whole transponder, so when saved channels go missing the tool scans once more and combines both results. A channel still missing after that is kept, not dropped, and listed under "need attention". A channel that moved frequency is followed for you. Some channels share a slot and change name with the time of day (CBBC becomes BBC Three in the evening, CBeebies becomes BBC Four), and the receiver's scan shows whichever is on air. They're always kept and shown under the evening name, BBC Three HD or BBC Four HD, so a daytime rescan doesn't rename them, and picking CBBC HD in the morning saves it as BBC Three HD.
+**A rescan says a saved channel wasn't found.** A scan sometimes misses a whole transponder, so when saved channels go missing the tool scans once more and combines both results. A channel still missing after that is kept, not dropped, and listed under "need attention". A channel that moved frequency is followed for you, and so is a timeshare (see the channel list) that's on air under its other name.
 
 **"Refusing to remove N saved channels".** The scan found fewer channels than you have saved. Check the dish and try again later; if you really meant to drop them, run with `--allow-removals`.
 

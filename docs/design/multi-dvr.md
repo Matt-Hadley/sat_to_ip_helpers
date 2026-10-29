@@ -79,7 +79,7 @@ class Receiver(Protocol):
 
 @runtime_checkable
 class SupportsRefresh(Protocol):          # e.g. upload transponders + rescan
-    def refresh(self) -> None: ...
+    def refresh(self, timeshares: Sequence[frozenset[str]] = ()) -> None: ...
 
 @runtime_checkable
 class SupportsSelection(Protocol):        # the receiver keeps a saved channel list
