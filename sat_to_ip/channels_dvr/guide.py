@@ -8,7 +8,8 @@ from typing import Any
 
 from sat_to_ip.channels_dvr.client import ChannelsDVRClient
 from sat_to_ip.config import Section
-from sat_to_ip.mappings import available_regions, load_mappings
+from sat_to_ip.exceptions import ConfigError
+from sat_to_ip.mappings import load_mappings
 from sat_to_ip.model import Channel, GuideMatch, GuideRef, Lineup
 from sat_to_ip.names import normalize_name
 
@@ -26,8 +27,7 @@ class GracenoteGuide:
     url: str
     sid: str | None = field(repr=False)
     station_list: str
-    region: str | None
-    extra_mappings: dict[str, str]
+    mappings: Mapping[str, str] = field(default_factory=dict, repr=False)  # lowercased channel name -> call sign
     kind: str = "gracenote"
 
     @cached_property
@@ -36,12 +36,11 @@ class GracenoteGuide:
 
     def match(self, lineup: Lineup) -> GuideMatch:
         stations, by_name = _lookups(self.client.get_gracenote(self.station_list))
-        explicit = load_mappings("gracenote", self.region, self.extra_mappings)
         refs: dict[str, GuideRef] = {}
         unmatched: list[Channel] = []
         for ch in lineup:
             # An explicit mapping wins even when its call sign is missing from the list (then: unmatched)
-            callsign = explicit.get(ch.name.lower()) or by_name.get(normalize_name(ch.name))
+            callsign = self.mappings.get(ch.name.strip().lower()) or by_name.get(normalize_name(ch.name))
             if callsign is None or callsign not in stations:
                 logger.debug(f"No Gracenote match for: {ch.name!r}")
                 unmatched.append(ch)
@@ -66,14 +65,15 @@ def _lookups(data: list[dict[str, Any]]) -> tuple[dict[str, GuideRef], Mapping[s
 
 
 def from_config(section: Section) -> GracenoteGuide:
-    region = section.get_str("mappings", "uk") or None
-    if region and region.lower() not in available_regions("gracenote"):
-        raise section.error("mappings", f"no built-in region {region!r} (have: {available_regions('gracenote')})")
+    extra = section.get_str_map("extra_mappings")
+    try:
+        mappings = load_mappings("gracenote", section.get_str("mappings", "uk") or None, extra)
+    except ConfigError as exc:
+        raise section.error("mappings", str(exc)) from exc
     return GracenoteGuide(
         name=section.name,
         url=section.get_url("url", DEFAULT_URL),
         sid=section.get_secret("sid_env", required=False),
         station_list=section.get_str("station_list", DEFAULT_STATION_LIST),
-        region=region,
-        extra_mappings=section.get_str_map("extra_mappings"),
+        mappings=mappings,
     )

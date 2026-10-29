@@ -108,7 +108,7 @@ sat-to-ip run -c sat-to-ip.toml --stages refresh   # first time only: scan the s
 sat-to-ip channels -c sat-to-ip.toml
 ```
 
-This shows every channel your receiver has found. Tick the ones you want with the space bar (`t` ticks all TV, `r` all radio) and press Enter. It then asks for the number of your first TV and first radio channel (e.g. 101 and 801) and saves your choice at the end of `sat-to-ip.toml`. Run it again whenever you want to change your channels; the ones you already have stay ticked, in the same order.
+This shows every channel your receiver has found. Tick the ones you want with the space bar (`t` ticks all TV, `r` all radio) and press Enter. It then asks for the number of your first TV and first radio channel (e.g. 101 and 801) and saves your choice at the end of `sat-to-ip.toml`. Run it again whenever you want to change your channels. The ones you already have stay ticked and your blocks keep their numbers: unticked channels are dropped, newly ticked ones go at the end of the last block with channels of their kind, and a listed channel the receiver no longer has stays in the list so the numbers after it don't move.
 
 You can also edit the list by hand. It's a few blocks, each starting at a channel number:
 
@@ -156,7 +156,7 @@ The scan works for any satellite. Set the positions your dish sees in `[receiver
 
 ```toml
 positions = ["19.2E"]          # or several, e.g. ["28.2E", "19.2E"]
-kingofsat_language = "eng"     # KingOfSat's language filter: only channels in this language are scanned
+kingofsat_language = "eng"     # KingOfSat's language filter: only transponders carrying channels in this language are scanned
 ```
 
 The TV guide needs more thought, because the built-in name matching only covers UK channels:

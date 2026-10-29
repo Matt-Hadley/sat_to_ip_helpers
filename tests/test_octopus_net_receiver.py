@@ -119,7 +119,7 @@ def test_logs_in_once_lazily():
 
 
 def _transponder(sat="Astra 2E"):
-    return Transponder("28.2°E", sat, 10773, "H", 1, "UK", "DVB-S2", "8PSK", 23000, "3/4", "50", 2, 2045)
+    return Transponder(sat, 10773, "H", "DVB-S2", "8PSK", 23000)
 
 
 def _refresh(rx, fetch):
@@ -144,6 +144,31 @@ def test_refresh_uploads_scans_and_logs_diff(rx, caplog):
     rx._client.start_scan.assert_called_once_with(["28.2E"])
     rx._client.poll_scan_until_complete.assert_called_once_with(interval=7, timeout=99)
     assert "+ New" in caplog.text
+
+
+def test_refresh_retunes_saved_channels_the_scan_found_on_a_new_frequency(rx, caplog):
+    caplog.set_level(logging.INFO)
+    moved = _ch(1, "BBC One HD", freq=10847)
+    clash = [_ch(2, "Radio 4", "audio", 11000), _ch(2, "Radio 4", "audio", 12000)]  # ambiguous: left alone
+    rx._client.get_available_channels.side_effect = [DMS, [moved, *clash]]
+    _refresh(rx, lambda pos, **_: [_transponder()])
+    records = rx._client.save_channels.call_args.args[0]
+    assert [(r["serviceid"], r["frequency"], r["position"]) for r in records] == [(1, 10847, 0), (2, 11954, 1)]
+    assert "Retuning 'BBC One HD': 10773.0 → 10847.0 MHz" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "scanned",
+    [
+        [_ch(1, "BBC One HD"), _ch(2, "Radio 4", "audio", 11954)],  # nothing moved
+        [_ch(1, "Some Other Channel", freq=10847)],  # same service ID, different channel
+        [_ch(1, "BBC One HD", freq="?")],  # no usable frequency
+    ],
+)
+def test_refresh_saves_nothing_when_no_saved_channel_clearly_moved(rx, scanned):
+    rx._client.get_available_channels.side_effect = [DMS, scanned]
+    _refresh(rx, lambda pos, **_: [_transponder()])
+    rx._client.save_channels.assert_not_called()
 
 
 def test_refresh_skips_failing_and_empty_positions(rx, caplog):
@@ -232,7 +257,7 @@ def test_lineup_maps_dms_order_kinds_and_duplicate_names(caplog):
         ("octopus_net:Radio 4@11954", "Radio 4", "radio", "http://octo/2", 0),
         ("octopus_net:1", "BBC One HD", "tv", "http://octo/4", 0),
     ]
-    assert [(c.frequency_mhz, c.service_id) for c in lineup] == [(10847.0, "4"), (11954.0, None), (None, "1")]
+    assert [c.frequency_mhz for c in lineup] == [10847.0, 11954.0, None]
     assert "'Missing' is saved on the Octopus NET but missing from its M3U" in caplog.text
 
 

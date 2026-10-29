@@ -9,6 +9,7 @@ from sat_to_ip import registry
 from sat_to_ip.channels_dvr.guide import GracenoteGuide
 from sat_to_ip.config import Section
 from sat_to_ip.exceptions import ConfigError, IntegrationError
+from sat_to_ip.mappings import load_mappings
 from sat_to_ip.model import Channel, GuideRef, Lineup
 from tests.contracts import assert_guide_contract
 
@@ -57,7 +58,7 @@ def test_defaults():
     assert guide.url == "http://localhost:8089"
     assert guide.sid is None
     assert guide.station_list == "GBR-1000193-DEFAULT"
-    assert guide.region == "uk" and guide.extra_mappings == {}
+    assert guide.mappings == load_mappings("gracenote", "uk")
 
 
 def test_all_options(tmp_path):
@@ -72,13 +73,13 @@ def test_all_options(tmp_path):
         env={"DVR_SID": "s3cret"},
         base_dir=tmp_path,
     )
-    assert (guide.url, guide.sid, guide.station_list, guide.region) == ("http://dvr:8089", "s3cret", "GBR-X", "UK")
+    assert (guide.url, guide.sid, guide.station_list) == ("http://dvr:8089", "s3cret", "GBR-X")
     assert "s3cret" not in repr(guide)
-    assert guide.extra_mappings == {"Mystery TV": "QUEST"}
+    assert guide.mappings["mystery tv"] == "QUEST" and len(guide.mappings) > 1  # extra on top of the UK table
 
 
 def test_empty_mappings_means_no_builtin_region():
-    assert build({"mappings": ""}).region is None
+    assert build({"mappings": ""}).mappings == {}
 
 
 @pytest.mark.parametrize(

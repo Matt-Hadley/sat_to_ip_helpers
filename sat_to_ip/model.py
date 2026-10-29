@@ -21,7 +21,6 @@ class Channel:
     stream_url: str
     number: int = 0
     frequency_mhz: float | None = None
-    service_id: str | None = None
 
 
 @dataclass(frozen=True)

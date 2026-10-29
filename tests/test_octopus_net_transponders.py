@@ -4,19 +4,12 @@ from sat_to_ip.octopus_net.transponders import build_upload_payload, format_sour
 
 def _make_transponder(**kwargs) -> Transponder:
     defaults = {
-        "position": "28.2°E",
         "satellite": "Astra 2E",
         "frequency": 10773.0,
         "polarization": "H",
-        "transponder_id": 45,
-        "beam": "U.K.",
         "system": "DVB-S2",
         "modulation": "8PSK",
         "symbol_rate": 23000,
-        "fec": "3/4",
-        "network_bitrate": "50.1 Mb/s",
-        "nid": 2,
-        "tid": 2045,
     }
     defaults.update(kwargs)
     return Transponder(**defaults)

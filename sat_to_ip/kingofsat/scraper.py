@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 _POLARIZATIONS = {"H", "V", "L", "R"}
 _SYSTEM_RE = re.compile(r"^[A-Za-z0-9-]+$")
 _MODULATION_RE = re.compile(r"^[0-9A-Z]+$")
-_NID_TID_RE = re.compile(r"NID\s*(\d+)\s*-\s*TSID\s*(\d+)")
 
 
 def _text(cell: Tag) -> str:
@@ -30,8 +29,7 @@ class KingOfSatScraper:
         """
         Parse transponder information from the HTML content.
 
-        Each transponder is a ``tr.frequency-row`` (11 cells), optionally followed by a
-        ``table.kos-stream-summary`` holding bitrate and NID/TSID.
+        Each transponder is a ``tr.frequency-row`` with 11 cells.
         :return: List of Transponder objects
         """
         transponders = []
@@ -62,28 +60,12 @@ class KingOfSatScraper:
         if not _MODULATION_RE.match(modulation):
             raise ValueError(f"invalid modulation {modulation!r}")
 
-        bitrate, nid, tid = "", 0, 0
-        summary = row.find_next("table")
-        if summary is not None and "kos-stream-summary" in (summary.get("class") or []):
-            bitrate_cell = summary.find("td", class_="stream-bitrate")
-            bitrate = _text(bitrate_cell) if bitrate_cell else ""
-            ids = _NID_TID_RE.search(_text(summary))
-            if ids:
-                nid, tid = int(ids.group(1)), int(ids.group(2))
-
         satellite_tag = cols[1].find("a")
         return Transponder(
-            position=_text(cols[0]),
             satellite=_text(satellite_tag) if satellite_tag else "",
             frequency=float(freq_text.replace(",", "")),
             polarization=pol,
-            transponder_id=int(_text(cols[3]) or 0),
-            beam=_text(cols[4]),
             system=system,
             modulation=modulation,
             symbol_rate=int(_text(cols[7])),
-            fec=_text(cols[8]),
-            network_bitrate=bitrate,
-            nid=nid,
-            tid=tid,
         )

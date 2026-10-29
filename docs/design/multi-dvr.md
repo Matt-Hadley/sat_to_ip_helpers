@@ -62,7 +62,7 @@ sat_to_ip/
 
 ### Data model (`model.py`, frozen dataclasses)
 
-- `Channel(key, name, kind, stream_url, number=0, frequency_mhz=None, service_id=None)`. `key` is stable and unique per receiver (`octopus_net:<serviceid>`); `kind` is `"tv"` or `"radio"`; `number` is assigned by the pipeline from the channel list (receivers leave it at 0).
+- `Channel(key, name, kind, stream_url, number=0, frequency_mhz=None)`. `key` is stable and unique per receiver (`octopus_net:<serviceid>`); `kind` is `"tv"` or `"radio"`; `number` is assigned by the pipeline from the channel list (receivers leave it at 0).
 - `Lineup(channels: tuple[Channel, ...])` with `.tv`, `.radio`, `len()`.
 - `GuideRef(guide_id, display_name=None, station_id=None)`: Gracenote call sign + station ID, or an XMLTV channel ID.
 - `GuideMatch(source, kind, refs: Mapping[key, GuideRef], unmatched: tuple[Channel, ...], xmltv: bytes | None)`. `xmltv` is the feed filtered to the matched channels, for file publishers. `match_ratio` property.

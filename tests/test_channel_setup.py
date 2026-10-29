@@ -159,3 +159,60 @@ def test_cli_runs_the_picker_and_maps_errors(tmp_path, monkeypatch, error, code)
     assert cli.main(["channels", "-c", str(config.path)]) == code
     monkeypatch.setattr(channel_setup, "choose_channels", lambda _config: True)
     assert cli.main(["channels", "-c", str(config.path)]) == 0
+
+
+# editing existing blocks ----------------------------------------------------------------------------
+
+
+def test_editing_keeps_every_block_start_and_missing_channels_so_numbers_stay_put(tmp_path):
+    rx = FakeReceiver(channels=[channel(1), channel(2), channel(3, kind="radio")])
+    blocks = (
+        '[[channels]]\nstart = 101\nnames = ["Gone HD", "Ch 1"]\n\n'
+        '[[channels]]\nstart = 201\nnames = ["Ch 2"]\n\n'
+        '[[channels]]\nstart = 801\nnames = ["Ch 3"]\n'
+    )
+    config = _config(tmp_path, blocks, receiver=rx)
+    saved, said, _ = _run(config, answers=())  # nothing new, so nothing is asked
+    assert saved and _blocks(config) == [
+        {"start": 101, "names": ["Gone HD", "Ch 1"]},
+        {"start": 201, "names": ["Ch 2"]},
+        {"start": 801, "names": ["Ch 3"]},
+    ]
+    assert "(TV 101–102, TV 201–201, radio 801–801)" in said[0] and said[1].startswith("Kept 1 listed")
+
+
+def test_rest_is_kept_while_all_its_channels_are_ticked_and_listed_by_name_once_one_is_not(tmp_path):
+    rx = FakeReceiver(channels=[channel(1), channel(2)], found=[channel(3)])
+    config = _config(tmp_path, '[[channels]]\nstart = 1\nnames = [{ rest = "tv" }]\n', receiver=rx)
+    _run(config, answers=())
+    assert _blocks(config) == [{"start": 1, "names": [{"rest": "tv"}]}]
+    _run(config, chosen=lambda ticked, others: [c for c in ticked if c.name != "Ch 2"], answers=())
+    assert _blocks(config) == [{"start": 1, "names": ["Ch 1", "Ch 3"]}]
+
+
+def test_unticked_entries_go_and_an_emptied_block_is_dropped(tmp_path):
+    rx = FakeReceiver(channels=[channel(1), channel(3, kind="radio")])
+    blocks = '[[channels]]\nstart = 101\nnames = ["Ch 1"]\n\n[[channels]]\nstart = 801\nnames = ["Ch 3"]\n'
+    config = _config(tmp_path, blocks, receiver=rx)
+    _run(config, chosen=lambda ticked, others: [c for c in ticked if c.kind == "radio"], answers=())
+    assert _blocks(config) == [{"start": 801, "names": ["Ch 3"]}]
+
+
+def test_a_new_kind_gets_its_own_block_and_a_block_without_start_stays_without(tmp_path):
+    rx = FakeReceiver(channels=[channel(1)], found=[channel(3, kind="radio")])
+    config = _config(tmp_path, '[[channels]]\nnames = ["Ch 1"]\n', receiver=rx)
+    saved, said, _ = _run(config, answers=("",))
+    assert _blocks(config) == [{"names": ["Ch 1"]}, {"start": 801, "names": ["Ch 3"]}]
+    assert "(TV, radio 801–801)" in said[0]
+
+
+def test_ctrl_d_when_asked_for_a_new_blocks_start_saves_nothing(tmp_path):
+    rx = FakeReceiver(channels=[channel(1)], found=[channel(3, kind="radio")])
+    config = _config(tmp_path, '[[channels]]\nstart = 1\nnames = ["Ch 1"]\n', receiver=rx)
+    before = config.path.read_text()
+
+    def eof(_):
+        raise EOFError
+
+    assert not channel_setup.choose_channels(config, pick=lambda t, o: t + o, ask=eof, say=lambda m: None)
+    assert config.path.read_text() == before

@@ -83,6 +83,30 @@ class OctopusNetReceiver:
         after = client.get_available_channels([])
         logger.info(f"   Post-scan: {len(after)} channels found")
         log_scan_diff(before, after)
+        self._retune_moved(client, after)
+
+    def _retune_moved(self, client: OctopusClient, scanned: list[OctopusChannel]) -> None:
+        """Give saved channels the scan found on a new frequency their new record, so they keep streaming.
+
+        Only when the scan has exactly one channel with that service ID and the same name: service IDs are
+        only unique per transponder, so anything else could be a different channel.
+        """
+        by_sid: dict[str, list[OctopusChannel]] = {}
+        for ch in scanned:
+            if ch.get("serviceid") not in (None, ""):
+                by_sid.setdefault(str(ch["serviceid"]), []).append(ch)
+        records, moved = [], 0
+        for i, saved in enumerate(client.get_dms_channels()):
+            found = by_sid.get(str(saved.get("serviceid")), [])
+            new = found[0] if len(found) == 1 else None
+            old_mhz, new_mhz = _mhz(ch_freq(saved)), _mhz(ch_freq(new)) if new else None
+            if new and new_mhz is not None and new_mhz != old_mhz and new.get("name") == saved.get("name"):
+                logger.info(f"   Retuning {saved.get('name')!r}: {old_mhz} → {new_mhz} MHz")
+                saved, moved = new.copy(), moved + 1
+            saved["position"] = i
+            records.append(saved)
+        if moved:
+            client.save_channels(records)
 
     # SupportsSelection -------------------------------------------------------------------------
 
@@ -128,7 +152,6 @@ class OctopusNetReceiver:
             if not entries:
                 logger.warning(f"   {name!r} is saved on the Octopus NET but missing from its M3U; left out")
                 continue
-            sid = ch.get("serviceid")
             channels.append(
                 Channel(
                     key=channel_key(ch),
@@ -136,7 +159,6 @@ class OctopusNetReceiver:
                     kind=_kind(ch),
                     stream_url=entries.pop(0).url,
                     frequency_mhz=_mhz(ch_freq(ch)),
-                    service_id=None if sid is None or sid == "" else str(sid),
                 )
             )
         return Lineup(tuple(channels))

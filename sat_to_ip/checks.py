@@ -33,7 +33,7 @@ def check_selection_not_empty(plan: SelectionPlan) -> None:
     if plan.current and not plan.proposed:
         raise CheckError(
             f"The selection matches no channels; refusing to replace the {len(plan.current)} saved ones with nothing. "
-            "Check the channel list file."
+            "Check the [[channels]] blocks in your config."
         )
 
 

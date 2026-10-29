@@ -1,24 +1,13 @@
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(frozen=True)
 class Transponder:
-    position: str  # e.g., "28.2°E"
-    satellite: str  # e.g., "Astra 2E"
-    frequency: float  # MHz, e.g., 10773
-    polarization: str  # 'H' (horizontal) or 'V' (vertical)
-    transponder_id: int  # e.g., 45
-    beam: str  # e.g., "U.K."
-    system: str  # e.g., "DVB-S2"
-    modulation: str  # e.g., "8PSK"
-    symbol_rate: int  # kS/s, e.g., 23000
-    fec: str  # Forward error correction, e.g., "3/4"
-    network_bitrate: str  # e.g., "50.1 Mb/s"
-    nid: int  # Network ID, e.g., 2
-    tid: int  # Transport Stream ID, e.g., 2045
+    """The tuning details a receiver needs to scan one transponder."""
 
-    def __post_init__(self) -> None:
-        valid_polarizations = {"H", "V", "L", "R"}
-        if self.polarization.upper() not in valid_polarizations:
-            raise ValueError(f"Invalid polarization: {self.polarization}. Must be H, V, L or R.")
-        self.polarization = self.polarization.upper()
+    satellite: str  # e.g. "Astra 2E"
+    frequency: float  # MHz, e.g. 10773.25
+    polarization: str  # "H", "V", "L" or "R"
+    system: str  # e.g. "DVB-S2"
+    modulation: str  # e.g. "8PSK"
+    symbol_rate: int  # kS/s, e.g. 23000
