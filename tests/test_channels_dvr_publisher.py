@@ -28,13 +28,37 @@ def build(data: dict | None = None, env: dict | None = None) -> ChannelsDVRPubli
     return publisher
 
 
+# What the user configured in Channels DVR; runs must put all of it back untouched
+USER_SETTINGS = {
+    "name": "My Sat",
+    "source": "Text",
+    "text": "#EXTM3U\nold\n",
+    "limit": "4",
+    "numbering": "ignore",
+    "start_number": "500",
+    "logos": "m3u",
+    "guide_preference": "xmltv",
+}
+
+
+def _get(url: str) -> MagicMock:
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = dict(USER_SETTINGS) if "/providers/m3u/sources/" in url else golden_stations()
+    return resp
+
+
 @pytest.fixture
 def http_session():
-    """The session ChannelsDVRClient.connect() gets: serves the golden station list, records PUTs."""
+    """The session ChannelsDVRClient.connect() gets: serves the golden station list and source settings."""
     session = MagicMock()
-    session.get.return_value.json.return_value = golden_stations()
+    session.get.side_effect = _get
     with patch("sat_to_ip.http.session", return_value=session):
         yield session
+
+
+def put_settings(session: MagicMock) -> dict[str, dict]:
+    """source id → settings PUT to it."""
+    return {c.args[0].rsplit("/", 1)[1]: c.kwargs["json"] for c in session.put.call_args_list}
 
 
 def pushed(session: MagicMock) -> dict[str, str]:
@@ -62,7 +86,8 @@ def test_defaults():
     pub = build({"tv_source": "OctopusTV"})
     assert (pub.name, pub.url, pub.sid, pub.guide) == ("dvr", "http://localhost:8089", None, None)
     assert pub.accepts_guides == frozenset({"gracenote"})
-    assert pub.sources == (Source("tv", "OctopusTV", "OctopusTV"),)
+    assert pub.sources == (Source("tv", "OctopusTV"),)
+    assert pub.channel_numbers == "channels_dvr"
 
 
 def test_all_options():
@@ -75,11 +100,13 @@ def test_all_options():
             "tv_display_name": "Octopus TV",
             "radio_source": "R1",
             "radio_display_name": "Octopus Radio",
+            "channel_numbers": "list",
         },
         env={"DVR_SID": "abc"},
     )
     assert (pub.url, pub.sid, pub.guide) == ("https://dvr.lan:8089", "abc", "gn")
     assert pub.sources == (Source("tv", "TV1", "Octopus TV"), Source("radio", "R1", "Octopus Radio"))
+    assert pub.channel_numbers == "list"
 
 
 @pytest.mark.parametrize(
@@ -91,6 +118,8 @@ def test_all_options():
         ({"tv_source": "T", "url": "localhost"}, "publishers[0].url"),
         ({"tv_source": "T", "guide": 1}, "publishers[0].guide"),
         ({"tv_source": 7}, "publishers[0].tv_source"),
+        ({"tv_source": "T", "channel_numbers": "receiver"}, "publishers[0].channel_numbers: must be one of"),
+        ({"tv_source": "T", "channel_numbers": 1}, "publishers[0].channel_numbers"),
         ({"tv_source": "T", "tv_sorce": "x"}, "publishers[0]: unknown key(s) tv_sorce"),
     ],
 )
@@ -118,8 +147,9 @@ def test_publishes_matched_channels_per_kind_with_guide_attributes(http_session)
         "OctopusRadio": '#EXTM3U\n#EXTINF:-1 channel-id="BBCR4" tvc-guide-stationid="201" tvg-name="Radio 4",Radio 4\n'
         "http://rx/2\n",
     }
-    names = {c.args[0].rsplit("/", 1)[1]: c.kwargs["json"]["name"] for c in http_session.put.call_args_list}
-    assert names == {"OctopusTV": "OctopusTV", "OctopusRadio": "OctopusRadio"}
+    # everything the user set in Channels is put back; only the playlist changes
+    for settings in put_settings(http_session).values():
+        assert settings == {**USER_SETTINGS, "text": settings["text"]}
     assert result.target == "dvr" and result.channels == 2
     assert result.detail == "tv: 1 → OctopusTV; radio: 1 → OctopusRadio"
 
@@ -127,8 +157,52 @@ def test_publishes_matched_channels_per_kind_with_guide_attributes(http_session)
 def test_without_guide_publishes_every_channel_plain(http_session):
     result = build({"tv_source": "T", "tv_display_name": "My TV"}).publish(LINEUP, None, dry_run=False)
     assert pushed(http_session) == {"T": "#EXTM3U\n#EXTINF:-1,BBC One\nhttp://rx/1\n#EXTINF:-1,ITV1\nhttp://rx/3\n"}
-    assert http_session.put.call_args.kwargs["json"]["name"] == "My TV"
+    assert put_settings(http_session)["T"]["name"] == "My TV"  # an explicit display name still wins
     assert result.channels == 2 and result.detail == "tv: 2 → T"
+
+
+def test_each_write_is_followed_by_a_refresh_after_reading_every_source(http_session):
+    build().publish(LINEUP, GUIDE, dry_run=False)
+    calls = [(name, args[0].removeprefix("http://localhost:8089")) for name, args, _ in http_session.method_calls]
+    assert calls == [
+        ("get", "/providers/m3u/sources/OctopusTV"),
+        ("get", "/providers/m3u/sources/OctopusRadio"),
+        ("put", "/providers/m3u/sources/OctopusTV"),
+        ("post", "/providers/m3u/sources/OctopusTV/refresh"),
+        ("put", "/providers/m3u/sources/OctopusRadio"),
+        ("post", "/providers/m3u/sources/OctopusRadio/refresh"),
+    ]
+
+
+def test_channel_numbers_list_renders_numbers_and_prefers_them(http_session):
+    build({**BOTH, "channel_numbers": "list"}).publish(LINEUP, GUIDE, dry_run=False)
+    tv = put_settings(http_session)["OctopusTV"]
+    assert tv["text"] == (
+        '#EXTM3U\n#EXTINF:-1 channel-id="BBC1" tvc-guide-stationid="101" tvg-name="BBC One HD" channel-number="1",'
+        "BBC One\nhttp://rx/1\n"
+    )
+    assert tv == {**USER_SETTINGS, "text": tv["text"], "numbering": ""}
+
+
+def test_channel_numbers_list_without_guide(http_session):
+    build({"tv_source": "T", "channel_numbers": "list"}).publish(LINEUP, None, dry_run=False)
+    assert pushed(http_session)["T"] == (
+        '#EXTM3U\n#EXTINF:-1 channel-number="1",BBC One\nhttp://rx/1\n#EXTINF:-1 channel-number="3",ITV1\nhttp://rx/3\n'
+    )
+
+
+def test_missing_source_fails_before_anything_is_written(http_session):
+    def get(url: str) -> MagicMock:
+        resp = _get(url)
+        if url.endswith("/OctopusRadio"):
+            resp.status_code = 404
+        return resp
+
+    http_session.get.side_effect = get
+    with pytest.raises(IntegrationError, match="source 'OctopusRadio' doesn't exist; create it in Channels DVR first"):
+        build().publish(LINEUP, GUIDE, dry_run=False)
+    http_session.put.assert_not_called()
+    http_session.post.assert_not_called()
 
 
 def test_sid_cookie_set_on_first_use(http_session):
@@ -139,18 +213,22 @@ def test_sid_cookie_set_on_first_use(http_session):
 def test_dry_run_makes_no_write_call(http_session):
     result = assert_publisher_contract(build(), LINEUP, GUIDE)
     http_session.put.assert_not_called()
-    assert result.detail.endswith("(dry run)")
+    http_session.post.assert_not_called()
+    assert http_session.get.call_count == 2  # the sources were checked
+    assert result.detail.endswith("(dry run; sources found)")
 
 
 def test_contract_without_guide(http_session):
     assert_publisher_contract(build({"tv_source": "T", "radio_source": "R"}), LINEUP, None)
     http_session.put.assert_not_called()
+    http_session.post.assert_not_called()
 
 
 def test_refuses_to_empty_a_source_and_pushes_nothing(http_session):
     guide = GuideMatch("gn", "gracenote", {"k2": GuideRef("BBCR4", None, "201")}, (LINEUP.channels[0],))
     with pytest.raises(CheckError, match="Refusing to empty Channels DVR source 'OctopusTV'.*2 tv channels"):
         build().publish(LINEUP, guide, dry_run=False)
+    http_session.get.assert_not_called()
     http_session.put.assert_not_called()  # radio would have been fine, but nothing is half-published
 
 
@@ -175,11 +253,10 @@ def test_http_error_is_integration_error(http_session):
         build().publish(LINEUP, GUIDE, dry_run=False)
 
 
-def test_quotes_in_names_cannot_break_the_attribute():
+def test_quotes_in_names_cannot_break_the_attribute(http_session):
     guide = GuideMatch("gn", "gracenote", {"k1": GuideRef("X", 'The "Best" TV', "1")})
-    with patch("sat_to_ip.http.session") as make:
-        build({"tv_source": "T"}).publish(Lineup((ch(1, "Best"),)), guide, dry_run=False)
-    assert "tvg-name=\"The 'Best' TV\"" in make.return_value.put.call_args.kwargs["json"]["text"]
+    build({"tv_source": "T"}).publish(Lineup((ch(1, "Best"),)), guide, dry_run=False)
+    assert "tvg-name=\"The 'Best' TV\"" in pushed(http_session)["T"]
 
 
 # golden: same bytes as the legacy enrich_m3u_text --------------------------------------------------
@@ -211,4 +288,5 @@ def test_pipeline_run_with_real_guide_and_publisher(http_session, tmp_path):
     assert [(o.name, o.status) for o in report.outcomes] == [("publish:dvr", "ok")]
     assert report.outcomes[0].detail == "6 channels; tv: 4 → OctopusTV; radio: 2 → OctopusRadio"
     assert pushed(http_session)["OctopusTV"] == (GOLDEN / "expected_tv.m3u").read_text()
-    http_session.get.assert_called_once()  # the guide ran once
+    station_gets = [c for c in http_session.get.call_args_list if "/dvr/guide/stations/" in c.args[0]]
+    assert len(station_gets) == 1  # the guide ran once

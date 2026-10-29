@@ -49,34 +49,40 @@ class ChannelsDVRClient:
             raise IntegrationError(f"Channels DVR: station list {station_list!r} is not a list of stations")
         return data
 
-    def update_m3u_source(
-        self,
-        source_id: str,
-        display_name: str,
-        m3u_text: str,
-        refresh: str = "24",
-        limit: str = "8",
-        numbering: str = "ignore",
-        logos: str = "guide",
-    ) -> None:
-        """Replace the M3U text content of an existing Channels DVR source."""
-        payload = {
-            "name": display_name,
-            "type": "MPEG-TS",
-            "source": "Text",
-            "url": "",
-            "text": m3u_text,
-            "refresh": refresh,
-            "limit": limit,
-            "satip": "",
-            "numbering": numbering,
-            "logos": logos,
-            "xmltv_url": "",
-            "xmltv_refresh": "",
-        }
+    def get_m3u_source(self, source_id: str) -> dict[str, Any]:
+        """Return the settings of an existing custom M3U source (name, text, limit, numbering…)."""
         try:
-            resp = self.session.put(f"{self.base_url}/providers/m3u/sources/{source_id}", json=payload)
+            resp = self.session.get(self._source_url(source_id))
+            if resp.status_code == 404:
+                raise IntegrationError(
+                    f"Channels DVR: source {source_id!r} doesn't exist; create it in Channels DVR first"
+                )
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.RequestException as exc:
+            raise IntegrationError(f"Channels DVR: can't read source {source_id!r}: {exc}") from exc
+        except ValueError as exc:
+            raise IntegrationError(f"Channels DVR: source {source_id!r} is not JSON: {exc}") from exc
+        if not isinstance(data, dict):
+            raise IntegrationError(f"Channels DVR: source {source_id!r} is not a settings object")
+        return data
+
+    def update_m3u_source(self, source_id: str, settings: dict[str, Any]) -> None:
+        """Save a custom M3U source's settings exactly as given (Channels DVR replaces them all)."""
+        try:
+            resp = self.session.put(self._source_url(source_id), json=settings)
             resp.raise_for_status()
         except requests.RequestException as exc:
             raise IntegrationError(f"Channels DVR: can't update source {source_id!r}: {exc}") from exc
         logger.info(f"Updated Channels DVR source '{source_id}'")
+
+    def refresh_m3u_source(self, source_id: str) -> None:
+        """Ask Channels DVR to reload the source now instead of at its next scheduled refresh."""
+        try:
+            resp = self.session.post(f"{self._source_url(source_id)}/refresh")
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            raise IntegrationError(f"Channels DVR: can't refresh source {source_id!r}: {exc}") from exc
+
+    def _source_url(self, source_id: str) -> str:
+        return f"{self.base_url}/providers/m3u/sources/{source_id}"

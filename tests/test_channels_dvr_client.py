@@ -71,51 +71,73 @@ def test_get_gracenote_unexpected_shape_is_integration_error(data):
 
 
 # ---------------------------------------------------------------------------
-# update_m3u_source
+# M3U sources
 # ---------------------------------------------------------------------------
 
+SETTINGS = {"name": "SatTV", "source": "Text", "text": "#EXTM3U\n", "limit": "4", "start_number": "500"}
 
-def test_update_m3u_source_puts_to_correct_endpoint():
+
+def test_get_m3u_source_returns_settings():
     client, session = _client()
-    client.update_m3u_source("MySource123", "My Source", "#EXTM3U\n")
-    url = session.put.call_args[0][0]
-    assert url == "http://dvr:8089/providers/m3u/sources/MySource123"
+    session.get.return_value.status_code = 200
+    session.get.return_value.json.return_value = SETTINGS
+    assert client.get_m3u_source("SatTV") == SETTINGS
+    assert session.get.call_args[0][0] == "http://dvr:8089/providers/m3u/sources/SatTV"
 
 
-def test_update_m3u_source_payload_shape():
+def test_get_m3u_source_missing_says_create_it_first():
     client, session = _client()
-    m3u = "#EXTM3U\n#EXTINF:-1,BBC1NWHD\nrtsp://...\n"
-    client.update_m3u_source("MySource123", "My Source", m3u)
-    payload = session.put.call_args.kwargs["json"]
-    assert payload["name"] == "My Source"
-    assert payload["text"] == m3u
-    assert payload["type"] == "MPEG-TS"
-    assert payload["source"] == "Text"
+    session.get.return_value.status_code = 404
+    with pytest.raises(IntegrationError, match="source 'SatTV' doesn't exist; create it in Channels DVR first"):
+        client.get_m3u_source("SatTV")
 
 
-def test_update_m3u_source_default_options():
+def test_get_m3u_source_http_error_is_integration_error():
     client, session = _client()
-    client.update_m3u_source("src", "Source", "#EXTM3U\n")
-    payload = session.put.call_args.kwargs["json"]
-    assert payload["refresh"] == "24"
-    assert payload["limit"] == "8"
-    assert payload["numbering"] == "ignore"
-    assert payload["logos"] == "guide"
+    session.get.side_effect = requests.ConnectionError("refused")
+    with pytest.raises(IntegrationError, match="can't read source 'SatTV'.*refused"):
+        client.get_m3u_source("SatTV")
 
 
-def test_update_m3u_source_custom_options():
+def test_get_m3u_source_bad_json_is_integration_error():
     client, session = _client()
-    client.update_m3u_source("src", "Source", "#EXTM3U\n", refresh="12", limit="4")
-    payload = session.put.call_args.kwargs["json"]
-    assert payload["refresh"] == "12"
-    assert payload["limit"] == "4"
+    session.get.return_value.json.side_effect = ValueError("Expecting value")
+    with pytest.raises(IntegrationError, match="not JSON"):
+        client.get_m3u_source("SatTV")
+
+
+def test_get_m3u_source_unexpected_shape_is_integration_error():
+    client, session = _client()
+    session.get.return_value.json.return_value = ["nope"]
+    with pytest.raises(IntegrationError, match="not a settings object"):
+        client.get_m3u_source("SatTV")
+
+
+def test_update_m3u_source_puts_exactly_the_given_settings():
+    client, session = _client()
+    client.update_m3u_source("SatTV", SETTINGS)
+    assert session.put.call_args[0][0] == "http://dvr:8089/providers/m3u/sources/SatTV"
+    assert session.put.call_args.kwargs["json"] == SETTINGS
 
 
 def test_update_m3u_source_http_error_is_integration_error():
     client, session = _client()
     session.put.return_value.raise_for_status.side_effect = requests.HTTPError("500")
     with pytest.raises(IntegrationError, match="can't update source 'src'"):
-        client.update_m3u_source("src", "Source", "#EXTM3U\n")
+        client.update_m3u_source("src", SETTINGS)
+
+
+def test_refresh_m3u_source_posts_refresh():
+    client, session = _client()
+    client.refresh_m3u_source("SatTV")
+    session.post.assert_called_once_with("http://dvr:8089/providers/m3u/sources/SatTV/refresh")
+
+
+def test_refresh_m3u_source_http_error_is_integration_error():
+    client, session = _client()
+    session.post.return_value.raise_for_status.side_effect = requests.HTTPError("500")
+    with pytest.raises(IntegrationError, match="can't refresh source 'src'.*500"):
+        client.refresh_m3u_source("src")
 
 
 # ---------------------------------------------------------------------------
