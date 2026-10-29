@@ -58,7 +58,7 @@ If you also use Threadfin, give it a **different** folder.
 ## 5. Try it
 
 ```bash
-sat-to-ip run -c sat-to-ip.toml --dry-run    # writes to a temporary folder, calls nothing
+sat-to-ip run -c sat-to-ip.toml --dry-run    # writes nothing; checks the API key and the Refresh Guide task
 sat-to-ip run -c sat-to-ip.toml
 ```
 

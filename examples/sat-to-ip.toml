@@ -1,9 +1,13 @@
-# Example sat-to-ip config: everything lives in this one file. Copy it, keep only the publishers you
-# use, then:
-#   sat-to-ip channels -c sat-to-ip.toml        pick your channels (fills in [[channels]] at the end)
-#   sat-to-ip check-config -c sat-to-ip.toml    check the settings
-#   sat-to-ip run -c sat-to-ip.toml --dry-run   try it without changing anything
-# Secrets are never stored here: every *_env key names an environment variable.
+# Example sat-to-ip config: everything lives in this one file.
+#
+# 1. Set [receiver] host, and delete the [[publishers]] blocks (and guides) for apps you don't use.
+# 2. Set the secrets this file names, in your terminal or scheduler (never in this file):
+#      export OCTOPUS_PASSWORD='…'     your receiver's admin password
+#      export JELLYFIN_API_KEY='…'     only if you keep the Jellyfin block
+# 3. Then:
+#      sat-to-ip check-config -c sat-to-ip.toml    check the settings
+#      sat-to-ip channels -c sat-to-ip.toml        pick your channels (rewrites [[channels]] at the end)
+#      sat-to-ip run -c sat-to-ip.toml --dry-run   try it without changing anything
 
 [receiver]
 type = "octopus_net"
@@ -19,8 +23,8 @@ min_guide_match = 0.5              # refuse a guide that matches fewer than half
 [guides.gracenote]
 type = "gracenote"
 url = "http://localhost:8089"
-station_list = "GBR-1000193-DEFAULT"
-mappings = "uk"
+station_list = "GBR-1000193-DEFAULT"   # Gracenote's UK free-to-air satellite lineup; keep it for the UK
+mappings = "uk"                        # built-in name → call sign table for channels whose names differ
 
 # A free XMLTV feed (for Jellyfin and Threadfin/Plex): Freeview-EPG, UK free-to-air TV and radio,
 # rebuilt every 12 hours, for personal use (https://github.com/dp247/Freeview-EPG)
@@ -38,24 +42,25 @@ mappings = "freeview-epg"              # built-in Name,GuideId table for this fe
 type = "channels_dvr"
 url = "http://localhost:8089"
 guide = "gracenote"
-tv_source = "OctopusTV"
-# radio_source = "OctopusRadio"
-# channel_numbers = "list"           # use the numbers from channels.txt instead of Channels' own
+tv_source = "SatTV"                    # the Channels DVR source you created (see docs/setup/channels-dvr.md)
+# radio_source = "SatRadio"
+# channel_numbers = "list"             # use the [[channels]] numbers instead of Channels' own (from 9000)
 
 [[publishers]]
 type = "jellyfin"
 url = "http://localhost:8096"
 api_key_env = "JELLYFIN_API_KEY"
 guide = "freeview"
-output_dir = "/srv/media/jellyfin/livetv"   # mounted into the Jellyfin container
+output_dir = "/srv/jellyfin/livetv"         # mounted into the Jellyfin container
 
 [[publishers]]
 type = "threadfin"
 guide = "freeview"
-output_dir = "/srv/media/threadfin/livetv"  # mounted into the Threadfin container; Plex uses Threadfin
+output_dir = "/srv/threadfin/livetv"        # mounted into the Threadfin container; Plex uses Threadfin
 
-# Your channels, in order. Run `sat-to-ip channels -c sat-to-ip.toml` to pick them from what your
-# receiver has found (it rewrites this part), or edit by hand:
+# Your channels, in order. The list below is what an Octopus NET calls the UK free-to-air channels on
+# 28.2°E; run `sat-to-ip channels -c sat-to-ip.toml` to pick from what your receiver has found (it rewrites
+# this part, keeping these ticked where they match), or edit by hand:
 #   start = the first channel's number; the rest count up. A missing channel keeps its number free.
 #   "Name"                                 a channel by name, exactly as your receiver shows it
 #   { name = "Name", frequency = 10773 }   that name on that frequency (MHz), if the name appears twice

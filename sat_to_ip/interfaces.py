@@ -68,6 +68,6 @@ class Publisher(Protocol):
     def publish(self, lineup: Lineup, guide: GuideMatch | None, *, dry_run: bool) -> PublishResult:
         """Publish matched channels (unmatched ones are left out when a guide is used).
 
-        dry_run: make no changes anywhere (no write APIs, no files outside a temp dir).
+        dry_run: build and check everything, make no changes (no write APIs, no files); read-only calls are fine.
         """
         ...

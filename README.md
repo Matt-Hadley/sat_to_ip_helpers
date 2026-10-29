@@ -71,7 +71,10 @@ Passwords never go in this file. The config only names a setting such as `OCTOPU
 
 ```bash
 export OCTOPUS_PASSWORD='your-receiver-password'
+export JELLYFIN_API_KEY='your-jellyfin-api-key'    # only if you use Jellyfin
 ```
+
+Then check the file: `sat-to-ip check-config -c sat-to-ip.toml`. It points at the exact setting if something's wrong, and notes anything that would trip up the first run (e.g. an output folder it can't write to).
 
 ### 4. Prepare your apps
 
