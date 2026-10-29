@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from sat_to_ip import m3u
+from sat_to_ip.checks import NEEDS_ATTENTION
 from sat_to_ip.config import Section
 from sat_to_ip.exceptions import IntegrationError
 from sat_to_ip.kingofsat.client import KingOfSatClient
@@ -35,9 +36,15 @@ def _log_tuners(client: OctopusClient) -> None:
             for t in tuners
         ]
     except (IntegrationError, TypeError, ValueError) as exc:  # only explains the empty scan; never fails the run
-        logger.warning(f"Octopus NET: the scan found no channels, and its tuner status couldn't be read: {exc}")
+        logger.warning(
+            f"Octopus NET: the scan found no channels, and its tuner status couldn't be read: {exc}",
+            extra=NEEDS_ATTENTION,
+        )
         return
-    logger.warning("Octopus NET: the scan found no channels. Tuner status:\n   " + "\n   ".join(lines or ["(none)"]))
+    logger.warning(
+        "Octopus NET: the scan found no channels. Tuner status:\n   " + "\n   ".join(lines or ["(none)"]),
+        extra=NEEDS_ATTENTION,
+    )
 
 
 @dataclass
@@ -72,10 +79,10 @@ class OctopusNetReceiver:
                     pos, channel_filter=self.kingofsat_filter, cl=self.kingofsat_language
                 )
             except Exception as exc:
-                logger.warning(f"KingOfSat: failed to fetch transponders for {pos}: {exc}")
+                logger.warning(f"KingOfSat: failed to fetch transponders for {pos}: {exc}", extra=NEEDS_ATTENTION)
                 continue
             if not transponders:
-                logger.warning(f"KingOfSat: no transponders found for {pos}")
+                logger.warning(f"KingOfSat: no transponders found for {pos}", extra=NEEDS_ATTENTION)
                 continue
             sources.append(format_source(transponders, pos, transponders[0].satellite))
         if not sources:
@@ -118,6 +125,12 @@ class OctopusNetReceiver:
                 if len(same) == 1:
                     logger.info(f"   Retuning {saved.get('name')!r}: {old_mhz:g} → {mhz(ch_freq(same[0])):g} MHz")
                     saved, moved = same[0].copy(), moved + 1
+                else:
+                    logger.warning(
+                        f"   {saved.get('name')!r} is saved on {old_mhz:g} MHz, but the scan didn't find it there"
+                        + (f" and found {len(same)} candidates elsewhere" if same else " or anywhere else"),
+                        extra=NEEDS_ATTENTION,
+                    )
             saved["position"] = i
             records.append(saved)
         if moved:

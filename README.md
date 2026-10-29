@@ -178,6 +178,13 @@ The tool runs unattended, so it refuses to make a change that looks like a mista
 
 If one app can't be updated, the others still are.
 
+Some changes it can't fix by itself, so it does what it safely can and still exits with an error, listing each one under "need attention" at the end of the summary:
+
+- a channel in your list that the receiver no longer has
+- a saved channel the rescan found neither on its frequency nor, unambiguously, anywhere else (a channel that simply moved is retuned for you)
+- a channel the TV guide doesn't match, which is left out of your apps
+- a saved channel the receiver has no stream for, or a rescan that found nothing at all
+
 After you've deliberately removed several channels from your list, run once with `--allow-removals`.
 
 ## Run it automatically every week
@@ -224,7 +231,7 @@ The name on the left is the channel name from your list; the ID on the right is 
 
 **Jellyfin shows the old guide.** Jellyfin keeps a downloaded guide for up to an hour; it'll update on its next refresh.
 
-**It ran but nothing changed.** Look at the summary: each line says `ok`, `failed` or `skipped`, with the reason. The command exits with `0` when everything worked, `1` when something failed, and `2` when the settings are wrong.
+**It ran but nothing changed.** Look at the summary: each line says `ok`, `failed` or `skipped`, with the reason. The command exits with `0` when everything worked, `1` when something failed or needs attention, and `2` when the settings are wrong.
 
 ## Help and contributing
 

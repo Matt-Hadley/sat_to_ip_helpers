@@ -13,6 +13,7 @@ from enum import StrEnum
 from typing import Literal
 
 from sat_to_ip.checks import (
+    NEEDS_ATTENTION,
     check_guide_match,
     check_lineup,
     check_lineup_complete,
@@ -150,7 +151,7 @@ def _log_plan(plan: SelectionPlan) -> None:
     for ch in plan.removed:
         logger.warning(f"   - {ch.name}")
     for spec in plan.unmatched_specs:
-        logger.warning(f"   No channel matches {spec!r}")
+        logger.warning(f"   No channel matches {spec!r}", extra=NEEDS_ATTENTION)
 
 
 def _publish(config: Config, options: RunOptions, report: RunReport) -> None:
@@ -187,7 +188,9 @@ def _match_guides(config: Config, lineup: Lineup, names: Iterable[str]) -> tuple
         try:
             match = config.guides[name].match(lineup)
             for ch in match.unmatched:
-                logger.warning(f"   Guide {name!r}: no match for {ch.name!r}; left out of its targets")
+                logger.warning(
+                    f"   Guide {name!r}: no match for {ch.name!r}; left out of its targets", extra=NEEDS_ATTENTION
+                )
             check_guide_match(match, config.checks.min_guide_match)
         except Exception as exc:
             if not isinstance(exc, PipelineError):

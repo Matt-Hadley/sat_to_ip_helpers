@@ -46,6 +46,24 @@ def test_run_end_to_end_with_fakes(config_file):
     assert cli.main(["run", "-c", str(config_file)]) == 0
 
 
+def test_a_warning_that_needs_attention_fails_an_otherwise_good_run(config_file, monkeypatch, caplog):
+    import logging
+
+    from sat_to_ip.checks import NEEDS_ATTENTION
+
+    def fake_run(config, options):
+        logging.getLogger("x").warning("only noise")
+        logging.getLogger("x").warning("   'GB News HD' is saved on 11670 MHz, but …", extra=NEEDS_ATTENTION)
+        return pipeline.RunReport([pipeline.Outcome("refresh", "ok")])
+
+    monkeypatch.setattr(pipeline, "run", fake_run)
+    assert cli.main(["run", "-c", str(config_file)]) == 1
+    assert "1 thing(s) need attention" in caplog.text and "'GB News HD' is saved on 11670 MHz" in caplog.text
+    assert "only noise\n" not in caplog.text.split("need attention")[1]
+    assert cli.main(["run", "-c", str(config_file)]) == 1  # the handler is per run, never left behind
+    assert sum(isinstance(h, cli._Attention) for h in logging.getLogger().handlers) == 0
+
+
 def test_command_is_required(capsys):
     with pytest.raises(SystemExit) as exc:
         cli.main([])

@@ -10,6 +10,9 @@ from sat_to_ip.model import Channel, ChannelRef, GuideMatch, Kind, Lineup, Selec
 
 logger = logging.getLogger(__name__)
 
+# `extra` for a warning a run can't fix by itself: the CLI then exits 1 so an unattended run reports it
+NEEDS_ATTENTION = {"needs_attention": True}
+
 
 @dataclass(frozen=True)
 class CheckSettings:
@@ -58,7 +61,7 @@ def check_lineup_complete(saved: Sequence[ChannelRef], lineup: Lineup, max_remov
     have = {ch.key for ch in lineup}
     missing = [ch for ch in saved if ch.key not in have]
     for ch in missing:
-        logger.warning(f"   {ch.name!r} is saved on the receiver but it has no stream for it")
+        logger.warning(f"   {ch.name!r} is saved on the receiver but it has no stream for it", extra=NEEDS_ATTENTION)
     if len(missing) > max_removed and not allow:
         names = ", ".join(ch.name for ch in missing[:10]) + (" …" if len(missing) > 10 else "")
         raise CheckError(

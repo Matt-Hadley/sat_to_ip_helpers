@@ -6,7 +6,7 @@
   sat-to-ip channels -c sat-to-ip.toml                # tick channels from the receiver; saves [[channels]]
   sat-to-ip check-config -c sat-to-ip.toml            # validate the config without connecting
 
-Exit codes: 0 everything succeeded, 1 something failed (see the summary), 2 bad config or usage.
+Exit codes: 0 everything succeeded, 1 something failed or needs attention (see the summary), 2 bad config or usage.
 """
 
 import argparse
@@ -92,14 +92,41 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Note: {note}")
         return 0
 
+    return _run(config, args)
+
+
+def _run(config: Config, args: argparse.Namespace) -> int:
     options = pipeline.RunOptions(
         stages=frozenset(pipeline.Stage(s) for s in args.stages),
         allow_removals=args.allow_removals,
         dry_run=args.dry_run,
     )
-    report = pipeline.run(config, options)
+    attention = _Attention()
+    logging.getLogger().addHandler(attention)
+    try:
+        report = pipeline.run(config, options)
+    finally:
+        logging.getLogger().removeHandler(attention)
     logger.info("Summary:\n" + report.summary())
+    if attention.messages:
+        logger.error(
+            f"{len(attention.messages)} thing(s) need attention; the run can't fix them by itself:\n  "
+            + "\n  ".join(attention.messages)
+        )
+        return 1
     return report.exit_code
+
+
+class _Attention(logging.Handler):
+    """Collects the warnings logged with checks.NEEDS_ATTENTION."""
+
+    def __init__(self) -> None:
+        super().__init__(logging.WARNING)
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if getattr(record, "needs_attention", False):
+            self.messages.append(record.getMessage().strip())
 
 
 def _notes(config: Config) -> list[str]:

@@ -203,11 +203,13 @@ def test_refresh_retunes_a_saved_channel_the_scan_found_elsewhere(rx, caplog, li
         [SAVED[1], _moved(9, "BBC One HD", "", 6301)],  # a candidate without a frequency
     ],
 )
-def test_refresh_saves_nothing_without_one_clear_replacement(rx, scanned):
+def test_refresh_saves_nothing_without_one_clear_replacement(rx, scanned, caplog):
     rx._client = _client(dms=SAVED)
     rx._client.get_available_channels.side_effect = [SAVED, scanned]
     _refresh(rx, lambda pos, **_: [_transponder(freq=f) for f in (10773, 10847, 10850, 11954)])
     rx._client.save_channels.assert_not_called()
+    lost = [r for r in caplog.records if "the scan didn't find it there" in r.getMessage()]
+    assert [r.needs_attention for r in lost] == ([] if SAVED[0] in scanned else [True])  # a lost channel fails the run
 
 
 def test_refresh_retunes_nothing_when_a_position_failed(rx):
