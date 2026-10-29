@@ -119,6 +119,18 @@ def test_cancel_or_nothing_ticked_changes_nothing(tmp_path, chosen, message):
     assert not saved and said == [message] and config.path.read_text() == before
 
 
+def test_channel_blocks_edited_while_picking_saves_nothing(tmp_path):
+    config = _config(tmp_path, '[[channels]]\nstart = 101\nnames = ["BBC One HD"]\n', receiver=FakeReceiver())
+
+    def edit_then_pick(ticked, others):
+        config.path.write_text(config.path.read_text().replace('"BBC One HD"', '"ITV1 HD", "BBC One HD"'))
+        return ticked + others
+
+    with pytest.raises(ConfigError, match="changed while picking"):
+        _run(config, chosen=edit_then_pick)
+    assert '"ITV1 HD", "BBC One HD"' in config.path.read_text()  # the user's edit is left as it was
+
+
 def test_ctrl_d_at_a_number_prompt_saves_nothing(tmp_path):
     config = _config(tmp_path, receiver=FakeReceiver())
     before = config.path.read_text()

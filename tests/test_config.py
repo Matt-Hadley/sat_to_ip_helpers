@@ -116,6 +116,13 @@ def test_unreadable_config(tmp_path):
         load_config(tmp_path / "missing.toml", {})
 
 
+def test_config_that_is_not_utf8_is_a_config_error(tmp_path):
+    path = tmp_path / "latin1.toml"
+    path.write_bytes('[receiver]\nname = "caf\xe9"\n'.encode("latin-1"))
+    with pytest.raises(ConfigError, match="Can't read config"):
+        load_config(path, {})
+
+
 def _section(data, env=None, base=Path("/base")):
     return Section("x", data, base, env or {})
 

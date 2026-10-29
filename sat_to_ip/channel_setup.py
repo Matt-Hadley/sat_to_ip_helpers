@@ -71,8 +71,12 @@ def choose_channels(
     chosen_keys = {ch.key for ch in chosen}
     new = [ch for ch in chosen if ch.key not in keys]
     text = config.path.read_text(encoding="utf-8")
+    raw: Any = tomllib.loads(text).get("channels")
+    # `matched` lines up with the blocks as loaded; edited since, the new blocks would get the wrong entries
+    if specs_from_config(raw) != (list(specs) if specs is not None else None):
+        raise ConfigError(f"{config.path}: [[channels]] changed while picking; nothing saved. Run this again.")
     if specs:
-        blocks = _edit_blocks(tomllib.loads(text)["channels"], matched, chosen_keys, new, everything, ask, say)
+        blocks = _edit_blocks(raw, matched, chosen_keys, new, everything, ask, say)
     else:
         # channels already saved keep their order; newly ticked ones follow
         ordered = [ch for ch in current if ch.key in chosen_keys] + new

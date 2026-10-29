@@ -1,4 +1,5 @@
 import logging
+import math
 import re
 
 from bs4 import BeautifulSoup, Tag
@@ -60,10 +61,14 @@ class KingOfSatScraper:
         if not _MODULATION_RE.match(modulation):
             raise ValueError(f"invalid modulation {modulation!r}")
 
+        frequency = float(freq_text.replace(",", ""))
+        if not math.isfinite(frequency) or frequency <= 0:
+            raise ValueError(f"invalid frequency {freq_text!r}")
+
         satellite_tag = cols[1].find("a")
         return Transponder(
             satellite=_text(satellite_tag) if satellite_tag else "",
-            frequency=float(freq_text.replace(",", "")),
+            frequency=frequency,
             polarization=pol,
             system=system,
             modulation=modulation,
