@@ -1,8 +1,24 @@
-# sat-to-ip
+<p align="center">
+  <img src="docs/images/logo.svg" alt="" width="120">
+</p>
+
+<h1 align="center">sat-to-ip</h1>
+
+<p align="center">
+  <a href="https://github.com/Matt-Hadley/sat_to_ip_helpers/actions/workflows/python.yml"><img src="https://github.com/Matt-Hadley/sat_to_ip_helpers/actions/workflows/python.yml/badge.svg?branch=main" alt="Tests"></a>
+  <img src="https://img.shields.io/badge/python-3.11%2B-3776ab?logo=python&logoColor=white" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Test coverage 100%">
+  <img src="https://img.shields.io/badge/mypy-strict-2a6db2" alt="mypy strict">
+  <a href="https://github.com/psf/black"><img src="https://img.shields.io/badge/code%20style-black-000000" alt="Code style: black"></a>
+  <br>
+  <img src="https://img.shields.io/badge/Channels%20DVR-supported-12324f" alt="Channels DVR supported">
+  <img src="https://img.shields.io/badge/Jellyfin-supported-12324f?logo=jellyfin&logoColor=white" alt="Jellyfin supported">
+  <img src="https://img.shields.io/badge/Plex-via%20Threadfin-12324f?logo=plex&logoColor=white" alt="Plex via Threadfin">
+</p>
 
 Watch free satellite TV and radio in **Channels DVR**, **Jellyfin** or **Plex**, with a full TV guide, and keep the channel list up to date automatically.
 
-It's for anyone with a satellite dish and a **SAT>IP receiver**: a box that turns the dish signal into streams on your home network. Out of the box it's set up for the UK free-to-air channels on Astra 28.2°E, the satellite Freesat uses.
+It's for anyone with a satellite dish and a **SAT>IP receiver**: a box that turns the dish signal into streams on your home network. It works with any satellite your dish can see. The built-in TV guide matching is for the UK free-to-air channels on Astra 28.2°E (the satellite Freesat uses), so that's what the example config is set up for.
 
 **Supported receivers:** Digital Devices Octopus NET. Each receiver is a small plug-in, so support for other boxes can be added without touching the rest. See [CONTRIBUTING.md](CONTRIBUTING.md#a-receiver-from-another-manufacturer), or open an issue saying which box you have.
 
@@ -24,7 +40,7 @@ Without it, getting satellite channels into a DVR app means doing a handful of f
 `sat-to-ip` does all of that in one go:
 
 1. **Rescans the satellite.** It fetches the current list of frequencies and has your receiver scan them, so moved channels are found again.
-2. **Applies your channel list.** You keep a simple text file of the channels you want, in the order you want them.
+2. **Applies your channel list.** You list the channels you want, in the order you want them, in your config file. `sat-to-ip channels` lets you tick them from what the receiver found instead of typing them.
 3. **Adds the TV guide.** It matches each channel to its guide listing.
 4. **Updates every app you use,** all from the same channel list.
 
@@ -32,7 +48,7 @@ Run it once, or let it run by itself once a week. If something looks wrong, for 
 
 ## What you need
 
-- A dish pointed at Astra 28.2°E and a supported SAT>IP receiver (today: the **Octopus NET**), with its admin password.
+- A satellite dish and a supported SAT>IP receiver (today: the **Octopus NET**), with its admin password. For the built-in UK TV guide matching, the dish should point at Astra 28.2°E; for another satellite, see [Another satellite](#another-satellite).
 - A computer that's always on and can reach the receiver, e.g. the one that runs your DVR. macOS, Linux or Windows, with **Python 3.11 or newer**.
 - At least one of:
   - **Channels DVR**
@@ -64,7 +80,7 @@ Open `sat-to-ip.toml`. Every setting has a comment; usually you only change thes
 
 | Section | What to set |
 |---|---|
-| `[receiver]` | `host`: your receiver's address, e.g. `octopus.local` or `192.168.1.50` |
+| `[receiver]` | `host`: your receiver's address, e.g. `octopus.local` or `192.168.1.50`. `positions` if your dish isn't on 28.2°E. |
 | `[[publishers]]` | Keep one block per app you use and delete the others. The [app guides](#4-prepare-your-apps) say what to put in each. |
 
 Passwords never go in this file. The config only names a setting such as `OCTOPUS_PASSWORD`, and you set its value in your terminal:
@@ -132,6 +148,21 @@ At the end of every run there's a short summary with one line per step and per a
   publish:channels_dvr    ok       74 channels; tv: 65 → SatTV; radio: 9 → SatRadio
   publish:jellyfin        ok       76 channels; …
 ```
+
+### Another satellite
+
+The scan works for any satellite. Set the positions your dish sees in `[receiver]`, written as KingOfSat writes them:
+
+```toml
+positions = ["19.2E"]          # or several, e.g. ["28.2E", "19.2E"]
+kingofsat_language = "eng"     # KingOfSat's language filter: only channels in this language are scanned
+```
+
+The TV guide needs more thought, because the built-in name matching only covers UK channels:
+
+- **Channels DVR:** set `station_list` to the Gracenote lineup for your country, and `mappings = ""` to turn off the UK table.
+- **Jellyfin, Plex:** point `url` at an XMLTV feed for your country, and remove `mappings = "freeview-epg"`.
+- Either way, channels whose names differ from the guide's can be matched by hand with `extra_mappings` (see [Troubleshooting](#troubleshooting)).
 
 ## Keeping your channels safe
 

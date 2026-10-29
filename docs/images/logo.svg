@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="sat-to-ip logo">
+  <rect width="128" height="128" rx="28" fill="#12324f"/>
+  <g fill="none" stroke="#ff9f1c" stroke-width="6" stroke-linecap="round">
+    <path d="M85.8 51.9A12 12 0 0 0 76.1 42.2"/>
+    <path d="M95.7 50.2A22 22 0 0 0 77.8 32.3"/>
+    <path d="M105.5 48.4A32 32 0 0 0 79.6 22.5"/>
+  </g>
+  <g stroke="#ffffff" stroke-width="5" stroke-linecap="round">
+    <path d="M44 86 40 106M30 106h22"/>
+    <path d="M57 71 72 56"/>
+  </g>
+  <path d="M28 42Q34 96 86 100Z" fill="#ffffff"/>
+  <circle cx="74" cy="54" r="5" fill="#ff9f1c"/>
+</svg>
