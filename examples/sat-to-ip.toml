@@ -1,0 +1,49 @@
+# Example sat-to-ip config. Copy it, keep only the publishers you use, and run:
+#   sat-to-ip check-config -c sat-to-ip.toml
+#   sat-to-ip run -c sat-to-ip.toml --dry-run
+# Secrets are never stored here: every *_env key names an environment variable.
+
+[receiver]
+type = "octopus"
+host = "octopus.local"
+password_env = "OCTOPUS_PASSWORD"
+positions = ["28.2E"]              # satellite positions to scan
+
+[selection]
+channels = "channels.txt"          # relative to this file; order = channel order
+
+[checks]
+max_removed = 5                    # refuse to drop more saved channels than this
+min_guide_match = 0.5              # refuse a guide that matches fewer than half the channels
+
+# Gracenote guide data, read from Channels DVR (for the Channels DVR publisher)
+[guides.gracenote]
+type = "gracenote"
+url = "http://localhost:8089"
+station_list = "GBR-1000193-DEFAULT"
+mappings = "uk"
+
+# A free XMLTV feed (for Jellyfin and Threadfin/Plex)
+[guides.freeview]
+type = "xmltv"
+url = "https://example.org/epg.xml"   # set to your feed
+# mappings = "<feed>"                  # built-in Name,GuideId table for this feed, if one exists
+
+[[publishers]]
+type = "channels_dvr"
+url = "http://localhost:8089"
+guide = "gracenote"
+tv_source = "OctopusTV"
+# radio_source = "OctopusRadio"
+
+[[publishers]]
+type = "jellyfin"
+url = "http://localhost:8096"
+api_key_env = "JELLYFIN_API_KEY"
+guide = "freeview"
+output_dir = "/srv/media/jellyfin/livetv"   # mounted into the Jellyfin container
+
+[[publishers]]
+type = "threadfin"
+guide = "freeview"
+output_dir = "/srv/media/threadfin/livetv"  # mounted into the Threadfin container; Plex uses Threadfin
