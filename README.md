@@ -2,9 +2,9 @@
 
 Watch free satellite TV and radio in **Channels DVR**, **Jellyfin** or **Plex**, with a full TV guide, and keep the channel list up to date automatically.
 
-It's for anyone with a satellite dish and a **Digital Devices Octopus NET** (a box that turns the dish signal into streams on your home network). Out of the box it's set up for the UK free-to-air channels on Astra 28.2°E, the satellite Freesat uses.
+It's for anyone with a satellite dish and a **SAT>IP receiver**: a box that turns the dish signal into streams on your home network. Out of the box it's set up for the UK free-to-air channels on Astra 28.2°E, the satellite Freesat uses.
 
-Have a different SAT>IP receiver? The Octopus is just one plug-in part, so support for another box can be added without touching the rest. See [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-receiver-guide-or-app), or open an issue saying which box you have.
+**Supported receivers:** Digital Devices Octopus NET. Each receiver is a small plug-in, so support for other boxes can be added without touching the rest. See [CONTRIBUTING.md](CONTRIBUTING.md#a-receiver-from-another-manufacturer), or open an issue saying which box you have.
 
 ```mermaid
 flowchart LR
