@@ -63,7 +63,7 @@ Run it once, or let it run by itself once a week. If something looks wrong, for 
 If you don't have [pipx](https://pipx.pypa.io/stable/installation/) yet, install it first (on a Mac: `brew install pipx`). Then:
 
 ```bash
-pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers@v0.5.0
+pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers@v0.5.1
 ```
 
 That's the latest [release](https://github.com/Matt-Hadley/sat_to_ip_helpers/releases). To update later, run the same command with `--force` and the new release's tag.
@@ -216,7 +216,7 @@ Any scheduler works. On a Mac or Linux, `crontab -e` and add a line like this on
 
 Here `secrets.env` holds your `export OCTOPUS_PASSWORD=…` lines. Make it private with `chmod 600 secrets.env`.
 
-The scan briefly takes over the receiver's tuners, so pick a time when nothing is recording. A GitHub Actions workflow on a self-hosted runner works too; keep your config in a private repo. A job that installs from GitHub should pin a [release](https://github.com/Matt-Hadley/sat_to_ip_helpers/releases) (`pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers@v0.5.0`) rather than `@main`, so an update only reaches your setup when you choose it.
+The scan briefly takes over the receiver's tuners, so pick a time when nothing is recording. A GitHub Actions workflow on a self-hosted runner works too; keep your config in a private repo. A job that installs from GitHub should pin a [release](https://github.com/Matt-Hadley/sat_to_ip_helpers/releases) (`pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers@v0.5.1`) rather than `@main`, so an update only reaches your setup when you choose it.
 
 ## Everyday commands
 

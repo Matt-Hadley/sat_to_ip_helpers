@@ -204,6 +204,12 @@ def test_builtin_gracenote_mappings_load():
     assert uk["cbbc hd"] == "CBBCHD" and uk["cbeebies hd"] == "CBEEBHD"  # BBC Three / Four's timeshares
 
 
+def test_builtin_freeview_epg_mappings_cover_the_satellite_names():
+    feed = mappings.load_mappings("xmltv", "freeview-epg")
+    assert feed["itv1 hd"] == "ITV1Granada.uk" and feed["cbbc hd"] == "CBBC.uk"  # tv.csv
+    assert feed["bbc world sv"] == "BBCWorldService.uk"  # radio.csv
+
+
 def test_extra_mappings_win_and_unknown_region():
     assert mappings.load_mappings("gracenote", "uk", {"4Seven": "MINE"})["4seven"] == "MINE"
     assert mappings.load_mappings("gracenote", None, {"4Seven": "MINE"}) == {"4seven": "MINE"}
