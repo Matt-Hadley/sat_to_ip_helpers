@@ -54,40 +54,6 @@ Each part implements a small `Protocol` from [`interfaces.py`](sat_to_ip/interfa
 | Guide source | `GuideSource` (`kind` = `gracenote` or `xmltv`) | `gracenote`, `xmltv` |
 | Publisher | `Publisher` (declares which guide kinds it accepts) | `channels_dvr`, `jellyfin`, `threadfin` |
 
-### A run, stage by stage
-
-```mermaid
-flowchart TD
-    START([sat-to-ip run]) --> CONF{Config valid?}
-    CONF -- no --> EXIT2([exit 2])
-    CONF -- yes --> R{refresh stage?}
-    R -- yes --> REF["Receiver.refresh()<br/>KingOfSat → upload transponders → scan<br/><small>skipped in a dry run</small>"]
-    R -- no --> S
-    REF -- error --> ABORT([abort: report failed, exit 1])
-    REF --> S{select stage?}
-    S -- yes --> PLAN["plan_selection(channels.txt)<br/>or the interactive editor"]
-    S -- no --> P
-    PLAN --> CHK0{"matches nothing?"}
-    CHK0 -- yes --> ABORT
-    CHK0 -- "no, from channels.txt" --> CHK1{"removes more than<br/>max_removed?"}
-    CHK0 -- "no, from the editor" --> DRY
-    CHK1 -- "yes (and no --allow-removals)" --> ABORT
-    CHK1 -- no --> DRY{"--dry-run?"}
-    DRY -- yes --> P
-    DRY -- no --> APPLY["apply_selection()<br/>save the receiver's channel list"]
-    APPLY -- error --> ABORT
-    APPLY --> P{publish stage?}
-    P -- no --> DONE
-    P -- yes --> LINE["Receiver.lineup()"]
-    LINE --> CHK2{empty?}
-    CHK2 -- yes --> FAILP([publish failed])
-    CHK2 -- no --> GUIDES["Each guide source in use: match() once"]
-    GUIDES --> CHK3{"matched ≥ min_guide_match?"}
-    CHK3 -- "no: that guide's publishers fail" --> PUB
-    CHK3 -- yes --> PUB["Each publisher, isolated:<br/>publish(lineup, guide)<br/><small>dry run: no pushes, files to a temp dir</small>"]
-    PUB --> DONE([summary · exit 0 if all ok, else 1])
-```
-
 Every stage reads live data from the receiver, so nothing is stored between runs. `--stages publish` republishes whatever the receiver has saved now.
 
 ### A weekly run, in time order
