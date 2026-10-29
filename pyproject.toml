@@ -1,3 +1,35 @@
+[project]
+name = "sat-to-ip-helpers"
+version = "0.1.0"
+description = "Get UK free-to-air satellite channels from an Octopus NET into Channels DVR, with guide data"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "beautifulsoup4>=4.15.0",
+    "requests>=2.34.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=26.10.1",
+    "isort>=9.0.2",
+    "ruff>=0.17.3",
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+]
+
+[project.scripts]
+sat-to-ip = "sat_to_ip.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Matt-Hadley/sat_to_ip_helpers"
+
+[tool.setuptools.packages.find]
+include = ["sat_to_ip*"]
+
+[tool.setuptools.package-data]
+"sat_to_ip.m3u" = ["resources/*/*/*.csv"]
+
 [tool.black]
 line-length = 120
 target-version = ["py310"]
@@ -15,24 +47,16 @@ line_length = 120
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "--strict-markers --maxfail=3 --disable-warnings"
-testpaths = [
-    "king_of_sat_scraper/tests",
-    "octopus_api/tests",
-    "channels_dvr/tests",
-    "m3u/tests",
-    "utils_pipeline/tests",
-    "tests",
-]
+testpaths = ["tests"]
 pythonpath = ["."]
 
 [tool.coverage.run]
-source = ["."]
-omit = ["*/tests/*", "tests/*"]
+source = ["sat_to_ip"]
 
 [tool.coverage.report]
 fail_under = 95
 show_missing = true
 
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"

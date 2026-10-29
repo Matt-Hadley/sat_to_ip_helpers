@@ -35,11 +35,14 @@ Previously this was 6 manual steps. This project automates all of them.
 ## Requirements
 
 - Python 3.10+
-- Dependencies:
+
+Install the `sat-to-ip` command, e.g. with [pipx](https://pipx.pypa.io/):
 
 ```bash
-pip install -r requirements.txt
+pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers
 ```
+
+Or from a clone, into a virtual environment: `pip install .` (add `-e ".[dev]"` to work on it).
 
 ---
 
@@ -49,7 +52,7 @@ pip install -r requirements.txt
 export OCTOPUS_PASSWORD="your_octopus_password"
 export CHANNELS_DVR_SID="your_channels_dvr_sid_cookie"  # only if Channels DVR asks for a login
 
-python pipeline.py --octopus-host octopus.local \
+sat-to-ip --octopus-host octopus.local \
   --source-id <your-tv-source-id> \
   --source-id-radio <your-radio-source-id>
 ```
@@ -87,13 +90,13 @@ State from each step is saved to disk, so you can run any subset. Each step tell
 
 ```bash
 # Trigger an Octopus scan only — needs Octopus connection + positions
-python pipeline.py --steps 3 --octopus-host octopus.local --positions 28.2E
+sat-to-ip --steps 3 --octopus-host octopus.local --positions 28.2E
 
 # Re-run just the enrichment and push using the built-in UK mappings
-python pipeline.py --steps 7 8 --source-id <your-tv-source-id> --source-id-radio <your-radio-source-id> --mapping-region uk
+sat-to-ip --steps 7 8 --source-id <your-tv-source-id> --source-id-radio <your-radio-source-id> --mapping-region uk
 
 # Just scrape and upload new transponders, without touching channels
-python pipeline.py --steps 1 2 --octopus-host octopus.local
+sat-to-ip --steps 1 2 --octopus-host octopus.local
 ```
 
 ### Safety checks
@@ -113,7 +116,7 @@ Two checks stop the pipeline before it can wipe your lineup after a bad run (rai
 | `CHANNELS_DVR_SID` | Channels DVR SID session cookie (optional) |
 
 ```
-python pipeline.py --help
+sat-to-ip --help
 
 Step 1 — Scrape KingOfSat transponders:
   --positions POS [POS ...]  satellite position(s), e.g. 28.2E 13.0E  (default: 28.2E)
@@ -166,10 +169,10 @@ State:
 The enrichment step matches Octopus channel callsigns against Gracenote automatically. For channels that don't match automatically, built-in regional mapping files provide Name→Callsign lookups:
 
 ```bash
-python pipeline.py --steps 7 8 --source-id <your-source-id> --mapping-region uk
+sat-to-ip --steps 7 8 --source-id <your-source-id> --mapping-region uk
 ```
 
-Mappings live in [m3u/resources/channel_name_to_callsign_mappings/](m3u/resources/channel_name_to_callsign_mappings/), organised by region. Each region has separate `tv.csv` and `radio.csv` files:
+Mappings live in [sat_to_ip/m3u/resources/channel_name_to_callsign_mappings/](sat_to_ip/m3u/resources/channel_name_to_callsign_mappings/), organised by region. Each region has separate `tv.csv` and `radio.csv` files:
 
 ```csv
 Name,Callsign
@@ -184,42 +187,18 @@ If you find a channel isn't matched, please add it to the appropriate regional C
 ## Module structure
 
 ```
-sat_to_ip_helpers/
-│
-├── pipeline.py                      ← the main entry point; wires modules together
-│
-├── king_of_sat_scraper/             ← scrapes transponder data from kingofsat.net
-│   ├── client.py                    ← KingOfSatClient (HTTP)
-│   ├── scraper.py                   ← KingOfSatScraper (pure HTML → Transponder objects)
-│   ├── transponder.py               ← Transponder dataclass
-│   └── tests/
-│       └── test_client.py
-│
-├── octopus_api/                     ← talks to the Octopus NET REST API
-│   ├── client.py                    ← OctopusClient (HTTP)
-│   ├── transponders.py              ← pure functions: format Transponders → Octopus JSON
-│   └── tests/
-│       ├── test_client.py
-│       └── test_transponders.py
-│
-├── channels_dvr/                    ← talks to the Channels DVR REST API
-│   ├── client.py                    ← ChannelsDVRClient (HTTP)
-│   └── tests/
-│       └── test_client.py
-│
-├── m3u/                             ← M3U enrichment logic
-│   ├── enrichment.py                ← pure functions: match channels → Gracenote IDs
-│   ├── resources/                   ← Gracenote JSON files and regional mapping CSVs
-│   └── tests/
-│       └── test_enrichment.py
-│
-└── utils_pipeline/                  ← pipeline helpers (pure functions + exceptions)
-    ├── channels.py                  ← filter available channels by name/type
-    ├── csv_mappings.py              ← load regional Name→Callsign mappings
-    ├── dms.py                       ← curses-based interactive DMS channel editor
-    ├── exceptions.py                ← PipelineError hierarchy
-    ├── scan.py                      ← scan diff helpers (compare pre/post scan channel lists)
-    └── tests/
+sat_to_ip/
+├── cli.py            ← the sat-to-ip command: arguments and error handling
+├── steps.py          ← the 8 steps, their safety checks, and state files
+├── channels.py       ← Octopus channel lists: filter by name/type, diff two lists
+├── dms_editor.py     ← interactive (curses) DMS channel editor
+├── exceptions.py     ← PipelineError hierarchy
+├── kingofsat/        ← scrape transponders from kingofsat.net
+├── octopus/          ← Octopus NET REST API, and Transponder → Octopus JSON
+├── channels_dvr/     ← Channels DVR REST API
+└── m3u/              ← split and enrich playlists; regional Name→Callsign mappings
+tests/                ← one test file per module
+examples/             ← sample Gracenote station lists (what step 6 downloads)
 ```
 
 ### Key design principles
@@ -251,8 +230,8 @@ The three clients follow the same shape:
 | `OctopusClient(base_url, session)` | `.login(base_url, user, password)` |
 | `ChannelsDVRClient(base_url, session)` | `.with_sid(host, port, sid)` |
 
-**`pipeline.py` owns all I/O.**
-It reads files, writes state, and creates clients. The modules themselves never touch the filesystem.
+**`steps.py` wires it together.**
+It creates the clients, writes state files and calls the pure functions. The clients and pure functions never read or write state.
 
 ---
 
@@ -262,12 +241,12 @@ It reads files, writes state, and creates clients. The modules themselves never 
 pytest
 ```
 
-Tests live inside each module's `tests/` directory. The pure-function tests need no mocking; the client tests use `unittest.mock.MagicMock` to stub HTTP responses.
+Tests live in `tests/`, one file per module, and must keep coverage at 95% or more. The pure-function tests need no mocking; the client tests use `unittest.mock.MagicMock` to stub HTTP responses.
 
 ```bash
 # Run just one module's tests
-pytest king_of_sat_scraper/tests/
-pytest m3u/tests/ -v
+pytest tests/test_kingofsat_scraper.py
+pytest tests/test_m3u_enrichment.py -v
 ```
 
 ---
@@ -275,7 +254,7 @@ pytest m3u/tests/ -v
 ## Adding a new satellite position
 
 ```bash
-python pipeline.py --positions 28.2E 13.0E --octopus-host octopus.local \
+sat-to-ip --positions 28.2E 13.0E --octopus-host octopus.local \
   --source-id <your-tv-source-id> --source-id-radio <your-radio-source-id>
 ```
 
