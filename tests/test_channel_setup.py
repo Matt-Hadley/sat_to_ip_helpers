@@ -130,6 +130,12 @@ def test_ctrl_d_at_a_number_prompt_saves_nothing(tmp_path):
     assert config.path.read_text() == before
 
 
+def test_receiver_with_no_channels_says_to_scan_first_and_opens_no_picker(tmp_path):
+    config = _config(tmp_path, receiver=FakeReceiver(channels=[]))
+    with pytest.raises(IntegrationError, match="no channels yet; scan first"):
+        channel_setup.choose_channels(config, pick=lambda t, o: pytest.fail("picker opened"), ask=input, say=print)
+
+
 def test_receiver_without_a_channel_list(tmp_path):
     config = _config(tmp_path, receiver=BasicReceiver())
     with pytest.raises(ConfigError, match="can't list its channels"):

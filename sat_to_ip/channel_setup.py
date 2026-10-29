@@ -14,7 +14,7 @@ import tomlkit
 
 from sat_to_ip import channel_picker
 from sat_to_ip.config import Config
-from sat_to_ip.exceptions import ConfigError
+from sat_to_ip.exceptions import ConfigError, IntegrationError
 from sat_to_ip.files import write_atomic
 from sat_to_ip.interfaces import SupportsSelection
 from sat_to_ip.model import ChannelRef, Kind
@@ -55,6 +55,10 @@ def choose_channels(
 
     saved, found = receiver.selection_candidates()
     everything = [*saved, *found]
+    if not everything:
+        raise IntegrationError(
+            f"{receiver.name} has no channels yet; scan first with: sat-to-ip run -c {config.path} --stages refresh"
+        )
     specs = config.channel_specs
     matched = match_specs(specs, everything) if specs else []
     current = [ch for _, chs in matched for ch in chs] if specs else list(saved)
