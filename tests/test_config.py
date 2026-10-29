@@ -19,8 +19,9 @@ VALID = """
 type = "fake"
 label = "rx"
 
-[selection]
-channels = "channels.txt"
+[[channels]]
+start = 101
+names = ["BBC One HD", { rest = "radio" }]
 
 [checks]
 max_removed = 3
@@ -41,7 +42,6 @@ name = "two"
 
 
 def _load(tmp_path: Path, text: str, env=None):
-    (tmp_path / "channels.txt").write_text("BBC One HD\n")
     path = tmp_path / "sat-to-ip.toml"
     path.write_text(text)
     return load_config(path, env or {})
@@ -53,13 +53,13 @@ def test_valid_config_builds_everything(tmp_path):
     assert list(config.guides) == ["freeview"] and config.guides["freeview"].name == "freeview"
     assert [p.name for p in config.publishers] == ["one", "two"]
     assert config.checks.max_removed == 3 and config.checks.min_guide_match == 0.8
-    assert config.channels_file == (tmp_path / "channels.txt").resolve()
+    assert [(spec.text, spec.number) for spec in config.channel_specs] == [("BBC One HD", 101), ("rest = radio", None)]
 
 
 def test_defaults(tmp_path):
     config = _load(tmp_path, '[receiver]\ntype = "fake"\n[[publishers]]\ntype = "fake"\n')
     assert config.checks.max_removed == 5 and config.checks.min_guide_match == 0.5
-    assert config.channels_file is None and config.guides == {}
+    assert config.channel_specs is None and config.guides == {}
     assert config.publishers[0].name == "fake"
 
 
@@ -167,13 +167,6 @@ def test_unloadable_builder_is_a_config_error(tmp_path, monkeypatch):
         _load(tmp_path, '[receiver]\ntype = "fake"\n[[publishers]]\ntype = "broken"\n')
 
 
-def test_missing_channels_file_is_a_config_error(tmp_path):
-    path = tmp_path / "c.toml"
-    path.write_text('[receiver]\ntype = "fake"\n[selection]\nchannels = "nope.txt"\n[[publishers]]\ntype = "fake"\n')
-    with pytest.raises(ConfigError, match="selection.channels: no such file"):
-        load_config(path, {})
-
-
 def test_publishers_may_not_share_an_output_dir(tmp_path, monkeypatch):
     from tests.fakes import FakePublisher
 
@@ -190,14 +183,14 @@ def test_publishers_may_not_share_an_output_dir(tmp_path, monkeypatch):
         _load(tmp_path, text)
 
 
-def test_channel_list_is_parsed_at_load(tmp_path):
-    config = _load(tmp_path, VALID)
-    assert [spec.name for spec in config.channel_specs] == ["BBC One HD"]
+def test_bad_channel_block_is_a_config_error(tmp_path):
+    text = '[receiver]\ntype = "fake"\n[[channels]]\nnames = []\n[[publishers]]\ntype = "fake"\n'
+    with pytest.raises(ConfigError, match="channels\\[0\\].names: required"):
+        _load(tmp_path, text)
 
 
-def test_bad_channel_list_is_a_config_error(tmp_path):
-    path = tmp_path / "c.toml"
-    path.write_text('[receiver]\ntype = "fake"\n[selection]\nchannels = "ch.txt"\n[[publishers]]\ntype = "fake"\n')
-    (tmp_path / "ch.txt").write_text("5 = A\n3 = B\n")
-    with pytest.raises(ConfigError, match="numbers must go up"):
-        load_config(path, {})
+def test_str_map():
+    s = _section({"m": {" ITV1 HD ": "ITV1Granada.uk"}, "bad": {"A": 1}})
+    assert s.get_str_map("m") == {"ITV1 HD": "ITV1Granada.uk"} and s.get_str_map("missing") == {}
+    with pytest.raises(ConfigError, match="x.bad: every entry must be"):
+        s.get_str_map("bad")

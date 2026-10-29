@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Literal
 
-from sat_to_ip import channel_picker
 from sat_to_ip.checks import (
     check_guide_match,
     check_lineup_not_empty,
@@ -43,7 +42,6 @@ ALL_STAGES = frozenset(Stage)
 class RunOptions:
     stages: frozenset[Stage] = ALL_STAGES
     allow_removals: bool = False
-    interactive: bool = False
     dry_run: bool = False
 
 
@@ -125,25 +123,15 @@ def _select(config: Config, options: RunOptions, report: RunReport) -> None:
     if not isinstance(receiver, SupportsSelection):
         report.add(Stage.SELECT, "skipped", f"{receiver.name} has no saved channel list")
         return
-    if not options.interactive and config.channel_specs is None:
-        report.add(Stage.SELECT, "skipped", "no [selection] channels file configured")
+    if config.channel_specs is None:
+        report.add(Stage.SELECT, "skipped", "no [[channels]] in the config")
         return
 
     saved, available = receiver.selection_candidates()
-    if options.interactive:
-        chosen = channel_picker.pick(list(saved), list(available))
-        if chosen is None:
-            report.add(Stage.SELECT, "skipped", "cancelled")
-            return
-        plan = SelectionPlan(tuple(saved), tuple(chosen))
-    else:
-        assert config.channel_specs is not None
-        plan = plan_selection(saved, available, config.channel_specs)
-
+    plan = plan_selection(saved, available, config.channel_specs)
     _log_plan(plan)
     check_selection_not_empty(plan)
-    if not options.interactive:  # a person choosing in the picker has already decided
-        check_removals(plan, config.checks.max_removed, allow=options.allow_removals)
+    check_removals(plan, config.checks.max_removed, allow=options.allow_removals)
     if options.dry_run:
         report.add(Stage.SELECT, "ok", f"dry run: would save {len(plan.proposed)} channels")
         return

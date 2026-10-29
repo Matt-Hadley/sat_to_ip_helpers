@@ -64,7 +64,7 @@ def test_from_config_path_resolves_against_config_dir():
         ({"path": 3}, "path"),
         ({"url": URL, "max_bytes": 0}, "max_bytes"),
         ({"url": URL, "mappings": "atlantis"}, "mappings"),
-        ({"url": URL, "mappings_file": "/nope/m.csv"}, "mappings_file"),
+        ({"url": URL, "extra_mappings": {"Heart": ""}}, "extra_mappings"),
     ],
 )
 def test_from_config_errors_name_their_key(data, key):
@@ -79,10 +79,9 @@ def test_from_config_does_no_io():
     session.assert_not_called()
 
 
-def test_from_config_mappings_builtin_and_file_override(tmp_path):
-    csv = tmp_path / "m.csv"
-    csv.write_text("Name,GuideId\nHeart,Mine.uk\nExtra One,Extra.uk\n")
-    guide = from_config(_section({"url": URL, "mappings": "freeview-epg", "mappings_file": str(csv)}))
+def test_from_config_extra_mappings_override_builtin():
+    extra = {"Heart": "Mine.uk", "Extra One": "Extra.uk"}
+    guide = from_config(_section({"url": URL, "mappings": "freeview-epg", "extra_mappings": extra}))
     assert guide.mappings["heart"] == "Mine.uk"
     assert guide.mappings["extra one"] == "Extra.uk"
     assert guide.mappings["bbc r6 music"] == "BBCR6M.uk"

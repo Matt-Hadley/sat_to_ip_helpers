@@ -149,7 +149,6 @@ def test_pipeline_run_with_real_publisher(tmp_path):
         guides={"freeview": XmltvGuide()},
         publishers=(pub,),
         checks=CheckSettings(),
-        channels_file=None,
         path=Path(tmp_path / "c.toml"),
     )
     report = pipeline.run(config, RunOptions(stages=frozenset({Stage.PUBLISH})))

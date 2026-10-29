@@ -15,7 +15,7 @@ from sat_to_ip import registry
 from sat_to_ip.checks import CheckSettings
 from sat_to_ip.exceptions import ConfigError
 from sat_to_ip.interfaces import GuideSource, Publisher, Receiver
-from sat_to_ip.selection import Spec, read_spec_file
+from sat_to_ip.selection import Spec, specs_from_config
 
 _MISSING: Any = object()
 
@@ -91,6 +91,14 @@ class Section:
         raw = self.get_optional_str(key)
         return (self.base_dir / Path(raw).expanduser()).resolve() if raw else None
 
+    def get_str_map(self, key: str) -> dict[str, str]:
+        """A table of string → string, e.g. extra_mappings = { "ITV1 HD" = "ITV1Granada.uk" }; empty if absent."""
+        value = self._get(key, {}, dict, "a table of names to values")
+        bad = [k for k, v in value.items() if not isinstance(v, str) or not v.strip() or not k.strip()]
+        if bad:
+            raise self.error(key, f"every entry must be \"name\" = \"value\", check: {', '.join(map(repr, bad))}")
+        return {k.strip(): v.strip() for k, v in value.items()}
+
     def get_url(self, key: str, default: Any = _MISSING) -> str:
         value = self.get_str(key, default).rstrip("/")
         if not value.startswith(("http://", "https://")):
@@ -121,9 +129,8 @@ class Config:
     guides: Mapping[str, GuideSource]
     publishers: tuple[Publisher, ...]
     checks: CheckSettings
-    channels_file: Path | None
     path: Path
-    channel_specs: tuple[Spec, ...] | None = None  # the parsed channels_file
+    channel_specs: tuple[Spec, ...] | None = None  # the [[channels]] blocks, if any
 
 
 def load_config(path: Path, env: Mapping[str, str] | None = None) -> Config:
@@ -137,7 +144,7 @@ def load_config(path: Path, env: Mapping[str, str] | None = None) -> Config:
         raise ConfigError(f"{path}: invalid TOML: {exc}") from exc
 
     base_dir = path.resolve().parent
-    unknown = sorted(set(raw) - {"receiver", "selection", "checks", "guides", "publishers"})
+    unknown = sorted(set(raw) - {"receiver", "channels", "checks", "guides", "publishers"})
     if unknown:
         raise ConfigError(f"{path}: unknown section(s) {', '.join(unknown)}")
 
@@ -150,18 +157,13 @@ def load_config(path: Path, env: Mapping[str, str] | None = None) -> Config:
         raise ConfigError(f"{path}: missing [receiver] section")
     receiver = registry.build("receiver", section("receiver", raw["receiver"], "receiver"))
 
-    sel = section("selection", raw.get("selection", {}))
-    channels_file = sel.get_optional_path("channels")
-    if channels_file is not None and not channels_file.is_file():
-        raise sel.error("channels", f"no such file: {channels_file}")
-    specs = tuple(read_spec_file(channels_file)) if channels_file else None
-    sel.finish()
+    specs = specs_from_config(raw.get("channels"))
     checks = _load_checks(section("checks", raw.get("checks", {})))
     guides = _load_guides(raw.get("guides", {}), section)
     publishers = _load_publishers(path, raw.get("publishers", []), section)
     _validate_publishers(publishers, guides)
 
-    return Config(receiver, guides, tuple(publishers), checks, channels_file, path, specs)
+    return Config(receiver, guides, tuple(publishers), checks, path, tuple(specs) if specs is not None else None)
 
 
 def _load_checks(chk: Section) -> CheckSettings:

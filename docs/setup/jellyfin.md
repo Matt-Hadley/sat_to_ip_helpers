@@ -66,4 +66,4 @@ sat-to-ip run -c sat-to-ip.toml
 
 - **The guide can lag by up to an hour:** Jellyfin keeps a guide file for an hour, so a second run inside an hour may still show the old guide until its next refresh.
 - **Channel names starting with a number** (e.g. `5 USA`): Jellyfin would read the `5` as a channel number. sat-to-ip prevents that by writing the real channel number in front, so it still shows as "5 USA".
-- **Regional channels:** ITV1 and Channel 4 come in regional versions in the guide. Add your region in a `mappings_file`, as explained under "A channel has no TV guide" in the [README](../../README.md#troubleshooting).
+- **Regional channels:** ITV1 and Channel 4 come in regional versions in the guide. Add your region under `extra_mappings`, as explained under "A channel has no TV guide" in the [README](../../README.md#troubleshooting).

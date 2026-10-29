@@ -280,7 +280,6 @@ def test_pipeline_run_with_real_guide_and_publisher(http_session, tmp_path):
         guides={"gn": build_guide()},
         publishers=(build(),),
         checks=CheckSettings(min_guide_match=0.5),
-        channels_file=None,
         path=tmp_path / "c.toml",
     )
     report = pipeline.run(config, RunOptions(stages=frozenset({Stage.PUBLISH})))

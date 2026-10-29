@@ -1,6 +1,8 @@
-# Example sat-to-ip config. Copy it, keep only the publishers you use, and run:
-#   sat-to-ip check-config -c sat-to-ip.toml
-#   sat-to-ip run -c sat-to-ip.toml --dry-run
+# Example sat-to-ip config: everything lives in this one file. Copy it, keep only the publishers you
+# use, then:
+#   sat-to-ip channels -c sat-to-ip.toml        pick your channels (fills in [[channels]] at the end)
+#   sat-to-ip check-config -c sat-to-ip.toml    check the settings
+#   sat-to-ip run -c sat-to-ip.toml --dry-run   try it without changing anything
 # Secrets are never stored here: every *_env key names an environment variable.
 
 [receiver]
@@ -8,9 +10,6 @@ type = "octopus_net"
 host = "octopus.local"
 password_env = "OCTOPUS_PASSWORD"
 positions = ["28.2E"]              # satellite positions to scan
-
-[selection]
-channels = "channels.txt"          # relative to this file; order = channel order
 
 [checks]
 max_removed = 5                    # refuse to drop more saved channels than this
@@ -29,7 +28,11 @@ mappings = "uk"
 type = "xmltv"
 url = "https://raw.githubusercontent.com/dp247/Freeview-EPG/master/epg.xml"
 mappings = "freeview-epg"              # built-in Name,GuideId table for this feed
-# mappings_file = "my-mappings.csv"    # your regional picks, e.g. ITV1 HD,ITV1Granada.uk
+
+# Regional channels come in several versions in the guide; pick yours by name → guide ID
+[guides.freeview.extra_mappings]
+"ITV1 HD" = "ITV1Granada.uk"
+"Channel 4 HD" = "Channel4North.uk"
 
 [[publishers]]
 type = "channels_dvr"
@@ -50,3 +53,97 @@ output_dir = "/srv/media/jellyfin/livetv"   # mounted into the Jellyfin containe
 type = "threadfin"
 guide = "freeview"
 output_dir = "/srv/media/threadfin/livetv"  # mounted into the Threadfin container; Plex uses Threadfin
+
+# Your channels, in order. Run `sat-to-ip channels -c sat-to-ip.toml` to pick them from what your
+# receiver has found (it rewrites this part), or edit by hand:
+#   start = the first channel's number; the rest count up. A missing channel keeps its number free.
+#   "Name"                                 a channel by name, exactly as your receiver shows it
+#   { name = "Name", frequency = 10773 }   that name on that frequency (MHz), if the name appears twice
+#   { rest = "tv" }                        every TV (or "radio", or "all") channel not listed before
+
+[[channels]]
+start = 101
+names = [
+  "BBC One NW HD",
+  "BBC Two HD",
+  "ITV1 HD",
+  "Channel 4 HD",
+  "5 HD",
+  "ITV2 HD",
+  "BBC Three HD",
+  "BBC Four HD",
+  "ITV3 HD",
+  "ITV4 HD",
+  "ITV Quiz HD",
+  "More4",
+  "Film4",
+  "4seven",
+  "E4 HD",
+  "E4 Extra",
+  "5STAR",
+  "5 USA",
+  "5SELECT",
+  "5ACTION",
+  "U&Dave",
+  "U&Yesterday",
+  "U&Drama",
+  "U&W",
+  "U&Eden",
+  "Really",
+  "Quest HD",
+  "Quest Red",
+  "Challenge",
+  "Sky Mix HD",
+  "Sky Arts",
+  "Great! TV",
+  "Great! Action",
+  "Great! Romance",
+  "BLAZE",
+  "DMAX",
+  "Food Network",
+  "TalkingPictures",
+  "LEGEND",
+  "LEGEND XTRA",
+  "TRUE CRIME",
+  "TRUE CRIME X",
+  "Rewind TV",
+  "NOW 70s",
+  "NOW 80s",
+  # News
+  "BBC NEWS HD",
+  "BBC Parl HD",
+  "GB News HD",
+  "Sky News",
+  "Bloomberg HD",
+  "CNN HD",
+  "CNBC HD",
+  "Al Jazeera HD",
+  "NHK World HD",
+  "FRANCE 24 HD",
+  "Euronews",
+]
+
+[[channels]]
+start = 801
+names = [
+  "BBC R1",
+  "BBC R1X",
+  "BBC R2",
+  "BBC R3",
+  "BBC R4",
+  "BBC R4 Extra",
+  "BBC R5L",
+  "BBC R6 Music",
+  "Capital",
+  "Capital XTRA",
+  "Classic FM",
+  "Gold Radio",
+  "Heart",
+  "Heart 80s",
+  "Heart 90s",
+  "LBC",
+  "LBC News",
+  "Smooth",
+  "talkSPORT",
+  "Virgin Radio",
+]

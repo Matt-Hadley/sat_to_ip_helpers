@@ -156,11 +156,9 @@ def test_builtin_gracenote_mappings_load():
     assert len(uk) > 100 and all(k == k.lower() for k in uk)
 
 
-def test_mappings_overrides_win_and_unknown_region(tmp_path):
-    override = tmp_path / "o.csv"
-    override.write_text("Name,GuideId\n4seven,MINE\n\n , \n")
-    assert mappings.load_mappings("gracenote", "uk", override)["4seven"] == "MINE"
-    assert mappings.load_mappings("gracenote", None, override) == {"4seven": "MINE"}
+def test_extra_mappings_win_and_unknown_region():
+    assert mappings.load_mappings("gracenote", "uk", {"4Seven": "MINE"})["4seven"] == "MINE"
+    assert mappings.load_mappings("gracenote", None, {"4Seven": "MINE"}) == {"4seven": "MINE"}
     assert mappings.available_regions("nope") == []
     with pytest.raises(ConfigError, match="No built-in gracenote mappings for region 'mars'"):
         mappings.load_mappings("gracenote", "mars")

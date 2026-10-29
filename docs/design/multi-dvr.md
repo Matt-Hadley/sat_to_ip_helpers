@@ -98,7 +98,7 @@ class Publisher(Protocol):
     def publish(self, lineup: Lineup, guide: GuideMatch | None, *, dry_run: bool) -> PublishResult: ...
 ```
 
-Receivers only talk to the device: matching the channel list, the interactive picker, channel numbering and the safety checks are core (`selection.py`, `channel_picker.py`, `checks.py`), so every manufacturer gets the same behaviour. Channel numbers come from the channel list (`<n> = entry`, then counting up); a listed channel that's missing keeps its number free so the rest don't shift.
+Receivers only talk to the device: matching the channel list, the interactive picker, channel numbering and the safety checks are core (`selection.py`, `channel_picker.py`, `checks.py`), so every manufacturer gets the same behaviour. Channel numbers come from the `[[channels]]` blocks (each block's `start`, then counting up); a listed channel that's missing keeps its number free so the rest don't shift. `sat-to-ip channels` writes those blocks from the picker (tomlkit keeps the rest of the file as it was).
 
 Optional receiver capabilities are separate Protocols, so a receiver with no scan or no saved list simply doesn't implement them, and the pipeline skips that stage with a warning.
 
@@ -112,9 +112,6 @@ type = "octopus_net"
 host = "octopus.local"
 password_env = "OCTOPUS_PASSWORD"
 positions = ["28.2E"]
-
-[selection]
-channels = "channels.txt"          # relative paths resolve against the config file
 
 [checks]
 max_removed = 5
@@ -148,16 +145,24 @@ output_dir = "/srv/jellyfin/livetv"
 type = "threadfin"
 guide = "freeview"
 output_dir = "/srv/threadfin/files"
+
+[[channels]]                       # written by `sat-to-ip channels`, or by hand
+start = 101
+names = ["BBC One HD", "ITV1 HD", { name = "BBC One HD", frequency = 10847 }]
+
+[[channels]]
+start = 801
+names = [{ rest = "radio" }]
 ```
 
 Config-time validation also checks that every publisher's `guide` exists and is a kind it accepts.
 
 ## Run flow and failure handling
 
-`sat-to-ip run -c CONFIG [--stages refresh select publish] [--allow-removals] [--interactive] [--dry-run]`
+`sat-to-ip run -c CONFIG [--stages refresh select publish] [--allow-removals] [--dry-run]`
 
 1. **refresh** (if the receiver supports it): KingOfSat → upload transponders → scan. Failure aborts the run.
-2. **select** (if supported): plan from `channels` (or the interactive editor), log the diff, refuse a plan that matches nothing, run the removal check (not for the interactive editor), apply. Dry run: plan and check, don't apply. Failure aborts the run.
+2. **select** (if supported): plan from the `[[channels]]` blocks, log the diff, refuse a plan that matches nothing, run the removal check, apply. Dry run: plan and check, don't apply. Failure aborts the run.
 3. **publish**:
    - `lineup = receiver.lineup()`; an empty lineup fails the stage.
    - Each guide source that a publisher uses runs once. If it errors or is below `min_guide_match`, it fails, and its publishers are reported failed without running.
@@ -185,7 +190,7 @@ XMLTV feeds can be large: parsed with `iterparse` and cleared as it goes; gzip d
 
 - Breaking: the `--steps` flags and `.pipeline_state/` are replaced by `run -c CONFIG [--stages …]`. Version 0.2.0.
 - Mapping CSVs move to `sat_to_ip/mappings/gracenote/uk/` with header `Name,GuideId`.
-- `channels.txt` is personal: it moves to the private deployment repo; `examples/channels.txt` and `examples/sat-to-ip.toml` stay here.
+- The channel list and regional mappings live in the one config file (`[[channels]]`, `extra_mappings`); personal configs belong in a private repo, `examples/sat-to-ip.toml` stays here.
 - server_config: the weekly workflow runs `sat-to-ip run -c channels/sat-to-ip.toml` with only the Channels DVR publisher enabled until the Jellyfin and Threadfin containers exist (separate follow-up).
 
 ## Build plan

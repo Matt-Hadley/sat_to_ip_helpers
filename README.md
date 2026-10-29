@@ -49,42 +49,23 @@ If you don't have [pipx](https://pipx.pypa.io/stable/installation/) yet, install
 pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers
 ```
 
-### 2. Get the two example files
+### 2. Get the example config
 
-Make a folder for your settings and download the example config and channel list into it:
+Everything lives in one file. Make a folder for it and download the example:
 
 ```bash
 mkdir ~/sat-to-ip && cd ~/sat-to-ip
 curl -fsSLO https://raw.githubusercontent.com/Matt-Hadley/sat_to_ip_helpers/main/examples/sat-to-ip.toml
-curl -fsSLO https://raw.githubusercontent.com/Matt-Hadley/sat_to_ip_helpers/main/examples/channels.txt
 ```
 
-### 3. Choose your channels
-
-Open `channels.txt`. It has one channel name per line, in the order you want them. Delete the ones you don't want, reorder freely, and use `#` for notes:
-
-```
-# TV
-101 = BBC One HD
-ITV1 HD
-Channel 4 HD
-
-# Radio
-801 = BBC Radio 4
-```
-
-- **Names:** use them exactly as your receiver shows them. If the same name appears twice (e.g. two regions of a channel), add its frequency: `BBC One HD@10773`.
-- **Several at once:** `all`, `tv` or `radio` take every channel of that kind you haven't already listed.
-- **Channel numbers:** start a line with `<number> =` to set its number. The lines after it count up from there, so above ITV1 HD is 102 and Channel 4 HD is 103. Without any numbers, channels are numbered 1, 2, 3, … in list order. Numbers stay put: if a channel disappears from the satellite, its number is kept free and the others don't move.
-
-### 4. Fill in the config
+### 3. Fill in the settings
 
 Open `sat-to-ip.toml`. Every setting has a comment; usually you only change these:
 
 | Section | What to set |
 |---|---|
 | `[receiver]` | `host`: your receiver's address, e.g. `octopus.local` or `192.168.1.50` |
-| `[[publishers]]` | Keep one block per app you use and delete the others. The [app guides](#5-prepare-your-apps) say what to put in each. |
+| `[[publishers]]` | Keep one block per app you use and delete the others. The [app guides](#4-prepare-your-apps) say what to put in each. |
 
 Passwords never go in this file. The config only names a setting such as `OCTOPUS_PASSWORD`, and you set its value in your terminal:
 
@@ -92,13 +73,45 @@ Passwords never go in this file. The config only names a setting such as `OCTOPU
 export OCTOPUS_PASSWORD='your-receiver-password'
 ```
 
-### 5. Prepare your apps
+### 4. Prepare your apps
 
 Each app needs a one-time setting so it knows where its channels come from:
 
 - **Channels DVR:** [docs/setup/channels-dvr.md](docs/setup/channels-dvr.md)
 - **Jellyfin:** [docs/setup/jellyfin.md](docs/setup/jellyfin.md)
 - **Plex (through Threadfin):** [docs/setup/plex-threadfin.md](docs/setup/plex-threadfin.md)
+
+### 5. Choose your channels
+
+```bash
+sat-to-ip run -c sat-to-ip.toml --stages refresh   # first time only: scan the satellite
+sat-to-ip channels -c sat-to-ip.toml
+```
+
+This shows every channel your receiver has found. Tick the ones you want with the space bar (`t` ticks all TV, `r` all radio) and press Enter. It then asks for the number of your first TV and first radio channel (e.g. 101 and 801) and saves your choice at the end of `sat-to-ip.toml`. Run it again whenever you want to change your channels; the ones you already have stay ticked, in the same order.
+
+You can also edit the list by hand. It's a few blocks, each starting at a channel number:
+
+```toml
+[[channels]]
+start = 101                     # BBC One HD is 101, ITV1 HD 102, Channel 4 HD 103
+names = [
+  "BBC One HD",
+  "ITV1 HD",
+  "Channel 4 HD",
+]
+
+[[channels]]
+start = 801
+names = [
+  "BBC Radio 4",
+  { rest = "radio" },           # every other radio channel
+]
+```
+
+- **Names** must match your receiver exactly. If a name appears twice (e.g. two regions of a channel), write `{ name = "BBC One HD", frequency = 10773 }` with the frequency in MHz.
+- **`{ rest = "tv" }`**, `"radio"` or `"all"` takes every channel of that kind you haven't already listed.
+- **Numbers stay put:** if a channel disappears from the satellite, its number is kept free and the channels after it don't move.
 
 ### 6. Check, try, run
 
@@ -130,7 +143,7 @@ The tool runs unattended, so it refuses to make a change that looks like a mista
 
 If one app can't be updated, the others still are.
 
-After you've deliberately removed several channels from `channels.txt`, run once with `--allow-removals`.
+After you've deliberately removed several channels from your list, run once with `--allow-removals`.
 
 ## Run it automatically every week
 
@@ -142,7 +155,7 @@ Any scheduler works. On a Mac or Linux, `crontab -e` and add a line like this on
 
 Here `secrets.env` holds your `export OCTOPUS_PASSWORD=…` lines. Make it private with `chmod 600 secrets.env`.
 
-The scan briefly takes over the receiver's tuners, so pick a time when nothing is recording. A GitHub Actions workflow on a self-hosted runner works too; keep your config and channel list in a private repo.
+The scan briefly takes over the receiver's tuners, so pick a time when nothing is recording. A GitHub Actions workflow on a self-hosted runner works too; keep your config in a private repo.
 
 ## Everyday commands
 
@@ -151,7 +164,7 @@ The scan briefly takes over the receiver's tuners, so pick a time when nothing i
 | run everything | `sat-to-ip run -c sat-to-ip.toml` |
 | see what would happen, without changing anything | `sat-to-ip run -c sat-to-ip.toml --dry-run` |
 | just resend the channels to my apps, no rescan | `sat-to-ip run -c sat-to-ip.toml --stages publish` |
-| tick channels on and off in the terminal | `sat-to-ip run -c sat-to-ip.toml --interactive` |
+| change which channels I have | `sat-to-ip channels -c sat-to-ip.toml`, then `run` |
 | apply a channel list I've cut down on purpose | `sat-to-ip run -c sat-to-ip.toml --allow-removals` |
 | check my settings | `sat-to-ip check-config -c sat-to-ip.toml` |
 | see more detail | add `-v` before `run` |
@@ -160,17 +173,17 @@ The scan briefly takes over the receiver's tuners, so pick a time when nothing i
 
 **"Config error: …"** The message names the exact setting, e.g. `publishers[1].output_dir: required` means the second `[[publishers]]` block is missing `output_dir`. Unknown settings are errors too, so a typo can't be silently ignored.
 
-**A channel has no TV guide.** The run lists every channel without a guide match, and leaves it out of that app. Most channels match by name automatically. For the rest, make a small file such as `my-mappings.csv`:
+**A channel has no TV guide.** The run lists every channel without a guide match, and leaves it out of that app. Most channels match by name automatically. For the rest, add the guide's ID for it under the guide in `sat-to-ip.toml`:
 
-```csv
-Name,GuideId
-ITV1 HD,ITV1Granada.uk
-Channel 4 HD,Channel4North.uk
+```toml
+[guides.freeview.extra_mappings]
+"ITV1 HD" = "ITV1Granada.uk"
+"Channel 4 HD" = "Channel4North.uk"
 ```
 
-and point the guide at it with `mappings_file = "my-mappings.csv"`. `Name` is the channel name from `channels.txt`. `GuideId` is the guide's own ID for it, which you'll find in the guide file. ITV1 and Channel 4 come in regional versions, so these two lines are the usual ones to add, with your own region.
+The name on the left is the channel name from your list; the ID on the right is the guide's own ID for it, which you'll find in the guide file. ITV1 and Channel 4 come in regional versions, so these two lines are the usual ones to add, with your own region.
 
-**Channel numbers changed.** Numbers only move when you change `channels.txt`. Set them explicitly with `<number> =` on the lines you care about (see [Choose your channels](#3-choose-your-channels)). In Channels DVR, also add `channel_numbers = "list"` to its publisher, otherwise Channels numbers the channels itself.
+**Channel numbers changed.** Numbers only move when you change your channel list; each block's `start` sets where it begins (see [Choose your channels](#5-choose-your-channels)). In Channels DVR, also add `channel_numbers = "list"` to its publisher, otherwise Channels numbers the channels itself.
 
 **"Refusing to remove N saved channels".** The scan found fewer channels than you have saved. Check the dish and try again later; if you really meant to drop them, run with `--allow-removals`.
 

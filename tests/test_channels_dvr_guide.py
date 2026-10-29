@@ -57,24 +57,23 @@ def test_defaults():
     assert guide.url == "http://localhost:8089"
     assert guide.sid is None
     assert guide.station_list == "GBR-1000193-DEFAULT"
-    assert guide.region == "uk" and guide.mappings_file is None
+    assert guide.region == "uk" and guide.extra_mappings == {}
 
 
 def test_all_options(tmp_path):
-    (tmp_path / "mine.csv").write_text("Name,GuideId\nMystery TV,QUEST\n")
     guide = build(
         {
             "url": "http://dvr:8089/",
             "sid_env": "DVR_SID",
             "station_list": "GBR-X",
             "mappings": "UK",
-            "mappings_file": "mine.csv",
+            "extra_mappings": {"Mystery TV": "QUEST"},
         },
         env={"DVR_SID": "s3cret"},
         base_dir=tmp_path,
     )
     assert (guide.url, guide.sid, guide.station_list, guide.region) == ("http://dvr:8089", "s3cret", "GBR-X", "UK")
-    assert guide.mappings_file == tmp_path / "mine.csv"
+    assert guide.extra_mappings == {"Mystery TV": "QUEST"}
 
 
 def test_empty_mappings_means_no_builtin_region():
@@ -87,7 +86,7 @@ def test_empty_mappings_means_no_builtin_region():
         ({"url": "dvr:8089"}, "guides.gn.url"),
         ({"station_list": 5}, "guides.gn.station_list"),
         ({"mappings": "atlantis"}, "guides.gn.mappings"),
-        ({"mappings_file": "nope.csv"}, "guides.gn.mappings_file"),
+        ({"extra_mappings": {"A": 1}}, "guides.gn.extra_mappings"),
         ({"mapings": "uk"}, "guides.gn: unknown key(s) mapings"),
     ],
 )
@@ -133,9 +132,8 @@ def test_match_precedence_and_refs(http_session):
     assert match.xmltv is None
 
 
-def test_override_file_beats_builtin_and_fuzzy(tmp_path, http_session):
-    (tmp_path / "mine.csv").write_text("Name,GuideId\nchannel 4 hd,CH4HD\nMystery TV,QUEST\n")
-    match = build({"mappings_file": "mine.csv"}, base_dir=tmp_path).match(golden_lineup())
+def test_extra_mappings_beat_builtin_and_fuzzy(http_session):
+    match = build({"extra_mappings": {"channel 4 hd": "CH4HD", "Mystery TV": "QUEST"}}).match(golden_lineup())
     assert match.refs["octopus:2"].guide_id == "CH4HD"
     assert match.refs["octopus:8"].guide_id == "QUEST"
 

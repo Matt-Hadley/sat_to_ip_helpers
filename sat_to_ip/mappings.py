@@ -1,10 +1,11 @@
-"""Name→GuideId override tables: built-in per guide kind and region, plus an optional user file.
+"""Name→GuideId tables: built-in per guide kind and region, plus the config's extra_mappings.
 
 Built-ins live in sat_to_ip/data/mappings/<guide kind>/<region>/*.csv with the header Name,GuideId.
 """
 
 import csv
 import logging
+from collections.abc import Mapping
 from pathlib import Path
 
 from sat_to_ip.exceptions import ConfigError
@@ -19,8 +20,8 @@ def available_regions(kind: str) -> list[str]:
     return sorted(p.name for p in kind_dir.iterdir() if p.is_dir()) if kind_dir.is_dir() else []
 
 
-def load_mappings(kind: str, region: str | None, overrides: Path | None = None) -> dict[str, str]:
-    """Return lowercased channel name → guide ID. Override-file entries win over built-ins."""
+def load_mappings(kind: str, region: str | None, extra: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Return lowercased channel name → guide ID. `extra` (the config's extra_mappings) wins over built-ins."""
     mappings: dict[str, str] = {}
     if region:
         region_dir = BUILTIN_DIR / kind / region.lower()
@@ -30,9 +31,8 @@ def load_mappings(kind: str, region: str | None, overrides: Path | None = None) 
             )
         for path in sorted(region_dir.glob("*.csv")):
             mappings.update(load_csv(path))
-    if overrides:
-        mappings.update(load_csv(overrides))
-    logger.debug(f"Loaded {len(mappings)} {kind} mappings (region={region!r}, overrides={overrides})")
+    mappings.update({name.lower(): guide_id for name, guide_id in (extra or {}).items()})
+    logger.debug(f"Loaded {len(mappings)} {kind} mappings (region={region!r}, {len(extra or {})} extra)")
     return mappings
 
 

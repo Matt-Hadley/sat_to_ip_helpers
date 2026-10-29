@@ -6,25 +6,32 @@ import pytest
 from sat_to_ip import pipeline
 from sat_to_ip.checks import CheckSettings
 from sat_to_ip.config import Config
-from sat_to_ip.model import ChannelRef
 from sat_to_ip.pipeline import RunOptions, Stage
-from sat_to_ip.selection import read_spec_file
+from sat_to_ip.selection import specs_from_config
 from tests.fakes import BasicReceiver, FakeGuide, FakePublisher, FakeReceiver, channel
 
 
+def _blocks(specs: str):
+    """Old one-per-line notation, for brevity: 'N = name' starts a block; tv/radio/all mean rest."""
+    blocks: list[dict] = []
+    for line in filter(None, (raw.strip() for raw in specs.splitlines())):
+        start, _, entry = line.rpartition(" = ") if " = " in line else (None, "", line)
+        value = {"rest": entry} if entry in ("tv", "radio", "all") else entry
+        if start or not blocks:
+            blocks.append({"start": int(start)} if start else {})
+            blocks[-1]["names"] = []
+        blocks[-1]["names"].append(value)
+    return blocks
+
+
 def _config(tmp_path: Path, receiver=None, guides=None, publishers=None, specs="Ch 1\nCh 2\nCh 3\n", **checks):
-    channels_file = None
-    if specs is not None:
-        channels_file = tmp_path / "channels.txt"
-        channels_file.write_text(specs)
     return Config(
         receiver=receiver or FakeReceiver(),
         guides={"guide": FakeGuide()} if guides is None else guides,
         publishers=tuple(publishers or [FakePublisher()]),
         checks=CheckSettings(**checks),
-        channels_file=channels_file,
         path=tmp_path / "c.toml",
-        channel_specs=tuple(read_spec_file(channels_file)) if channels_file else None,
+        channel_specs=tuple(specs_from_config(_blocks(specs))) if specs is not None else None,
     )
 
 
@@ -55,9 +62,9 @@ def test_receiver_without_capabilities_skips_those_stages(tmp_path):
     assert report.ok
 
 
-def test_select_skipped_without_channels_file(tmp_path):
+def test_select_skipped_without_channel_blocks(tmp_path):
     report = pipeline.run(_config(tmp_path, specs=None), RunOptions(stages=frozenset({Stage.SELECT})))
-    assert report.outcomes[0].status == "skipped" and "channels file" in report.outcomes[0].detail
+    assert report.outcomes[0].status == "skipped" and "no [[channels]]" in report.outcomes[0].detail
 
 
 def test_refresh_failure_aborts_before_publishing(tmp_path):
@@ -86,25 +93,6 @@ def test_select_logs_changes_and_unmatched_specs(tmp_path, caplog):
     caplog.set_level(logging.INFO)
     pipeline.run(_config(tmp_path, specs="Ch 1\nCh 2\nNope\n"), RunOptions(stages=frozenset({Stage.SELECT})))
     assert "- Ch 3" in caplog.text and "No channel matches 'Nope'" in caplog.text
-
-
-def _pick(monkeypatch, result):
-    monkeypatch.setattr("sat_to_ip.pipeline.channel_picker.pick", lambda saved, available: result)
-
-
-def test_interactive_selection_bypasses_removal_check(tmp_path, monkeypatch):
-    rx = FakeReceiver(channels=[channel(i) for i in range(1, 11)])
-    _pick(monkeypatch, [ChannelRef("fake:1", "Ch 1")])
-    report = pipeline.run(
-        _config(tmp_path, receiver=rx, specs=None), RunOptions(interactive=True, stages=frozenset({Stage.SELECT}))
-    )
-    assert report.ok and rx.saved == [(ChannelRef("fake:1", "Ch 1"),)]
-
-
-def test_interactive_cancel_skips(tmp_path, monkeypatch):
-    _pick(monkeypatch, None)
-    report = pipeline.run(_config(tmp_path), RunOptions(interactive=True, stages=frozenset({Stage.SELECT})))
-    assert report.outcomes[0].status == "skipped" and report.outcomes[0].detail == "cancelled"
 
 
 def test_dry_run_changes_nothing(tmp_path):
@@ -197,15 +185,6 @@ def test_selection_matching_nothing_never_empties_the_receiver(tmp_path, options
     rx = FakeReceiver()
     report = pipeline.run(_config(tmp_path, receiver=rx, specs="Renamed\n", max_removed=50), options)
     assert "matches no channels" in report.outcomes[1].detail and rx.saved == []
-
-
-def test_interactive_empty_selection_is_refused(tmp_path, monkeypatch):
-    rx = FakeReceiver()
-    _pick(monkeypatch, [])
-    report = pipeline.run(
-        _config(tmp_path, receiver=rx), RunOptions(interactive=True, stages=frozenset({Stage.SELECT}))
-    )
-    assert report.outcomes[0].status == "failed" and rx.saved == []
 
 
 def test_added_channels_are_logged(tmp_path, caplog):

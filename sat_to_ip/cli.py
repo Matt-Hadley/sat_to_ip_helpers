@@ -3,6 +3,7 @@
   sat-to-ip run -c sat-to-ip.toml                     # refresh, select, publish
   sat-to-ip run -c sat-to-ip.toml --stages publish    # just republish what the receiver has
   sat-to-ip run -c sat-to-ip.toml --dry-run           # check everything, change nothing
+  sat-to-ip channels -c sat-to-ip.toml                # tick channels from the receiver; saves [[channels]]
   sat-to-ip check-config -c sat-to-ip.toml            # validate the config without connecting
 
 Exit codes: 0 everything succeeded, 1 something failed (see the summary), 2 bad config or usage.
@@ -14,9 +15,9 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from sat_to_ip import pipeline
+from sat_to_ip import channel_setup, pipeline
 from sat_to_ip.config import load_config
-from sat_to_ip.exceptions import ConfigError
+from sat_to_ip.exceptions import ConfigError, PipelineError
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +39,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="stages to run (default: all)",
     )
     run.add_argument("--allow-removals", action="store_true", help="skip the [checks] max_removed check")
-    run.add_argument("--interactive", action="store_true", help="pick channels in the terminal instead of the file")
     run.add_argument("--dry-run", action="store_true", help="check everything, change nothing")
+
+    channels = sub.add_parser(
+        "channels", help="pick channels from what the receiver has found; saves them in the config"
+    )
+    channels.add_argument("-c", "--config", type=Path, required=True, help="path to the TOML config")
 
     check = sub.add_parser("check-config", help="validate the config without connecting to anything")
     check.add_argument("-c", "--config", type=Path, required=True, help="path to the TOML config")
@@ -58,6 +63,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         logger.error(f"Config error: {exc}")
         return 2
 
+    if args.command == "channels":
+        if not sys.stdin.isatty():
+            logger.error("sat-to-ip channels needs a terminal to show the channel picker")
+            return 2
+        try:
+            channel_setup.choose_channels(config)
+        except ConfigError as exc:
+            logger.error(str(exc))
+            return 2
+        except PipelineError as exc:
+            logger.error(str(exc))
+            return 1
+        return 0
+
     if args.command == "check-config":
         guides = ", ".join(f"{name} ({g.kind})" for name, g in config.guides.items()) or "none"
         print(f"Config OK: receiver {config.receiver.name}; guides: {guides}")
@@ -67,7 +86,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     options = pipeline.RunOptions(
         stages=frozenset(pipeline.Stage(s) for s in args.stages),
         allow_removals=args.allow_removals,
-        interactive=args.interactive,
         dry_run=args.dry_run,
     )
     report = pipeline.run(config, options)

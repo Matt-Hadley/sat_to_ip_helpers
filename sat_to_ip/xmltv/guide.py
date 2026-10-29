@@ -18,7 +18,7 @@ import requests
 from sat_to_ip import http
 from sat_to_ip.config import Section
 from sat_to_ip.exceptions import ConfigError, IntegrationError
-from sat_to_ip.mappings import load_csv, load_mappings
+from sat_to_ip.mappings import load_mappings
 from sat_to_ip.model import Channel, GuideMatch, GuideRef, Lineup
 from sat_to_ip.names import normalize_name
 
@@ -154,14 +154,10 @@ def from_config(section: Section) -> XmltvGuide:
     path = section.get_optional_path("path")
     if (url is None) == (path is None):
         raise section.error("url", "set exactly one of url (to download the feed) or path (a local file)")
+    extra = section.get_str_map("extra_mappings")
     try:
-        mappings = load_mappings("xmltv", section.get_optional_str("mappings"))
+        mappings = load_mappings("xmltv", section.get_optional_str("mappings"), extra)
     except ConfigError as exc:
         raise section.error("mappings", str(exc)) from exc
-    if mappings_file := section.get_optional_path("mappings_file"):
-        try:
-            mappings.update(load_csv(mappings_file))
-        except ConfigError as exc:
-            raise section.error("mappings_file", str(exc)) from exc
     max_bytes = section.get_int("max_bytes", DEFAULT_MAX_BYTES, minimum=1)
     return XmltvGuide(section.name, url, path, mappings, max_bytes)

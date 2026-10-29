@@ -80,7 +80,7 @@ sequenceDiagram
     CLI->>OCT: upload transponder list, scan, poll
     Note over CLI,OCT: select
     CLI->>OCT: saved list + available channels
-    Note over CLI: plan from channels.txt,<br/>safety checks
+    Note over CLI: plan from [[channels]],<br/>safety checks
     CLI->>OCT: save channel list
     Note over CLI,TF: publish
     CLI->>OCT: saved list + stream URLs (M3U)
@@ -118,6 +118,7 @@ sat_to_ip/
   mappings.py     Name,GuideId tables
   selection.py    channel lists: parsing, matching (Name, Name@MHz, tv/radio/all), channel numbers
   channel_picker.py  the interactive (curses) channel picker, for any receiver
+  channel_setup.py   `sat-to-ip channels`: picker → [[channels]] blocks written into the config (tomlkit)
   octopus_net/    receiver, client, transponders, scan diff
   kingofsat/      transponder scraper
   channels_dvr/   client, Gracenote guide, publisher
@@ -178,4 +179,4 @@ sat_to_ip/data/mappings/<guide kind>/<table>/{tv,radio}.csv     header: Name,Gui
 - `gracenote/uk`: Gracenote call signs, used with Channels DVR.
 - `xmltv/freeview-epg`: channel IDs from the [Freeview-EPG](https://github.com/dp247/Freeview-EPG) feed.
 
-Only add national channels with a clear one-to-one match. Regional channels (ITV1, Channel 4 and their regions) belong in each user's own `mappings_file`.
+Only add national channels with a clear one-to-one match. Regional channels (ITV1, Channel 4 and their regions) belong in each user's own `extra_mappings` table.

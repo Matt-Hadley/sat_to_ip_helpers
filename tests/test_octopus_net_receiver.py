@@ -13,7 +13,7 @@ from sat_to_ip.interfaces import SupportsRefresh, SupportsSelection
 from sat_to_ip.kingofsat.transponder import Transponder
 from sat_to_ip.model import ChannelRef
 from sat_to_ip.octopus_net.receiver import OctopusNetReceiver, from_config
-from sat_to_ip.selection import read_spec_file
+from sat_to_ip.selection import specs_from_config
 from tests.fakes import FakeGuide, FakePublisher
 
 ENV = {"OCTO_PW": "secret"}
@@ -240,12 +240,9 @@ def test_lineup_maps_dms_order_kinds_and_duplicate_names(caplog):
 
 def test_pipeline_runs_against_octopus_net_receiver(rx, tmp_path):
     rx._client.download_m3u.return_value = M3U
-    specs = tmp_path / "channels.txt"
-    specs.write_text("BBC One HD\nRadio 4\nITV HD\n")
+    specs = specs_from_config([{"names": ["BBC One HD", "Radio 4", "ITV HD"]}])
     pub = FakePublisher()
-    config = Config(
-        rx, {"guide": FakeGuide()}, (pub,), CheckSettings(), specs, tmp_path / "c.toml", tuple(read_spec_file(specs))
-    )
+    config = Config(rx, {"guide": FakeGuide()}, (pub,), CheckSettings(), tmp_path / "c.toml", tuple(specs))
 
     with patch("sat_to_ip.octopus_net.receiver.KingOfSatClient.create") as create:
         create.return_value.fetch_transponders.return_value = [_transponder()]

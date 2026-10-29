@@ -2,7 +2,7 @@ import pytest
 
 from sat_to_ip.exceptions import CheckError, ConfigError
 from sat_to_ip.model import Channel, ChannelRef, Lineup
-from sat_to_ip.selection import Spec, match_specs, number_lineup, parse_spec, plan_selection, read_spec_file
+from sat_to_ip.selection import Spec, match_specs, number_lineup, plan_selection, specs_from_config
 
 BBC = ChannelRef("k1", "BBC One HD", "tv", 10773.0)
 BBC_SCOT = ChannelRef("k2", "BBC One HD", "tv", 10847.0)
@@ -11,101 +11,100 @@ R4 = ChannelRef("k4", "Radio 4", "radio", 11954.0)
 ALL = [BBC, BBC_SCOT, ITV, R4]
 
 
-# parse_spec / read_spec_file ---------------------------------------------------------------------
+def _specs(*names, start=None):
+    block = {"names": list(names)}
+    if start is not None:
+        block["start"] = start
+    return specs_from_config([block])
 
 
-@pytest.mark.parametrize(
-    "text, expected",
-    [
-        ("BBC One HD", Spec("BBC One HD", name="BBC One HD")),
-        ("  BBC One HD@10773 ", Spec("BBC One HD@10773", name="BBC One HD", frequency_mhz=10773.0)),
-        ("TV", Spec("TV", keyword="tv")),
-        ("101 = BBC One HD", Spec("101 = BBC One HD", number=101, name="BBC One HD")),
-        ("801=radio", Spec("801=radio", number=801, keyword="radio")),
-        ("5 USA", Spec("5 USA", name="5 USA")),  # a name starting with a number isn't a number
-        ("12 = 5 USA", Spec("12 = 5 USA", number=12, name="5 USA")),
-    ],
-)
-def test_parse_spec(text, expected):
-    assert parse_spec(text) == expected
+# specs_from_config ------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "text, message",
-    [
-        ("0 = BBC One HD", "line 3: channel numbers start at 1"),
-        ("101 =", "has a number but no channel"),
-        ("BBC One HD@soon", "must be a frequency in MHz"),
-        ("@10773", "missing the channel name"),
-    ],
-)
-def test_parse_spec_errors_name_the_line(text, message):
-    with pytest.raises(ConfigError, match=message):
-        parse_spec(text, 3)
-
-
-def test_read_spec_file(tmp_path):
-    path = tmp_path / "channels.txt"
-    path.write_text("# TV\n101 = BBC One HD\n\nITV1 HD\n  # radio\n801 = radio\n")
-    assert [(s.line, s.number, s.name or s.keyword) for s in read_spec_file(path)] == [
-        (2, 101, "BBC One HD"),
-        (4, None, "ITV1 HD"),
-        (6, 801, "radio"),
+def test_blocks_become_specs_with_each_blocks_start_on_its_first_entry():
+    specs = specs_from_config(
+        [
+            {"start": 101, "names": ["BBC One HD", {"name": "BBC One HD", "frequency": 10847}]},
+            {"start": 801, "names": [{"rest": "radio"}]},
+        ]
+    )
+    assert specs == [
+        Spec("BBC One HD", "channels[0].names[0]", 101, name="BBC One HD"),
+        Spec("BBC One HD@10847", "channels[0].names[1]", None, name="BBC One HD", frequency_mhz=10847.0),
+        Spec("rest = radio", "channels[1].names[0]", 801, keyword="radio"),
     ]
 
 
-@pytest.mark.parametrize("content", ["10 = A\n10 = B\n", "10 = A\nB\n11 = C\n", "20 = A\n5 = B\n"])
-def test_read_spec_file_numbers_must_go_up(tmp_path, content):
-    path = tmp_path / "channels.txt"
-    path.write_text(content)
-    with pytest.raises(ConfigError, match="numbers must go up"):
-        read_spec_file(path)
+def test_no_blocks_means_no_selection():
+    assert specs_from_config(None) is None
 
 
-def test_read_spec_file_allows_room_after_keywords(tmp_path):
-    path = tmp_path / "channels.txt"
-    path.write_text("tv\n2 = Radio 4\n")  # a keyword's size is only known at run time
-    assert len(read_spec_file(path)) == 2
+def test_names_are_trimmed_and_a_block_may_have_no_start():
+    assert _specs("  ITV1 HD ")[0] == Spec("ITV1 HD", "channels[0].names[0]", name="ITV1 HD")
+    assert _specs({"name": " ITV1 HD"})[0] == Spec("ITV1 HD", "channels[0].names[0]", name="ITV1 HD")
 
 
-def test_read_spec_file_unreadable(tmp_path):
-    with pytest.raises(ConfigError, match="Can't read channel list"):
-        read_spec_file(tmp_path / "missing.txt")
+@pytest.mark.parametrize(
+    "blocks, message",
+    [
+        ("BBC One HD", "must be \\[\\[channels\\]\\] blocks"),
+        ([{"names": []}], "channels\\[0\\].names: required"),
+        ([{"names": ["A"], "first": 1}], "channels\\[0\\]: unknown key\\(s\\) first"),
+        ([{"start": 0, "names": ["A"]}], "channels\\[0\\].start: must be a channel number of 1 or more"),
+        ([{"start": True, "names": ["A"]}], "must be a channel number"),
+        ([{"names": [" "]}], "channels\\[0\\].names\\[0\\]: must not be empty"),
+        ([{"names": [5]}], "must be a channel name or a table"),
+        ([{"names": [{"name": "A", "freq": 1}]}], "names\\[0\\]: unknown key\\(s\\) freq"),
+        ([{"names": [{"frequency": 1}]}], "names\\[0\\].name: required"),
+        ([{"names": [{"name": "A", "frequency": "x"}]}], "names\\[0\\].frequency: must be a number"),
+        ([{"names": [{"rest": "films"}]}], 'use { rest = "tv" }'),
+        ([{"names": [{"rest": "tv", "name": "A"}]}], 'use { rest = "tv" }'),
+        (
+            [{"start": 10, "names": ["A", "B"]}, {"start": 11, "names": ["C"]}],
+            "channels\\[1\\].start: 11 overlaps channels\\[0\\] \\(its channels run up to 11\\)",
+        ),
+    ],
+)
+def test_bad_blocks_name_the_key(blocks, message):
+    with pytest.raises(ConfigError, match=message):
+        specs_from_config(blocks)
+
+
+def test_rest_entries_leave_room_checks_to_run_time():
+    assert len(specs_from_config([{"names": [{"rest": "tv"}]}, {"start": 2, "names": ["Radio 4"]}])) == 2
 
 
 # match_specs / plan_selection --------------------------------------------------------------------
 
 
-def _match(*texts):
-    return [(s.text, [c.key for c in found]) for s, found in match_specs([parse_spec(t) for t in texts], ALL)]
+def _match(*entries):
+    return [(s.text, [c.key for c in found]) for s, found in match_specs(_specs(*entries), ALL)]
 
 
 def test_name_takes_the_first_match_case_insensitively():
     assert _match("bbc one hd", "BBC One HD") == [("bbc one hd", ["k1"]), ("BBC One HD", ["k2"])]
 
 
-def test_name_at_frequency_picks_the_right_one_within_tolerance():
-    assert _match("BBC One HD@10847.25") == [("BBC One HD@10847.25", ["k2"])]
-    assert _match("BBC One HD@11000") == [("BBC One HD@11000", [])]
+def test_name_with_frequency_picks_the_right_one_within_tolerance():
+    assert _match({"name": "BBC One HD", "frequency": 10847.25}) == [("BBC One HD@10847.2", ["k2"])]
+    assert _match({"name": "BBC One HD", "frequency": 11000}) == [("BBC One HD@11000", [])]
 
 
-def test_keywords_take_what_is_left_of_their_kind():
-    assert _match("ITV1 HD", "tv", "radio", "all") == [
+def test_rest_takes_what_is_left_of_its_kind():
+    assert _match("ITV1 HD", {"rest": "tv"}, {"rest": "radio"}, {"rest": "all"}) == [
         ("ITV1 HD", ["k3"]),
-        ("tv", ["k1", "k2"]),
-        ("radio", ["k4"]),
-        ("all", []),
+        ("rest = tv", ["k1", "k2"]),
+        ("rest = radio", ["k4"]),
+        ("rest = all", []),
     ]
 
 
-def test_frequency_spec_skips_channels_without_a_frequency():
-    found = match_specs([parse_spec("X@100")], [ChannelRef("a", "X")])
-    assert found[0][1] == []
+def test_frequency_entry_skips_channels_without_a_frequency():
+    assert match_specs(_specs({"name": "X", "frequency": 100}), [ChannelRef("a", "X")])[0][1] == []
 
 
 def test_plan_selection():
-    specs = [parse_spec(t) for t in ("Radio 4", "ITV1 HD", "Gone HD", "tv")]
-    plan = plan_selection([BBC, ITV], [BBC_SCOT, R4], specs)
+    plan = plan_selection([BBC, ITV], [BBC_SCOT, R4], _specs("Radio 4", "ITV1 HD", "Gone HD", {"rest": "tv"}))
     assert [c.key for c in plan.proposed] == ["k4", "k3", "k1", "k2"]
     assert plan.current == (BBC, ITV) and plan.unmatched_specs == ("Gone HD",)
 
@@ -121,28 +120,25 @@ def _numbers(lineup):
     return [(c.number, c.name) for c in lineup]
 
 
-def test_without_a_list_numbers_follow_the_receiver_order():
+def test_without_blocks_numbers_follow_the_receiver_order():
     assert _numbers(number_lineup(_lineup("B", "A"), None)) == [(1, "B"), (2, "A")]
 
 
-def test_numbers_count_up_from_explicit_ones_and_sort_the_lineup():
-    specs = [parse_spec(t) for t in ("101 = A", "B", "801 = R1", "R2")]
+def test_blocks_count_up_from_their_start_and_sort_the_lineup():
+    specs = specs_from_config([{"start": 101, "names": ["A", "B"]}, {"start": 801, "names": ["R1", "R2"]}])
     lineup = number_lineup(_lineup("R2", "B", "R1", "A"), specs)
     assert _numbers(lineup) == [(101, "A"), (102, "B"), (801, "R1"), (802, "R2")]
 
 
 def test_a_missing_channel_keeps_its_number_free():
-    specs = [parse_spec(t) for t in ("Gone", "B", "C")]
-    assert _numbers(number_lineup(_lineup("B", "C"), specs)) == [(2, "B"), (3, "C")]
+    assert _numbers(number_lineup(_lineup("B", "C"), _specs("Gone", "B", "C"))) == [(2, "B"), (3, "C")]
 
 
 def test_unlisted_channels_come_after_the_listed_ones():
-    specs = [parse_spec(t) for t in ("10 = A",)]
-    assert _numbers(number_lineup(_lineup("X", "A", "Y"), specs)) == [(10, "A"), (11, "X"), (12, "Y")]
+    assert _numbers(number_lineup(_lineup("X", "A", "Y"), _specs("A", start=10))) == [(10, "A"), (11, "X"), (12, "Y")]
 
 
-def test_keyword_then_explicit_number_collision_is_a_check_error():
-    specs = [parse_spec("tv"), parse_spec("2 = R1")]
-    specs[1] = Spec(specs[1].text, 7, 2, name="R1")
-    with pytest.raises(CheckError, match="Channel list line 7: number 2 is already taken"):
+def test_rest_overflowing_into_the_next_block_is_a_check_error():
+    specs = specs_from_config([{"names": [{"rest": "tv"}]}, {"start": 2, "names": ["R1"]}])
+    with pytest.raises(CheckError, match="channels\\[1\\].names\\[0\\]: start 2 is already taken"):
         number_lineup(_lineup("A", "B", "R1"), specs)

@@ -4,7 +4,6 @@ import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cached_property
-from pathlib import Path
 from typing import Any
 
 from sat_to_ip.channels_dvr.client import ChannelsDVRClient
@@ -28,7 +27,7 @@ class GracenoteGuide:
     sid: str | None
     station_list: str
     region: str | None
-    mappings_file: Path | None
+    extra_mappings: dict[str, str]
     kind: str = "gracenote"
 
     @cached_property
@@ -37,7 +36,7 @@ class GracenoteGuide:
 
     def match(self, lineup: Lineup) -> GuideMatch:
         stations, by_name = _lookups(self.client.get_gracenote(self.station_list))
-        explicit = load_mappings("gracenote", self.region, self.mappings_file)
+        explicit = load_mappings("gracenote", self.region, self.extra_mappings)
         refs: dict[str, GuideRef] = {}
         unmatched: list[Channel] = []
         for ch in lineup:
@@ -70,14 +69,11 @@ def from_config(section: Section) -> GracenoteGuide:
     region = section.get_str("mappings", "uk") or None
     if region and region.lower() not in available_regions("gracenote"):
         raise section.error("mappings", f"no built-in region {region!r} (have: {available_regions('gracenote')})")
-    mappings_file = section.get_optional_path("mappings_file")
-    if mappings_file and not mappings_file.is_file():
-        raise section.error("mappings_file", f"no such file {mappings_file}")
     return GracenoteGuide(
         name=section.name,
         url=section.get_url("url", DEFAULT_URL),
         sid=section.get_secret("sid_env", required=False),
         station_list=section.get_str("station_list", DEFAULT_STATION_LIST),
         region=region,
-        mappings_file=mappings_file,
+        extra_mappings=section.get_str_map("extra_mappings"),
     )

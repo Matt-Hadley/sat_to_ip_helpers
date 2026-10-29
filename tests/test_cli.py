@@ -35,12 +35,10 @@ def test_run_passes_options_and_returns_report_code(config_file, monkeypatch):
         return pipeline.RunReport([pipeline.Outcome("publish:x", "failed")])
 
     monkeypatch.setattr(pipeline, "run", fake_run)
-    code = cli.main(
-        ["-v", "run", "-c", str(config_file), "--stages", "publish", "--dry-run", "--allow-removals", "--interactive"]
-    )
+    code = cli.main(["-v", "run", "-c", str(config_file), "--stages", "publish", "--dry-run", "--allow-removals"])
     assert code == 1
     assert seen["options"] == pipeline.RunOptions(
-        stages=frozenset({pipeline.Stage.PUBLISH}), allow_removals=True, interactive=True, dry_run=True
+        stages=frozenset({pipeline.Stage.PUBLISH}), allow_removals=True, dry_run=True
     )
 
 
