@@ -32,7 +32,7 @@ class JellyfinPublisher:
     session: requests.Session = field(default_factory=http.session, repr=False)
 
     def publish(self, lineup: Lineup, guide: GuideMatch | None, *, dry_run: bool) -> PublishResult:
-        out = write_lineup_files(self.output_dir, lineup, guide, dry_run=dry_run)
+        out = write_lineup_files(self.output_dir, lineup, guide, dry_run=dry_run, number_in_label=True)
         if dry_run:
             return PublishResult(self.name, out.channels, f"dry run: wrote {out.directory}; no guide refresh")
         if not self.refresh:

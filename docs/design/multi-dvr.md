@@ -49,10 +49,10 @@ sat_to_ip/
   mappings.py     load Name→GuideId CSVs (built-in region + optional override file)
   mappings/<guide kind>/<region>/{tv,radio}.csv
   cli.py          sat-to-ip run | check-config
-  channels.py     channel-spec matching (Name, Name@MHz, all/tv/radio)
-  dms_editor.py   interactive selection (curses)
+  file_output.py  tv.m3u / radio.m3u / guide.xml writer shared by file-reading DVRs
   kingofsat/      transponder scraper (any SAT>IP receiver can use it)
-  octopus/        client, transponders, receiver.py (Receiver + refresh + selection)
+  octopus/        client, transponders, receiver.py, selection.py (Name / Name@MHz / all / tv / radio),
+                  dms_editor.py (interactive selection)
   channels_dvr/   client, guide.py (Gracenote GuideSource), publisher.py
   xmltv/          guide.py (XMLTV GuideSource: download, gzip, streaming parse, match, filter)
   jellyfin/       publisher.py (files + Refresh Guide task)

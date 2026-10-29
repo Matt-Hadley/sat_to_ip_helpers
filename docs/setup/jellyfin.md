@@ -59,5 +59,5 @@ Check it with `sat-to-ip check-config -c sat-to-ip.toml`, then `sat-to-ip run -c
 ## Known quirks
 
 - Jellyfin caches an XMLTV file for an hour, so a refresh within an hour of the previous one can still show the old guide; the next refresh picks it up.
-- Jellyfin treats a channel name that starts with a number and a space (e.g. `5 USA`) as "number + name" and drops the leading number from the displayed name.
+- Jellyfin reads a channel name that starts with a number and a space (e.g. `5 USA`) as "number + name". The pipeline therefore writes Jellyfin labels as `<channel number> <name>` (e.g. `12 5 USA`), which Jellyfin splits back into number 12 and name "5 USA".
 - The authentication header used is `Authorization: MediaBrowser Token="…"`; the old `X-Emby-Token` header only works when legacy authorization is turned on in Jellyfin.

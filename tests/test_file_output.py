@@ -73,3 +73,12 @@ def test_failed_write_leaves_old_file_and_no_partial(tmp_path, monkeypatch):
         write_lineup_files(tmp_path, _lineup(), None, dry_run=False)
     assert sorted(p.name for p in tmp_path.iterdir()) == ["tv.m3u"]
     assert (tmp_path / "tv.m3u").read_text() == "old"
+
+
+def test_number_in_label_for_jellyfin(tmp_path):
+    from sat_to_ip.model import Channel, Lineup
+
+    lineup = Lineup((Channel("k", "5 USA", "tv", "http://o/5", 12),))
+    write_lineup_files(tmp_path, lineup, None, dry_run=False, number_in_label=True)
+    entry = m3u.parse((tmp_path / "tv.m3u").read_text())[0]
+    assert entry.label == "12 5 USA" and entry.attr("tvg-name") == "5 USA" and entry.attr("tvg-chno") == "12"

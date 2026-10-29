@@ -28,9 +28,15 @@ class FileOutput:
         return sum(self.counts.values())
 
 
-def write_lineup_files(output_dir: Path, lineup: Lineup, guide: GuideMatch | None, *, dry_run: bool) -> FileOutput:
+def write_lineup_files(
+    output_dir: Path, lineup: Lineup, guide: GuideMatch | None, *, dry_run: bool, number_in_label: bool = False
+) -> FileOutput:
     """Write tv.m3u and radio.m3u (always both, so a tuner never points at a missing file), and
-    guide.xml when the guide has XMLTV. With a guide, only matched channels are written."""
+    guide.xml when the guide has XMLTV. With a guide, only matched channels are written.
+
+    number_in_label: label entries "<number> <name>". Jellyfin reads a label starting with a number
+    and a space as "number name", so without this "5 USA" would show as "USA".
+    """
     directory = Path(tempfile.mkdtemp(prefix="sat-to-ip-")) if dry_run else output_dir
     paths: list[Path] = []
     if guide is not None and guide.xmltv is not None:
@@ -40,7 +46,7 @@ def write_lineup_files(output_dir: Path, lineup: Lineup, guide: GuideMatch | Non
     counts: dict[Kind, int] = {}
     for kind, (filename, group) in PLAYLISTS.items():
         entries = [
-            _entry(ch, guide.refs.get(ch.key) if guide else None, group)
+            _entry(ch, guide.refs.get(ch.key) if guide else None, group, number_in_label)
             for ch in lineup.of_kind(kind)
             if guide is None or ch.key in guide.refs
         ]
@@ -50,11 +56,12 @@ def write_lineup_files(output_dir: Path, lineup: Lineup, guide: GuideMatch | Non
     return FileOutput(directory, tuple(paths), counts)
 
 
-def _entry(ch: Channel, ref: GuideRef | None, group: str) -> m3u.Entry:
+def _entry(ch: Channel, ref: GuideRef | None, group: str, number_in_label: bool) -> m3u.Entry:
     attrs = [("tvg-id", ref.guide_id)] if ref else []
     attrs += [
         ("tvg-name", (ref.display_name if ref else None) or ch.name),
         ("tvg-chno", str(ch.number)),
         ("group-title", group),
     ]
-    return m3u.Entry(label=ch.name, url=ch.stream_url, attrs=tuple(attrs))
+    label = f"{ch.number} {ch.name}" if number_in_label else ch.name
+    return m3u.Entry(label=label, url=ch.stream_url, attrs=tuple(attrs))
