@@ -301,3 +301,16 @@ def test_pipeline_runs_against_octopus_receiver(rx, tmp_path):
     lineup, _, _ = pub.published[0]
     assert [c.name for c in lineup] == ["BBC One HD", "Radio 4"]
     json.dumps(rx._client.save_channels.call_args.args[0])  # what goes to the Octopus is plain JSON
+
+
+def test_host_may_include_a_scheme():
+    rx = OctopusReceiver(host="https://octo", password="pw")
+    with patch("sat_to_ip.octopus.receiver.OctopusClient.login", return_value=_client()) as login:
+        rx.lineup()
+    login.assert_called_once_with("https://octo", "admin", "pw")
+
+
+def test_channel_without_a_type_is_tv():
+    rx = OctopusReceiver(host="octo", password="pw")
+    rx._client = _client(dms=[{"serviceid": 9, "name": "BBC One HD"}], m3u_text=M3U)
+    assert [c.kind for c in rx.lineup()] == ["tv"]

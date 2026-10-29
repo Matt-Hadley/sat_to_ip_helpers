@@ -46,7 +46,8 @@ class OctopusReceiver:
 
     def _octopus(self) -> OctopusClient:
         if self._client is None:
-            self._client = OctopusClient.login(f"http://{self.host}", self.username, self.password)
+            base = self.host if self.host.startswith(("http://", "https://")) else f"http://{self.host}"
+            self._client = OctopusClient.login(base, self.username, self.password)
         return self._client
 
     def _fetch(self) -> tuple[list[OctopusChannel], list[OctopusChannel]]:
@@ -134,7 +135,7 @@ class OctopusReceiver:
                 Channel(
                     key=channel_key(ch),
                     name=name,
-                    kind="tv" if ch.get("type") == "video" else "radio",
+                    kind="radio" if ch.get("type") == "audio" else "tv",  # Octopus types are video/audio
                     stream_url=entries.pop(0).url,
                     number=len(channels) + 1,
                     frequency_mhz=_mhz(ch_freq(ch)),
