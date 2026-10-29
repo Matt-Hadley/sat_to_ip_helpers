@@ -1,6 +1,7 @@
 """Pure functions for converting KingOfSat Transponder objects into the JSON
 payload expected by Octopus's /channelsearch/uploadCustom endpoint."""
 
+import math
 from typing import Any
 
 from sat_to_ip.kingofsat.transponder import Transponder
@@ -21,7 +22,7 @@ def format_source(transponders: list[Transponder], position: str, satellite: str
     transponder_list = [
         {
             "Request": (
-                f"freq={int(float(t.frequency))}"
+                f"freq={math.floor(float(t.frequency) + 0.5)}"  # nearest MHz: 11111.75 tunes 11112, not 11111
                 f"&pol={t.polarization.lower()}"
                 f"&mtype={t.modulation}"
                 f"&msys={t.system.lower().replace('-', '')}"

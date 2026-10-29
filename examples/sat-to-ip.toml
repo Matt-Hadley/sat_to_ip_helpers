@@ -15,6 +15,7 @@ host = "octopus.local"
 password_env = "OCTOPUS_PASSWORD"
 positions = ["28.2E"]              # satellite positions to scan
 # kingofsat_language = "eng"       # only scan transponders with channels in this language (KingOfSat's filter)
+# host = "https://octopus.local"   # https: add verify_tls = true, or ca_file = "…", to check its certificate
 
 [checks]
 max_removed = 5                    # refuse to drop more saved channels than this

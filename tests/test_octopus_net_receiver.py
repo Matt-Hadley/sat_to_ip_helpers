@@ -99,6 +99,8 @@ def test_from_config_reads_every_key():
         ({"scan_timeout": 0}, "receiver.scan_timeout: must be at least 1"),
         ({"scan_poll_interval": 0}, "receiver.scan_poll_interval: must be at least 1"),
         ({"positions": [""]}, "receiver.positions: must be a list"),
+        ({"verify_tls": True}, 'receiver.verify_tls: only applies to an https:// host; set host = "https://octo"'),
+        ({"ca_file": "ca.pem", "host": "http://octo"}, "receiver.ca_file: only applies to an https:// host"),
     ],
 )
 def test_from_config_errors_name_the_key(data, message):
@@ -113,7 +115,7 @@ def test_logs_in_once_lazily():
     with patch("sat_to_ip.octopus_net.receiver.OctopusClient.login", return_value=_client()) as login:
         rx.lineup()
         rx.lineup()
-    login.assert_called_once_with("http://octo", "me", "pw")
+    login.assert_called_once_with("http://octo", "me", "pw", False)
 
 
 # refresh -------------------------------------------------------------------------------------
@@ -135,6 +137,7 @@ def test_refresh_uploads_scans_and_logs_diff(rx, caplog):
     caplog.set_level(logging.INFO)
     rx.positions = ["28.2E"]
     rx.scan_timeout, rx.scan_poll_interval = 99, 7
+    rx._client = _client(dms=[])
     before, after = [_ch(1, "Old")], [_ch(1, "Old"), _ch(9, "New")]
     rx._client.get_available_channels.side_effect = [before, after]
     kos = _refresh(rx, lambda pos, channel_filter, cl: [_transponder()])
@@ -149,7 +152,7 @@ def test_refresh_uploads_scans_and_logs_diff(rx, caplog):
 
 
 def test_refresh_logs_tuner_status_when_the_scan_finds_nothing(rx, caplog):
-    rx._client.get_available_channels.side_effect = [[], []]
+    rx._client.get_available_channels.side_effect = [[], [], []]  # before, the scan, and the scan again
     rx._client.get_tuner_status.return_value = [
         {"Input": "1", "Lock": False, "Strength": -39020, "SNR": 0},
         {"Input": "2", "Lock": True, "Strength": -38390, "SNR": 16310},
@@ -161,7 +164,7 @@ def test_refresh_logs_tuner_status_when_the_scan_finds_nothing(rx, caplog):
 
 
 def test_refresh_carries_on_when_tuner_status_fails_after_an_empty_scan(rx, caplog):
-    rx._client.get_available_channels.side_effect = [[], []]
+    rx._client.get_available_channels.side_effect = [[], [], []]
     rx._client.get_tuner_status.side_effect = IntegrationError("HTTP 500")
     _refresh(rx, lambda pos, channel_filter, cl: [_transponder()])
     assert "tuner status couldn't be read: HTTP 500" in caplog.text
@@ -205,12 +208,33 @@ def test_refresh_retunes_a_saved_channel_the_scan_found_elsewhere(rx, caplog, li
 )
 def test_refresh_puts_back_the_saved_list_unchanged_without_one_clear_replacement(rx, scanned, caplog):
     rx._client = _client(dms=SAVED)
-    rx._client.get_available_channels.side_effect = [SAVED, scanned]
+    rx._client.get_available_channels.side_effect = [SAVED, scanned, scanned]  # a lost channel means a second scan
     _refresh(rx, lambda pos, **_: [_transponder(freq=f) for f in (10773, 10847, 10850, 11954)])
     records = rx._client.save_channels.call_args.args[0]
     assert [(r["serviceid"], r["position"]) for r in records] == [(1, 0), (2, 1)]
     lost = [r for r in caplog.records if "the scan didn't find it there" in r.getMessage()]
     assert [r.needs_attention for r in lost] == ([] if SAVED[0] in scanned else [True])  # a lost channel fails the run
+
+
+def test_refresh_scans_again_when_saved_channels_are_missing_and_merges_both_scans(rx, caplog):
+    caplog.set_level(logging.INFO)
+    rx._client = _client(dms=SAVED)
+    # the first scan misses Radio 4's transponder, the second misses BBC One's
+    rx._client.get_available_channels.side_effect = [SAVED, [SAVED[0]], [SAVED[1]]]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=10773), _transponder(freq=11954)])
+    assert rx._client.start_scan.call_count == 2
+    assert "1 saved channel(s) not found; scanning once more" in caplog.text
+    assert "didn't find it there" not in caplog.text
+    assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [1, 2]
+
+
+def test_refresh_scans_only_once_more_and_then_flags_what_is_still_missing(rx, caplog):
+    rx._client = _client(dms=SAVED)
+    rx._client.get_available_channels.side_effect = [SAVED, [SAVED[1]], [SAVED[1]]]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=10773), _transponder(freq=11954)])
+    assert rx._client.start_scan.call_count == 2
+    assert "'BBC One HD' is saved on 10773 MHz, but the scan didn't find it there or anywhere else" in caplog.text
+    assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [1, 2]  # kept, not dropped
 
 
 def test_refresh_restores_the_saved_list_the_scan_empties(rx):
@@ -371,11 +395,44 @@ def test_pipeline_runs_against_octopus_net_receiver(rx, tmp_path):
     json.dumps(rx._client.save_channels.call_args.args[0])  # what goes to the Octopus is plain JSON
 
 
+@pytest.mark.parametrize(
+    "host, url, expected",
+    [
+        (
+            "octonet-pro.lan",
+            "rtsp://172.16.26.20:554/?src=1&freq=11111",
+            "rtsp://octonet-pro.lan:554/?src=1&freq=11111",
+        ),
+        ("https://octo:8443", "http://10.0.0.5/stream?x=1", "http://octo/stream?x=1"),
+        ("octo", "not a url", "not a url"),
+    ],
+)
+def test_stream_urls_use_the_configured_host(host, url, expected):
+    rx = OctopusNetReceiver(host=host, password="pw")
+    rx._client = _client(dms=[_ch(1, "BBC One HD")], m3u_text=f"#EXTM3U\n#EXTINF:-1,BBC One HD\n{url}\n")
+    assert [c.stream_url for c in rx.lineup()] == [expected]
+
+
+@pytest.mark.parametrize(
+    "data, verify",
+    [
+        ({}, False),
+        ({"verify_tls": True}, True),
+        ({"ca_file": "certs/ca.pem"}, str((Path(".") / "certs/ca.pem").resolve())),
+    ],
+)
+def test_https_host_logs_in_with_the_configured_certificate_check(data, verify):
+    rx = from_config(_section(host="https://octo", **data))
+    with patch("sat_to_ip.octopus_net.receiver.OctopusClient.login", return_value=_client()) as login:
+        rx.lineup()
+    login.assert_called_once_with("https://octo", "admin", "secret", verify)
+
+
 def test_host_may_include_a_scheme():
     rx = OctopusNetReceiver(host="https://octo", password="pw")
     with patch("sat_to_ip.octopus_net.receiver.OctopusClient.login", return_value=_client()) as login:
         rx.lineup()
-    login.assert_called_once_with("https://octo", "admin", "pw")
+    login.assert_called_once_with("https://octo", "admin", "pw", False)
 
 
 def test_channel_without_a_type_is_tv():

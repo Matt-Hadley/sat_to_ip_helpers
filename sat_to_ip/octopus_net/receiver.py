@@ -4,6 +4,8 @@ and its M3U of stream URLs."""
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from sat_to_ip import m3u
 from sat_to_ip.checks import NEEDS_ATTENTION
@@ -47,26 +49,41 @@ def _log_tuners(client: OctopusClient) -> None:
     )
 
 
+def _candidates(ch: OctopusChannel, scanned: list[OctopusChannel], found: set[str]) -> list[OctopusChannel] | None:
+    """None when the scan found the saved channel where it was; else the scanned channels it may have moved to.
+
+    The Octopus NET's serviceid includes the frequency, so a channel that moved comes back from the scan
+    as a new record: the same name and DVB service ID, on another frequency.
+    """
+    if mhz(ch_freq(ch)) is None or str(ch.get("serviceid")) in found:
+        return None
+    return [
+        new
+        for new in scanned
+        if new.get("name") == ch.get("name")
+        and new.get("dvb_serviceid") == ch.get("dvb_serviceid")
+        and mhz(ch_freq(new)) is not None
+    ]
+
+
+def _lost(saved: list[OctopusChannel], scanned: list[OctopusChannel]) -> list[OctopusChannel]:
+    """Saved channels the scan found neither where they were nor, unambiguously, anywhere else."""
+    found = {str(ch.get("serviceid")) for ch in scanned}
+    return [ch for ch in saved if (same := _candidates(ch, scanned, found)) is not None and len(same) != 1]
+
+
 def _retune_moved(saved: list[OctopusChannel], scanned: list[OctopusChannel]) -> list[OctopusChannel]:
     """The saved channels, each one the scan no longer found swapped for the same channel the scan found elsewhere.
 
-    The Octopus NET's serviceid includes the frequency, so a channel that moved comes back from the scan
-    as a new record: the same name and DVB service ID, on another frequency. Only an unambiguous match is
-    used; a channel without one is kept as it was. KingOfSat can still list the old frequency (GB News left
-    11670 while it stayed listed), so what counts is what the scan found, not what KingOfSat lists.
+    Only an unambiguous match is used; a channel without one is kept as it was. KingOfSat can still list the
+    old frequency (GB News left 11670 while it stayed listed), so what counts is what the scan found.
     """
     found = {str(ch.get("serviceid")) for ch in scanned}
     records = []
     for ch in saved:
-        old_mhz = mhz(ch_freq(ch))
-        if old_mhz is not None and str(ch.get("serviceid")) not in found:
-            same = [
-                new
-                for new in scanned
-                if new.get("name") == ch.get("name")
-                and new.get("dvb_serviceid") == ch.get("dvb_serviceid")
-                and mhz(ch_freq(new)) is not None
-            ]
+        same = _candidates(ch, scanned, found)
+        if same is not None:
+            old_mhz = mhz(ch_freq(ch))
             if len(same) == 1:
                 logger.info(f"   Retuning {ch.get('name')!r}: {old_mhz:g} → {mhz(ch_freq(same[0])):g} MHz")
                 ch = same[0]
@@ -90,6 +107,8 @@ class OctopusNetReceiver:
     kingofsat_language: str = "eng"
     scan_timeout: int = 600
     scan_poll_interval: int = 1
+    verify_tls: bool = False  # with an https:// host: check its certificate (it ships a self-signed one)
+    ca_file: Path | None = None  # with an https:// host: check its certificate against this CA instead
     name: str = "octopus_net"
     _client: OctopusClient | None = field(default=None, init=False, repr=False)
     # Raw Octopus NET records from the last read, by key: saving needs the whole record, not just the key
@@ -98,7 +117,8 @@ class OctopusNetReceiver:
     def _octopus(self) -> OctopusClient:
         if self._client is None:
             base = self.host if self.host.startswith(("http://", "https://")) else f"http://{self.host}"
-            self._client = OctopusClient.login(base, self.username, self.password)
+            verify = str(self.ca_file) if self.ca_file else self.verify_tls
+            self._client = OctopusClient.login(base, self.username, self.password, verify)
         return self._client
 
     # SupportsRefresh ---------------------------------------------------------------------------
@@ -126,17 +146,25 @@ class OctopusNetReceiver:
         client.upload_transponders(build_upload_payload(sources))
         before = client.get_available_channels([])
         logger.info(f"   Pre-scan: {len(before)} channels available")
-        client.start_scan(self.positions)
-        client.poll_scan_until_complete(interval=self.scan_poll_interval, timeout=self.scan_timeout)
-        after = client.get_available_channels([])
-        logger.info(f"   Post-scan: {len(after)} channels found")
+        complete = len(sources) == len(self.positions)  # with a position missing, its channels would all look lost
+        after = self._scan(client)
+        if complete and (lost := _lost(saved, after)):
+            # A scan can miss a whole transponder (each of three on 2026-10-29 missed different ones): try once more
+            logger.info(f"   {len(lost)} saved channel(s) not found; scanning once more")
+            after = list({str(ch.get("serviceid")): ch for ch in [*after, *self._scan(client)]}.values())
         if not after:
             _log_tuners(client)
         log_scan_diff(before, after)
         if saved:
-            # with a position missing, its channels would all look moved: keep them as they were
-            records = _retune_moved(saved, after) if len(sources) == len(self.positions) else saved
+            records = _retune_moved(saved, after) if complete else saved
             client.save_channels([{**ch, "position": i} for i, ch in enumerate(records)])
+
+    def _scan(self, client: OctopusClient) -> list[OctopusChannel]:
+        client.start_scan(self.positions)
+        client.poll_scan_until_complete(interval=self.scan_poll_interval, timeout=self.scan_timeout)
+        found = client.get_available_channels([])
+        logger.info(f"   Post-scan: {len(found)} channels found")
+        return found
 
     # SupportsSelection -------------------------------------------------------------------------
 
@@ -194,18 +222,32 @@ class OctopusNetReceiver:
                     key=channel_key(ch),
                     name=name,
                     kind=_kind(ch),
-                    stream_url=entries.pop(0).url,
+                    stream_url=self._stream_url(entries.pop(0).url),
                     frequency_mhz=mhz(ch_freq(ch)),
                 )
             )
         return Lineup(tuple(channels))
 
+    def _stream_url(self, url: str) -> str:
+        """The stream URL on the configured host: the Octopus NET's M3U names itself by IP, which can change."""
+        host = urlsplit(self.host if "://" in self.host else f"//{self.host}").hostname
+        parts = urlsplit(url)
+        if not host or not parts.hostname:
+            return url
+        return urlunsplit(parts._replace(netloc=f"{host}:{parts.port}" if parts.port else host))
+
 
 def from_config(section: Section) -> OctopusNetReceiver:
     password = section.get_secret("password_env")
     assert password is not None  # required=True raises instead of returning None
+    host = section.get_str("host")
+    verify_tls = section.get_bool("verify_tls", False)
+    ca_file = section.get_optional_path("ca_file")
+    for key, used in (("verify_tls", verify_tls), ("ca_file", ca_file)):
+        if used and not host.startswith("https://"):
+            raise section.error(key, f'only applies to an https:// host; set host = "https://{host.split("://")[-1]}"')
     return OctopusNetReceiver(
-        host=section.get_str("host"),
+        host=host,
         password=password,
         username=section.get_str("username", "admin"),
         positions=section.get_str_list("positions", ["28.2E"]),
@@ -213,4 +255,6 @@ def from_config(section: Section) -> OctopusNetReceiver:
         kingofsat_language=section.get_str("kingofsat_language", "eng"),
         scan_timeout=section.get_int("scan_timeout", 600, minimum=1),
         scan_poll_interval=section.get_int("scan_poll_interval", 1, minimum=1),
+        verify_tls=verify_tls,
+        ca_file=ca_file,
     )

@@ -11,9 +11,6 @@ from sat_to_ip.exceptions import IntegrationError
 
 logger = logging.getLogger(__name__)
 
-# The Octopus NET serves a self-signed certificate, so its calls use verify=False; only imported when it's configured
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 
 class OctopusChannel(TypedDict, total=False):
     """A channel as the Octopus API returns it (only the keys we read; the rest pass through untouched)."""
@@ -38,15 +35,25 @@ class OctopusClient:
     mock/stub).  Use OctopusClient.login() in production code.
     """
 
-    def __init__(self, base_url: str, session: requests.Session):
+    def __init__(self, base_url: str, session: requests.Session, verify: bool | str = False):
+        """verify: check an https certificate (True), against this CA file (a path), or not (False, the default:
+        the Octopus NET ships a self-signed certificate). Plain http ignores it."""
         self.base_url = base_url.rstrip("/")
         self.session = session
+        self.verify = verify
+        if verify is False and self.base_url.startswith("https://"):
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # it was asked for; don't nag
 
     def _call(self, method: str, path: str, doing: str, **kwargs: Any) -> requests.Response:
         """One request; network and HTTP failures become an IntegrationError that says what to check."""
         try:
-            resp = self.session.request(method, f"{self.base_url}{path}", verify=False, timeout=30, **kwargs)
+            resp = self.session.request(method, f"{self.base_url}{path}", verify=self.verify, timeout=30, **kwargs)
             resp.raise_for_status()
+        except requests.exceptions.SSLError as exc:
+            raise IntegrationError(
+                f"Octopus NET at {self.base_url}: its certificate failed the check while {doing} ({exc}). "
+                "Set [receiver] ca_file to the CA that signed it, or verify_tls = false for its own self-signed one."
+            ) from exc
         except (requests.ConnectionError, requests.Timeout) as exc:
             why = "timed out" if isinstance(exc, requests.Timeout) else "couldn't connect"
             raise IntegrationError(
@@ -67,9 +74,9 @@ class OctopusClient:
             raise IntegrationError(f"Octopus NET: unexpected reply while {doing} (not JSON)") from exc
 
     @classmethod
-    def login(cls, base_url: str, username: str, password: str) -> "OctopusClient":
+    def login(cls, base_url: str, username: str, password: str, verify: bool | str = False) -> "OctopusClient":
         """Authenticate against /login and return an authenticated client."""
-        client = cls(base_url, http.session())
+        client = cls(base_url, http.session(), verify)
         client._call(
             "POST",
             "/login",
@@ -122,7 +129,7 @@ class OctopusClient:
                 resp = self.session.get(
                     f"{self.base_url}/status/octoscan-satip",
                     params={"_": ts},
-                    verify=False,
+                    verify=self.verify,
                     timeout=30,
                 )
             except (

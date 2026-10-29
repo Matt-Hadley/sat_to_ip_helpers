@@ -81,7 +81,7 @@ Open `sat-to-ip.toml`. Every setting has a comment; usually you only change thes
 
 | Section | What to set |
 |---|---|
-| `[receiver]` | `host`: your receiver's address, e.g. `octopus.local` or `192.168.1.50`. `positions` if your dish isn't on 28.2°E. |
+| `[receiver]` | `host`: your receiver's address, e.g. `octopus.local` or `192.168.1.50` (see [Receiver connection](#receiver-connection) for https). `positions` if your dish isn't on 28.2°E. |
 | `[[publishers]]` | Keep one block per app you use and delete the others. The [app guides](#4-prepare-your-apps) say what to put in each. |
 
 Passwords never go in this file. The config only names a setting such as `OCTOPUS_PASSWORD`, and you set its value in your terminal:
@@ -149,6 +149,21 @@ At the end of every run there's a short summary with one line per step and per a
   publish:channels_dvr    ok       74 channels; tv: 65 → SatTV; radio: 9 → SatRadio
   publish:jellyfin        ok       76 channels; …
 ```
+
+### Receiver connection
+
+The `host` you set is also what your apps stream from: the Octopus NET's own playlist names it by IP address, and the tool swaps in your `host`, so a receiver that gets a new IP keeps working if you use its name.
+
+Plain `host = "octopus.local"` talks to the receiver over http, so its admin password crosses your home network unencrypted. That's usual for a box like this on a network you trust. If yours has https turned on:
+
+```toml
+host = "https://octopus.local"
+# verify_tls = false            # the default: encrypted, but its certificate isn't checked (it ships a self-signed one)
+# verify_tls = true             # check it against your computer's trusted certificates
+# ca_file = "octopus-ca.pem"    # or check it against the CA that signed it (relative to this file)
+```
+
+A certificate that fails the check stops the run with a message saying which setting to change.
 
 ### Another satellite
 
@@ -226,6 +241,8 @@ The scan briefly takes over the receiver's tuners, so pick a time when nothing i
 The name on the left is the channel name from your list; the ID on the right is the guide's own ID for it, which you'll find in the guide file. ITV1 and Channel 4 come in regional versions, so these two lines are the usual ones to add, with your own region.
 
 **Channel numbers changed.** Numbers only move when you change your channel list; each block's `start` sets where it begins (see [Choose your channels](#5-choose-your-channels)). In Channels DVR, also add `channel_numbers = "list"` to its publisher, otherwise Channels numbers the channels itself.
+
+**A rescan says a saved channel wasn't found.** A scan sometimes misses a whole transponder, so when saved channels go missing the tool scans once more and combines both results. A channel still missing after that is kept, not dropped, and listed under "need attention". A channel that moved frequency is followed for you. Some channels share a slot and change name with the time of day (CBBC becomes BBC Three in the evening, CBeebies becomes BBC Four), and the receiver's scan shows whichever is on air. Once saved they're kept whatever the time, but when you first pick channels, or list them by hand, scan after 19:00 to see the evening names.
 
 **"Refusing to remove N saved channels".** The scan found fewer channels than you have saved. Check the dish and try again later; if you really meant to drop them, run with `--allow-removals`.
 

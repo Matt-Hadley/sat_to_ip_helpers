@@ -58,11 +58,12 @@ def test_format_source_multiple_transponders():
     assert len(source["TransponderList"]) == 3
 
 
-def test_format_source_frequency_cast_to_int():
-    t = _make_transponder(frequency=10773.5)
-    source = format_source([t], "28.2E", "Astra 2E")
-    request = source["TransponderList"][0]["Request"]
-    assert request.startswith("freq=10773&")
+def test_format_source_frequency_rounds_to_the_nearest_mhz():
+    requests = [
+        format_source([_make_transponder(frequency=f)], "28.2E", "Astra 2E")["TransponderList"][0]["Request"]
+        for f in (10773.25, 10935.5, 11306.5, 11111.75, 12031.4)
+    ]
+    assert [r.split("&")[0] for r in requests] == ["freq=10773", "freq=10936", "freq=11307", "freq=11112", "freq=12031"]
 
 
 # ---------------------------------------------------------------------------

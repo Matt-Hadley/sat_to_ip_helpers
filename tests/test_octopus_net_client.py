@@ -229,11 +229,39 @@ def test_save_channels_posts_list():
     assert session.request.call_args.kwargs["json"] == [{"name": "A"}]
 
 
-def test_requests_have_timeout_and_skip_tls_verification():
+def test_requests_have_timeout_and_skip_tls_verification_by_default():
     client, session = _client()
     client.download_m3u()
     assert session.request.call_args.kwargs["timeout"] == 30
     assert session.request.call_args.kwargs["verify"] is False
+
+
+@pytest.mark.parametrize("verify", [True, "/etc/ssl/octopus-ca.pem"])
+def test_requests_and_scan_polls_check_the_certificate_when_asked(verify):
+    session = MagicMock()
+    client = OctopusClient("https://octopus", session, verify)
+    client.download_m3u()
+    assert session.request.call_args.kwargs["verify"] == verify
+    session.get.return_value = MagicMock(status_code=404, text="")
+    client.poll_scan_until_complete(interval=0, timeout=5)
+    assert session.get.call_args.kwargs["verify"] == verify
+
+
+def test_a_failed_certificate_check_says_how_to_fix_it():
+    session = MagicMock()
+    session.request.side_effect = requests.exceptions.SSLError("certificate verify failed: self-signed certificate")
+    client = OctopusClient("https://octopus", session, True)
+    with pytest.raises(IntegrationError, match="certificate failed the check while downloading its M3U.*ca_file"):
+        client.download_m3u()
+
+
+def test_login_passes_verify_on():
+    with patch("sat_to_ip.octopus_net.client.http.session") as mock_session_cls:
+        session = MagicMock()
+        session.cookies.__contains__ = lambda self, key: key == "session_id"
+        mock_session_cls.return_value = session
+        client = OctopusClient.login("https://octopus", "admin", "secret", "/ca.pem")
+    assert client.verify == "/ca.pem" and session.request.call_args.kwargs["verify"] == "/ca.pem"
 
 
 @pytest.mark.parametrize(
@@ -273,3 +301,12 @@ def test_scan_status_error_is_an_integration_error():
     session.get.return_value = _resp(500, text="boom")
     with pytest.raises(IntegrationError, match="scan status failed \\(HTTP 500\\)"):
         client.poll_scan_until_complete(interval=0)
+
+
+def test_unchecked_https_silences_urllib3s_warning_only_then():
+    with patch("sat_to_ip.octopus_net.client.urllib3.disable_warnings") as disable:
+        OctopusClient("http://octopus", MagicMock())
+        OctopusClient("https://octopus", MagicMock(), True)
+        disable.assert_not_called()
+        OctopusClient("https://octopus", MagicMock())
+    disable.assert_called_once()
