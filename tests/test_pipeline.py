@@ -40,13 +40,19 @@ def _statuses(report):
 
 
 def test_full_run_refreshes_selects_and_publishes(tmp_path):
-    rx, pub = FakeReceiver(), FakePublisher()
-    report = pipeline.run(_config(tmp_path, receiver=rx, publishers=[pub]))
+    rx, pub = FakeReceiver(found=[channel(4)]), FakePublisher()
+    report = pipeline.run(_config(tmp_path, receiver=rx, publishers=[pub], specs="Ch 1\nCh 2\nCh 3\nCh 4\n"))
     assert report.ok and report.exit_code == 0
     assert _statuses(report) == {"refresh": "ok", "select": "ok", "publish:pub": "ok"}
     assert rx.refreshed == 1 and len(rx.saved) == 1
     lineup, match, dry = pub.published[0]
     assert len(lineup) == 3 and len(match.refs) == 3 and dry is False
+
+
+def test_unchanged_selection_is_not_saved_again(tmp_path):
+    rx = FakeReceiver()
+    report = pipeline.run(_config(tmp_path, receiver=rx), RunOptions(stages=frozenset({Stage.SELECT})))
+    assert report.outcomes[0].detail == "3 channels, unchanged" and rx.saved == []
 
 
 def test_stages_option_runs_only_those(tmp_path):
@@ -96,9 +102,10 @@ def test_select_logs_changes_and_unmatched_specs(tmp_path, caplog):
 
 
 def test_dry_run_changes_nothing(tmp_path):
-    rx, pub = FakeReceiver(), FakePublisher()
-    report = pipeline.run(_config(tmp_path, receiver=rx, publishers=[pub]), RunOptions(dry_run=True))
-    assert report.ok
+    rx, pub = FakeReceiver(found=[channel(4)]), FakePublisher()
+    config = _config(tmp_path, receiver=rx, publishers=[pub], specs="Ch 1\nCh 2\nCh 3\nCh 4\n")
+    report = pipeline.run(config, RunOptions(dry_run=True))
+    assert report.ok and report.outcomes[1].detail == "dry run: would save 4 channels"
     assert rx.refreshed == 0 and rx.saved == []
     assert _statuses(report)["refresh"] == "skipped"
     assert pub.published[0][2] is True

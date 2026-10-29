@@ -34,25 +34,38 @@ class JellyfinPublisher:
     def publish(self, lineup: Lineup, guide: GuideMatch | None, *, dry_run: bool) -> PublishResult:
         out = write_lineup_files(self.output_dir, lineup, guide, dry_run=dry_run, number_in_label=True)
         if dry_run:
-            return PublishResult(self.name, out.channels, f"dry run: wrote {out.directory}; no guide refresh")
+            # Check the API key and that Live TV is installed now, rather than after the real run's writes
+            note = "guide refresh off" if not self.refresh else f"Refresh Guide task found ({self._refresh_task_id()})"
+            return PublishResult(self.name, out.channels, f"dry run: would write {out.directory}; {note}")
         if not self.refresh:
             return PublishResult(self.name, out.channels, f"wrote {out.directory}; guide refresh off")
         try:
-            self._start_refresh_guide()
-        except (requests.RequestException, ValueError, IntegrationError) as exc:
+            task_id = self._refresh_task_id()
+            self.session.post(f"{self.url}/ScheduledTasks/Running/{task_id}", headers=self._headers).raise_for_status()
+        except (requests.RequestException, IntegrationError) as exc:
             raise IntegrationError(
                 f"{self.name}: files written to {out.directory}, but starting Refresh Guide failed: {exc}"
             ) from exc
         return PublishResult(self.name, out.channels, f"wrote {out.directory}; started Refresh Guide")
 
-    def _start_refresh_guide(self) -> None:
-        headers = {"Authorization": f'MediaBrowser Token="{self.api_key}"'}
-        resp = self.session.get(f"{self.url}/ScheduledTasks", headers=headers)
-        resp.raise_for_status()
-        task = next((t for t in resp.json() if t.get("Key") == REFRESH_GUIDE_KEY), None)
+    @property
+    def _headers(self) -> dict[str, str]:
+        return {"Authorization": f'MediaBrowser Token="{self.api_key}"'}
+
+    def _refresh_task_id(self) -> str:
+        """The id of Jellyfin's Refresh Guide task; IntegrationError if the server, key or task is wrong."""
+        try:
+            resp = self.session.get(f"{self.url}/ScheduledTasks", headers=self._headers)
+            resp.raise_for_status()
+            tasks = resp.json()
+        except requests.RequestException as exc:
+            raise IntegrationError(f"{self.name}: can't read Jellyfin's scheduled tasks at {self.url}: {exc}") from exc
+        except ValueError as exc:
+            raise IntegrationError(f"{self.name}: unexpected reply from {self.url}/ScheduledTasks") from exc
+        task = next((t for t in tasks if t.get("Key") == REFRESH_GUIDE_KEY), None)
         if task is None:
             raise IntegrationError(f"no scheduled task with Key {REFRESH_GUIDE_KEY!r} (is Live TV installed?)")
-        self.session.post(f"{self.url}/ScheduledTasks/Running/{task['Id']}", headers=headers).raise_for_status()
+        return str(task["Id"])
 
 
 def from_config(section: Section) -> JellyfinPublisher:

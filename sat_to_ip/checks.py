@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from sat_to_ip.exceptions import CheckError
-from sat_to_ip.model import ChannelRef, GuideMatch, Lineup, SelectionPlan
+from sat_to_ip.model import Channel, ChannelRef, GuideMatch, Kind, Lineup, SelectionPlan
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +65,23 @@ def check_lineup_complete(saved: Sequence[ChannelRef], lineup: Lineup, max_remov
             f"{len(missing)} saved channels have no stream on the receiver (limit {max_removed}): {names}. "
             "Check the receiver, or re-run with --allow-removals if this is intended."
         )
+
+
+def publishable(lineup: Lineup, guide: GuideMatch | None, kind: Kind, target: str) -> tuple[Channel, ...]:
+    """The channels of `kind` a target should get: only guide-matched ones when it uses a guide.
+
+    Refuses (CheckError) to hand a target an empty list when the lineup has channels of that kind:
+    that would wipe the target's TV or radio channels. Every publisher goes through this.
+    """
+    channels = lineup.of_kind(kind)
+    if guide is None:
+        return channels
+    matched = tuple(ch for ch in channels if ch.key in guide.refs)
+    if channels and not matched:
+        raise CheckError(
+            f"Guide {guide.source!r} matched none of the {len(channels)} {kind} channels; refusing to empty {target}."
+        )
+    return matched
 
 
 def check_guide_match(match: GuideMatch, minimum: float) -> None:

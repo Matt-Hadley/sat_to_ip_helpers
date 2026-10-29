@@ -226,7 +226,9 @@ def test_contract_without_guide(http_session):
 
 def test_refuses_to_empty_a_source_and_pushes_nothing(http_session):
     guide = GuideMatch("gn", "gracenote", {"k2": GuideRef("BBCR4", None, "201")}, (LINEUP.channels[0],))
-    with pytest.raises(CheckError, match="Refusing to empty Channels DVR source 'OctopusTV'.*2 tv channels"):
+    with pytest.raises(
+        CheckError, match="matched none of the 2 tv channels; refusing to empty Channels DVR source 'OctopusTV'"
+    ):
         build().publish(LINEUP, guide, dry_run=False)
     http_session.get.assert_not_called()
     http_session.put.assert_not_called()  # radio would have been fine, but nothing is half-published

@@ -133,6 +133,9 @@ def _select(config: Config, options: RunOptions, report: RunReport) -> None:
     _log_plan(plan)
     check_selection_not_empty(plan)
     check_removals(plan, config.checks.max_removed, allow=options.allow_removals)
+    if [ch.key for ch in plan.proposed] == [ch.key for ch in plan.current]:
+        report.add(Stage.SELECT, "ok", f"{len(plan.proposed)} channels, unchanged")
+        return
     if options.dry_run:
         report.add(Stage.SELECT, "ok", f"dry run: would save {len(plan.proposed)} channels")
         return

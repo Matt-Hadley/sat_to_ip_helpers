@@ -6,8 +6,8 @@ from functools import cached_property
 
 from sat_to_ip import m3u
 from sat_to_ip.channels_dvr.client import ChannelsDVRClient
+from sat_to_ip.checks import publishable
 from sat_to_ip.config import Section
-from sat_to_ip.exceptions import CheckError
 from sat_to_ip.model import Channel, GuideMatch, Kind, Lineup, PublishResult
 
 logger = logging.getLogger(__name__)
@@ -48,13 +48,8 @@ class ChannelsDVRPublisher:
                 logger.info(f"No {src.kind} channels in the lineup; leaving {src.source_id} unchanged")
                 continue
             numbered = self.channel_numbers == "list"
-            entries = [_entry(ch, guide, numbered) for ch in channels if guide is None or ch.key in guide.refs]
-            if guide is not None and not entries:
-                raise CheckError(
-                    f"Refusing to empty Channels DVR source {src.source_id!r}: none of the {len(channels)} "
-                    f"{src.kind} channels matched guide {guide.source!r}"
-                )
-            playlists.append((src, entries))
+            chosen = publishable(lineup, guide, src.kind, f"Channels DVR source {src.source_id!r}")
+            playlists.append((src, [_entry(ch, guide, numbered) for ch in chosen]))
 
         # Read every source before writing any: a missing one fails the run with nothing changed
         current = [self.client.get_m3u_source(src.source_id) for src, _ in playlists]

@@ -97,12 +97,28 @@ def test_refresh_off_makes_no_calls(tmp_path):
     session.post.assert_not_called()
 
 
-def test_dry_run_writes_only_to_temp_and_makes_no_calls(tmp_path):
+def test_dry_run_writes_nothing_but_checks_the_api_key_and_task(tmp_path):
     pub, session = _publisher(tmp_path)
     result = pub.publish(_lineup(), _guide(), dry_run=True)
-    assert not (tmp_path / "out").exists() and "dry run" in result.detail
-    session.get.assert_not_called()
+    assert not (tmp_path / "out").exists()
+    assert result.detail.startswith("dry run: would write") and "Refresh Guide task found (abc123)" in result.detail
+    session.get.assert_called_once()
     session.post.assert_not_called()
+
+
+def test_dry_run_fails_on_a_bad_api_key(tmp_path):
+    pub, session = _publisher(tmp_path)
+    session.get.return_value.raise_for_status.side_effect = requests.HTTPError("401 Unauthorized")
+    with pytest.raises(IntegrationError, match="can't read Jellyfin's scheduled tasks .*401"):
+        pub.publish(_lineup(), _guide(), dry_run=True)
+    assert not (tmp_path / "out").exists()
+
+
+def test_non_json_task_list(tmp_path):
+    pub, session = _publisher(tmp_path)
+    session.get.return_value.json.side_effect = ValueError("html")
+    with pytest.raises(IntegrationError, match="unexpected reply"):
+        pub.publish(_lineup(), _guide(), dry_run=False)
 
 
 def test_task_not_found_fails_after_files_are_written(tmp_path):
@@ -126,7 +142,8 @@ def test_http_error_fails_after_files_are_written(tmp_path, call):
 def test_contract(tmp_path):
     pub, _ = _publisher(tmp_path)
     assert_publisher_contract(pub, _lineup(), _guide())
-    assert_publisher_contract(JellyfinPublisher("jf", tmp_path / "o", session=MagicMock()), _lineup(), None)
+    no_refresh = JellyfinPublisher("jf", tmp_path / "o", refresh=False, session=MagicMock())
+    assert_publisher_contract(no_refresh, _lineup(), None)
 
 
 # pipeline ---------------------------------------------------------------------------------------

@@ -23,7 +23,7 @@ def test_writes_matched_channels_with_attributes(tmp_path):
     out = write_lineup_files(tmp_path, _lineup(), _guide(), dry_run=False)
 
     assert out.directory == tmp_path and out.counts == {"tv": 1, "radio": 1} and out.channels == 2
-    assert {p.name for p in out.paths} == {"tv.m3u", "radio.m3u", "guide.xml"}
+    assert {p.name for p in tmp_path.iterdir()} == {"tv.m3u", "radio.m3u", "guide.xml"}
     tv = m3u.parse((tmp_path / "tv.m3u").read_text())
     assert [(e.label, e.url, e.attrs) for e in tv] == [
         (
@@ -55,11 +55,10 @@ def test_empty_radio_playlist_is_still_written(tmp_path):
     assert (tmp_path / "radio.m3u").read_text() == "#EXTM3U\n"
 
 
-def test_dry_run_writes_only_to_a_temp_dir(tmp_path):
+def test_dry_run_writes_nothing_but_still_checks(tmp_path):
     target = tmp_path / "out"
     out = write_lineup_files(target, _lineup(), _guide(), dry_run=True)
-    assert not target.exists()
-    assert out.directory != target and (out.directory / "tv.m3u").exists() and (out.directory / "guide.xml").exists()
+    assert not target.exists() and out.directory == target and out.counts == {"tv": 1, "radio": 1}
 
 
 def test_failed_write_leaves_old_file_and_no_partial(tmp_path, monkeypatch):
@@ -89,6 +88,6 @@ def test_refuses_to_empty_a_playlist_when_a_kind_matches_nothing(tmp_path):
 
     lineup = Lineup((channel(1), channel(2, kind="radio")))
     guide = GuideMatch("g", "xmltv", {"fake:2": GuideRef("r.uk")}, (channel(1),), b"<tv/>")
-    with pytest.raises(CheckError, match="matched none of the 1 tv channels; refusing to empty tv.m3u"):
+    with pytest.raises(CheckError, match="matched none of the 1 tv channels; refusing to empty .*tv.m3u"):
         write_lineup_files(tmp_path, lineup, guide, dry_run=False)
     assert list(tmp_path.iterdir()) == []

@@ -36,7 +36,7 @@ class ThreadfinPublisher:
     def publish(self, lineup: Lineup, guide: GuideMatch | None, *, dry_run: bool) -> PublishResult:
         out = write_lineup_files(self.output_dir, lineup, guide, dry_run=dry_run)
         if dry_run:
-            return PublishResult(self.name, out.channels, f"dry run: wrote {out.directory}; no API update")
+            return PublishResult(self.name, out.channels, f"dry run: would write {out.directory}; no API update")
         if self.api_url is None:
             return PublishResult(
                 self.name, out.channels, f"wrote {out.directory}; Threadfin picks it up on its schedule"

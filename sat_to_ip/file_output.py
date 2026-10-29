@@ -5,12 +5,11 @@ tvg-chno (channel number) and group-title. Neither has a radio marker in M3U: Je
 tuner makes every channel TV, so radio goes in its own playlist and "Radio" group instead.
 """
 
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from sat_to_ip import m3u
-from sat_to_ip.exceptions import CheckError
+from sat_to_ip.checks import publishable
 from sat_to_ip.files import write_atomic
 from sat_to_ip.model import Channel, GuideMatch, GuideRef, Kind, Lineup
 
@@ -20,8 +19,7 @@ GUIDE_FILE = "guide.xml"
 
 @dataclass(frozen=True)
 class FileOutput:
-    directory: Path  # output_dir, or the temp dir a dry run wrote to instead
-    paths: tuple[Path, ...]
+    directory: Path
     counts: dict[Kind, int]
 
     @property
@@ -35,34 +33,26 @@ def write_lineup_files(
     """Write tv.m3u and radio.m3u (always both, so a tuner never points at a missing file), and
     guide.xml when the guide has XMLTV. With a guide, only matched channels are written.
 
+    Everything is built and checked before anything is written; a dry run writes nothing.
     number_in_label: label entries "<number> <name>". Jellyfin reads a label starting with a number
     and a space as "number name", so without this "5 USA" would show as "USA".
     """
-    if guide is not None:
-        for kind in PLAYLISTS:
-            channels = lineup.of_kind(kind)
-            if channels and not any(ch.key in guide.refs for ch in channels):
-                raise CheckError(
-                    f"Guide {guide.source!r} matched none of the {len(channels)} {kind} channels; "
-                    f"refusing to empty {PLAYLISTS[kind][0]}."
-                )
-    directory = Path(tempfile.mkdtemp(prefix="sat-to-ip-")) if dry_run else output_dir
-    paths: list[Path] = []
+    playlists = {
+        filename: [
+            _entry(ch, guide.refs.get(ch.key) if guide else None, group, number_in_label)
+            for ch in publishable(lineup, guide, kind, f"{output_dir / filename}")
+        ]
+        for kind, (filename, group) in PLAYLISTS.items()
+    }
+    counts: dict[Kind, int] = {kind: len(playlists[filename]) for kind, (filename, _) in PLAYLISTS.items()}
+    if dry_run:
+        return FileOutput(output_dir, counts)
     if guide is not None and guide.xmltv is not None:
         # Guide first, so a reader that sees the new playlist also finds its channels in the guide.
-        paths.append(directory / GUIDE_FILE)
-        write_atomic(paths[-1], guide.xmltv)
-    counts: dict[Kind, int] = {}
-    for kind, (filename, group) in PLAYLISTS.items():
-        entries = [
-            _entry(ch, guide.refs.get(ch.key) if guide else None, group, number_in_label)
-            for ch in lineup.of_kind(kind)
-            if guide is None or ch.key in guide.refs
-        ]
-        counts[kind] = len(entries)
-        paths.append(directory / filename)
-        write_atomic(paths[-1], m3u.render(entries))
-    return FileOutput(directory, tuple(paths), counts)
+        write_atomic(output_dir / GUIDE_FILE, guide.xmltv)
+    for filename, entries in playlists.items():
+        write_atomic(output_dir / filename, m3u.render(entries))
+    return FileOutput(output_dir, counts)
 
 
 def _entry(ch: Channel, ref: GuideRef | None, group: str, number_in_label: bool) -> m3u.Entry:
