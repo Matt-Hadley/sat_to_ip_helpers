@@ -23,11 +23,13 @@ url = "http://localhost:8089"
 station_list = "GBR-1000193-DEFAULT"
 mappings = "uk"
 
-# A free XMLTV feed (for Jellyfin and Threadfin/Plex)
+# A free XMLTV feed (for Jellyfin and Threadfin/Plex): Freeview-EPG, UK free-to-air TV and radio,
+# rebuilt every 12 hours, for personal use (https://github.com/dp247/Freeview-EPG)
 [guides.freeview]
 type = "xmltv"
-url = "https://example.org/epg.xml"   # set to your feed
-# mappings = "<feed>"                  # built-in Name,GuideId table for this feed, if one exists
+url = "https://raw.githubusercontent.com/dp247/Freeview-EPG/master/epg.xml"
+mappings = "freeview-epg"              # built-in Name,GuideId table for this feed
+# mappings_file = "my-mappings.csv"    # your regional picks, e.g. ITV1 HD,ITV1Granada.uk
 
 [[publishers]]
 type = "channels_dvr"

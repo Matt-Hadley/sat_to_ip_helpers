@@ -32,7 +32,10 @@ def build(role: str, section: "Section") -> Any:
     if type_name not in table:
         raise section.error("type", f"unknown {role} type {type_name!r} (known: {', '.join(sorted(table))})")
     module_name, _, attr = table[type_name].partition(":")
-    builder: Callable[["Section"], Any] = getattr(importlib.import_module(module_name), attr)
+    try:
+        builder: Callable[["Section"], Any] = getattr(importlib.import_module(module_name), attr)
+    except (ImportError, AttributeError) as exc:
+        raise section.error("type", f"{role} type {type_name!r} is registered but can't be loaded: {exc}") from exc
     built = builder(section)
     section.finish()
     return built

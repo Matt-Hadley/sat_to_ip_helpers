@@ -156,3 +156,11 @@ def test_optional_secret_may_be_absent():
     s = _section({"e": "UNSET"})
     assert s.get_secret("e", required=False) is None
     assert s.get_secret("other_env", required=False) is None
+
+
+def test_unloadable_builder_is_a_config_error(tmp_path, monkeypatch):
+    monkeypatch.setitem(registry.BUILDERS["publisher"], "broken", "sat_to_ip.no_such_module:from_config")
+    with pytest.raises(
+        ConfigError, match="publishers\\[0\\].type: publisher type 'broken' is registered but can't be loaded"
+    ):
+        _load(tmp_path, '[receiver]\ntype = "fake"\n[[publishers]]\ntype = "broken"\n')

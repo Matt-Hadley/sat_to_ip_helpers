@@ -227,7 +227,8 @@ type = "gracenote"
 
 [guides.freeview]
 type = "xmltv"
-url = "https://…/epg.xml"
+url = "https://raw.githubusercontent.com/dp247/Freeview-EPG/master/epg.xml"
+mappings = "freeview-epg"
 
 [[publishers]]             # one or more targets
 type = "channels_dvr"
@@ -251,7 +252,7 @@ One entry per line; blank lines and `#` comments are ignored. The order is the c
 
 ### Guide mappings
 
-Most channels match their guide entry by name automatically. For the rest, built-in tables map a channel name to a guide ID: [sat_to_ip/data/mappings/](sat_to_ip/data/mappings/)`<guide kind>/<region>/{tv,radio}.csv`, with the header `Name,GuideId`. Pick a region with `mappings = "uk"`, and add your own with `mappings_file = "my-mappings.csv"` (your entries win). If a channel doesn't match, please add it to the right CSV and open a PR.
+Most channels match their guide entry by name automatically. For the rest, built-in tables map a channel name to a guide ID: [sat_to_ip/data/mappings/](sat_to_ip/data/mappings/)`<guide kind>/<region>/{tv,radio}.csv`, with the header `Name,GuideId`. Pick a table with `mappings = "uk"` (Gracenote) or `mappings = "freeview-epg"` (the [Freeview-EPG](https://github.com/dp247/Freeview-EPG) XMLTV feed), and add your own with `mappings_file = "my-mappings.csv"` (your entries win). Regional channels (ITV1, Channel 4) depend on where you live, so put those in your own file, e.g. `ITV1 HD,ITV1Granada.uk`. If a national channel doesn't match, please add it to the right CSV and open a PR.
 
 ## Running it
 
