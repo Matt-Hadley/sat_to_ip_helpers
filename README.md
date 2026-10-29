@@ -6,6 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Matt-Hadley/sat_to_ip_helpers/actions/workflows/python.yml"><img src="https://github.com/Matt-Hadley/sat_to_ip_helpers/actions/workflows/python.yml/badge.svg?branch=main" alt="Tests"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-3776ab?logo=python&logoColor=white" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Test coverage 100%">
   <img src="https://img.shields.io/badge/mypy-strict-2a6db2" alt="mypy strict">
@@ -230,3 +231,7 @@ The name on the left is the channel name from your list; the ID on the right is 
 Found a channel that won't match, or want support for another receiver or app? Open an issue or a pull request. [CONTRIBUTING.md](CONTRIBUTING.md) explains how the code fits together and how to add things.
 
 Guide data for Jellyfin and Plex comes from [Freeview-EPG](https://github.com/dp247/Freeview-EPG), a free community feed for personal use. Channels DVR uses its own Gracenote guide data.
+
+## License
+
+[MIT](LICENSE): free to use, change and share, with no warranty.
