@@ -1,3 +1,5 @@
+import sys
+
 from sat_to_ip.cli import main
 
-main()
+sys.exit(main())

@@ -1,9 +1,9 @@
 [project]
 name = "sat-to-ip-helpers"
-version = "0.1.0"
-description = "Get UK free-to-air satellite channels from an Octopus NET into Channels DVR, with guide data"
+version = "0.2.0"
+description = "Publish SAT>IP channels (e.g. from an Octopus NET) with guide data to Channels DVR, Jellyfin and Plex"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "beautifulsoup4>=4.15.0",
     "requests>=2.34.2",
@@ -16,6 +16,8 @@ dev = [
     "ruff>=0.17.3",
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
+    "mypy>=2.4.1",
+    "types-requests",
 ]
 
 [project.scripts]
@@ -28,17 +30,22 @@ Homepage = "https://github.com/Matt-Hadley/sat_to_ip_helpers"
 include = ["sat_to_ip*"]
 
 [tool.setuptools.package-data]
-"sat_to_ip.m3u" = ["resources/*/*/*.csv"]
+"sat_to_ip" = ["data/mappings/*/*/*.csv"]
 
 [tool.black]
 line-length = 120
-target-version = ["py310"]
+target-version = ["py311"]
 
 [tool.ruff]
 line-length = 120
 lint.select = ["E", "F", "W", "C", "N", "B"]
 lint.ignore = ["E501"]  # Black handles line length
 exclude = ["__pycache__", ".git", ".venv", "build", "dist"]
+
+[tool.mypy]
+strict = true
+packages = ["sat_to_ip"]
+python_version = "3.11"
 
 [tool.isort]
 profile = "black"

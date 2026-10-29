@@ -1,0 +1,185 @@
+import logging
+from pathlib import Path
+
+import pytest
+
+from sat_to_ip import pipeline
+from sat_to_ip.checks import CheckSettings
+from sat_to_ip.config import Config
+from sat_to_ip.model import ChannelRef, SelectionPlan
+from sat_to_ip.pipeline import RunOptions, Stage
+from tests.fakes import BasicReceiver, FakeGuide, FakePublisher, FakeReceiver, channel
+
+
+def _config(tmp_path: Path, receiver=None, guides=None, publishers=None, specs="Ch 1\nCh 2\nCh 3\n", **checks):
+    channels_file = None
+    if specs is not None:
+        channels_file = tmp_path / "channels.txt"
+        channels_file.write_text(specs)
+    return Config(
+        receiver=receiver or FakeReceiver(),
+        guides={"guide": FakeGuide()} if guides is None else guides,
+        publishers=tuple(publishers or [FakePublisher()]),
+        checks=CheckSettings(**checks),
+        channels_file=channels_file,
+        path=tmp_path / "c.toml",
+    )
+
+
+def _statuses(report):
+    return {o.name: o.status for o in report.outcomes}
+
+
+def test_full_run_refreshes_selects_and_publishes(tmp_path):
+    rx, pub = FakeReceiver(), FakePublisher()
+    report = pipeline.run(_config(tmp_path, receiver=rx, publishers=[pub]))
+    assert report.ok and report.exit_code == 0
+    assert _statuses(report) == {"refresh": "ok", "select": "ok", "publish:pub": "ok"}
+    assert rx.refreshed == 1 and len(rx.applied) == 1
+    lineup, match, dry = pub.published[0]
+    assert len(lineup) == 3 and len(match.refs) == 3 and dry is False
+
+
+def test_stages_option_runs_only_those(tmp_path):
+    rx = FakeReceiver()
+    report = pipeline.run(_config(tmp_path, receiver=rx), RunOptions(stages=frozenset({Stage.PUBLISH})))
+    assert _statuses(report) == {"publish:pub": "ok"}
+    assert rx.refreshed == 0 and rx.applied == []
+
+
+def test_receiver_without_capabilities_skips_those_stages(tmp_path):
+    report = pipeline.run(_config(tmp_path, receiver=BasicReceiver()))
+    assert _statuses(report) == {"refresh": "skipped", "select": "skipped", "publish:pub": "ok"}
+    assert report.ok
+
+
+def test_select_skipped_without_channels_file(tmp_path):
+    report = pipeline.run(_config(tmp_path, specs=None), RunOptions(stages=frozenset({Stage.SELECT})))
+    assert report.outcomes[0].status == "skipped" and "channels file" in report.outcomes[0].detail
+
+
+def test_refresh_failure_aborts_before_publishing(tmp_path):
+    pub = FakePublisher()
+    report = pipeline.run(_config(tmp_path, receiver=FakeReceiver(fail_on="refresh"), publishers=[pub]))
+    assert _statuses(report) == {"refresh": "failed", "publish": "skipped"}
+    assert "RuntimeError: refresh broke" in report.outcomes[0].detail
+    assert pub.published == [] and report.exit_code == 1
+
+
+def test_removal_check_aborts_and_saves_nothing(tmp_path):
+    rx = FakeReceiver(channels=[channel(i) for i in range(1, 11)])
+    report = pipeline.run(_config(tmp_path, receiver=rx, specs="Ch 1\n", max_removed=5))
+    assert _statuses(report)["select"] == "failed"
+    assert "Refusing to remove 9" in report.outcomes[1].detail
+    assert rx.applied == []
+
+
+def test_allow_removals_overrides_check(tmp_path):
+    rx = FakeReceiver(channels=[channel(i) for i in range(1, 11)])
+    report = pipeline.run(_config(tmp_path, receiver=rx, specs="Ch 1\n"), RunOptions(allow_removals=True))
+    assert report.ok and len(rx.applied[0].proposed) == 1
+
+
+def test_select_logs_changes_and_unmatched_specs(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    pipeline.run(_config(tmp_path, specs="Ch 1\nCh 2\nNope\n"), RunOptions(stages=frozenset({Stage.SELECT})))
+    assert "- Ch 3" in caplog.text and "No channel matches 'Nope'" in caplog.text
+
+
+def test_interactive_selection_bypasses_removal_check(tmp_path):
+    plan = SelectionPlan(current=tuple(ChannelRef(f"k{i}", f"n{i}") for i in range(10)), proposed=())
+    rx = FakeReceiver(interactive_plan=plan)
+    report = pipeline.run(
+        _config(tmp_path, receiver=rx), RunOptions(interactive=True, stages=frozenset({Stage.SELECT}))
+    )
+    assert report.ok and rx.applied == [plan]
+
+
+def test_interactive_cancel_skips(tmp_path):
+    report = pipeline.run(_config(tmp_path), RunOptions(interactive=True, stages=frozenset({Stage.SELECT})))
+    assert report.outcomes[0].status == "skipped" and report.outcomes[0].detail == "cancelled"
+
+
+def test_dry_run_changes_nothing(tmp_path):
+    rx, pub = FakeReceiver(), FakePublisher()
+    report = pipeline.run(_config(tmp_path, receiver=rx, publishers=[pub]), RunOptions(dry_run=True))
+    assert report.ok
+    assert rx.refreshed == 0 and rx.applied == []
+    assert _statuses(report)["refresh"] == "skipped"
+    assert pub.published[0][2] is True
+
+
+def test_empty_lineup_is_never_published(tmp_path):
+    pub = FakePublisher()
+    report = pipeline.run(_config(tmp_path, receiver=FakeReceiver(channels=[]), publishers=[pub], specs=None))
+    assert _statuses(report)["publish"] == "failed" and pub.published == []
+
+
+def test_lineup_error_fails_publish(tmp_path):
+    report = pipeline.run(
+        _config(tmp_path, receiver=FakeReceiver(fail_on="lineup")), RunOptions(stages=frozenset({Stage.PUBLISH}))
+    )
+    assert report.outcomes == [pipeline.Outcome("publish", "failed", "RuntimeError: lineup broke")]
+
+
+def test_failed_guide_fails_only_its_publishers(tmp_path):
+    good = FakePublisher(name="good", guide="ok")
+    bad = FakePublisher(name="bad", guide="broken")
+    no_guide = FakePublisher(name="plain", guide=None)
+    guides = {"ok": FakeGuide(name="ok"), "broken": FakeGuide(name="broken", fail=True)}
+    report = pipeline.run(
+        _config(tmp_path, guides=guides, publishers=[good, bad, no_guide]),
+        RunOptions(stages=frozenset({Stage.PUBLISH})),
+    )
+    assert _statuses(report) == {"publish:good": "ok", "publish:bad": "failed", "publish:plain": "ok"}
+    assert "guide 'broken': RuntimeError: feed down" in report.outcomes[1].detail
+    assert bad.published == [] and no_guide.published[0][1] is None
+    assert report.exit_code == 1
+
+
+def test_guide_below_minimum_match_blocks_its_publishers(tmp_path):
+    pub = FakePublisher()
+    guides = {"guide": FakeGuide(unmatched_names=frozenset({"Ch 1", "Ch 2"}))}
+    report = pipeline.run(
+        _config(tmp_path, guides=guides, publishers=[pub], min_guide_match=0.5),
+        RunOptions(stages=frozenset({Stage.PUBLISH})),
+    )
+    assert "matched only 1/3" in report.outcomes[0].detail and pub.published == []
+
+
+def test_shared_guide_matches_once(tmp_path):
+    guide = FakeGuide()
+    pubs = [FakePublisher(name="a"), FakePublisher(name="b")]
+    pipeline.run(
+        _config(tmp_path, guides={"guide": guide}, publishers=pubs), RunOptions(stages=frozenset({Stage.PUBLISH}))
+    )
+    assert guide.calls == 1
+
+
+def test_one_publisher_failing_does_not_stop_the_next(tmp_path, caplog):
+    first, second = FakePublisher(name="first", fail=True), FakePublisher(name="second")
+    report = pipeline.run(_config(tmp_path, publishers=[first, second]), RunOptions(stages=frozenset({Stage.PUBLISH})))
+    assert _statuses(report) == {"publish:first": "failed", "publish:second": "ok"}
+    assert len(second.published) == 1
+
+
+def test_unmatched_channels_are_logged(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    guides = {"guide": FakeGuide(unmatched_names=frozenset({"Ch 3"}))}
+    pipeline.run(_config(tmp_path, guides=guides), RunOptions(stages=frozenset({Stage.PUBLISH})))
+    assert "no match for 'Ch 3'" in caplog.text
+
+
+def test_report_summary_lists_every_outcome(tmp_path):
+    report = pipeline.run(_config(tmp_path))
+    lines = report.summary().splitlines()
+    assert [line.split()[0] for line in lines] == ["refresh", "select", "publish:pub"]
+
+
+@pytest.mark.parametrize("stage", ["select"])
+def test_select_failure_aborts(tmp_path, stage):
+    report = pipeline.run(
+        _config(tmp_path, receiver=FakeReceiver(fail_on=stage)),
+        RunOptions(stages=frozenset({Stage.SELECT, Stage.PUBLISH})),
+    )
+    assert _statuses(report) == {"select": "failed", "publish": "skipped"}

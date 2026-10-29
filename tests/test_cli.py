@@ -1,54 +1,61 @@
 import runpy
-from unittest.mock import MagicMock
 
 import pytest
-import requests
 
-from sat_to_ip import cli
-from sat_to_ip.exceptions import StepError
+from sat_to_ip import cli, pipeline, registry
 
 
-def _run_main(monkeypatch, argv, step):
-    monkeypatch.setattr("sys.argv", ["sat-to-ip", *argv])
-    monkeypatch.setattr(cli, "STEPS", dict.fromkeys(cli.ALL_STEPS, step))
-    cli.main()
+@pytest.fixture
+def config_file(tmp_path, monkeypatch):
+    monkeypatch.setitem(registry.BUILDERS["receiver"], "fake", "tests.fakes:build_receiver")
+    monkeypatch.setitem(registry.BUILDERS["guide"], "fake", "tests.fakes:build_guide")
+    monkeypatch.setitem(registry.BUILDERS["publisher"], "fake", "tests.fakes:build_publisher")
+    path = tmp_path / "c.toml"
+    path.write_text(
+        '[receiver]\ntype = "fake"\n[guides.g]\ntype = "fake"\n[[publishers]]\ntype = "fake"\nguide = "g"\n'
+    )
+    return path
 
 
-def test_main_runs_requested_steps_in_order(monkeypatch):
-    steps = {n: MagicMock(name=f"step_{n}") for n in cli.ALL_STEPS}
-    parent = MagicMock()
-    for n, step in steps.items():
-        parent.attach_mock(step, f"step_{n}")
-    monkeypatch.setattr("sys.argv", ["sat-to-ip", "--steps", "3", "1"])
-    monkeypatch.setattr(cli, "STEPS", steps)
-    cli.main()
-    assert [c[0] for c in parent.mock_calls] == ["step_1", "step_3"]
+def test_check_config_ok(config_file, capsys):
+    assert cli.main(["check-config", "-c", str(config_file)]) == 0
+    out = capsys.readouterr().out
+    assert "receiver fake; guides: g (fake)" in out and "Publishers: fake" in out
 
 
-def test_main_runs_all_steps_by_default(monkeypatch):
-    step = MagicMock()
-    _run_main(monkeypatch, [], step)
-    assert step.call_count == 8
+def test_config_error_exits_2(tmp_path):
+    assert cli.main(["run", "-c", str(tmp_path / "missing.toml")]) == 2
 
 
-@pytest.mark.parametrize(
-    "error, message",
-    [
-        (StepError("boom"), "boom"),
-        (TimeoutError("slow"), "--scan-timeout"),
-        (requests.exceptions.ConnectionError("down"), "is the host reachable"),
-        (requests.exceptions.HTTPError("500"), "HTTP error"),
-        (KeyError("oops"), "unexpected error"),
-    ],
-)
-def test_main_turns_errors_into_exit_messages(monkeypatch, error, message):
+def test_run_passes_options_and_returns_report_code(config_file, monkeypatch):
+    seen = {}
+
+    def fake_run(config, options):
+        seen["options"] = options
+        return pipeline.RunReport([pipeline.Outcome("publish:x", "failed")])
+
+    monkeypatch.setattr(pipeline, "run", fake_run)
+    code = cli.main(
+        ["-v", "run", "-c", str(config_file), "--stages", "publish", "--dry-run", "--allow-removals", "--interactive"]
+    )
+    assert code == 1
+    assert seen["options"] == pipeline.RunOptions(
+        stages=frozenset({pipeline.Stage.PUBLISH}), allow_removals=True, interactive=True, dry_run=True
+    )
+
+
+def test_run_end_to_end_with_fakes(config_file):
+    assert cli.main(["run", "-c", str(config_file)]) == 0
+
+
+def test_command_is_required(capsys):
     with pytest.raises(SystemExit) as exc:
-        _run_main(monkeypatch, ["--steps", "1"], MagicMock(side_effect=error))
-    assert message in str(exc.value)
+        cli.main([])
+    assert exc.value.code == 2
 
 
-def test_python_dash_m_runs_the_cli(monkeypatch):
-    monkeypatch.setattr("sys.argv", ["sat_to_ip", "--help"])
+def test_python_dash_m(monkeypatch, config_file):
+    monkeypatch.setattr("sys.argv", ["sat_to_ip", "check-config", "-c", str(config_file)])
     with pytest.raises(SystemExit) as exc:
         runpy.run_module("sat_to_ip", run_name="__main__")
     assert exc.value.code == 0

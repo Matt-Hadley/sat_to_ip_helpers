@@ -1,25 +1,17 @@
-"""Custom exceptions for the sat-to-ip pipeline."""
+"""Exceptions raised by the pipeline. Anything else reaching the CLI is a bug."""
 
 
 class PipelineError(Exception):
-    """Base exception for all pipeline-related errors."""
-
-    pass
+    """Base for every expected failure: bad config, a failed check, an unreachable service."""
 
 
-class ConfigurationError(PipelineError):
-    """Raised when required configuration (flags, env vars) is missing or invalid."""
-
-    pass
+class ConfigError(PipelineError):
+    """The config file is missing, unreadable or invalid. The message names the offending key."""
 
 
-class StepError(PipelineError):
-    """Raised when a specific step in the pipeline fails."""
-
-    pass
+class CheckError(PipelineError):
+    """A safety check refused to let the run change something."""
 
 
-class StateError(PipelineError):
-    """Raised when there is an issue loading or saving state files."""
-
-    pass
+class IntegrationError(PipelineError):
+    """An external system (receiver, guide feed, DVR) answered in a way we can't use."""

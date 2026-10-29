@@ -1,6 +1,6 @@
 import pytest
 
-from sat_to_ip.m3u.enrichment import (
+from sat_to_ip.channels_dvr.legacy_enrichment import (
     EnrichmentResult,
     build_gracenote_lookups,
     enrich_m3u_text,
