@@ -203,21 +203,40 @@ def test_refresh_retunes_a_saved_channel_the_scan_found_elsewhere(rx, caplog, li
         [SAVED[1], _moved(9, "BBC One HD", "", 6301)],  # a candidate without a frequency
     ],
 )
-def test_refresh_saves_nothing_without_one_clear_replacement(rx, scanned, caplog):
+def test_refresh_puts_back_the_saved_list_unchanged_without_one_clear_replacement(rx, scanned, caplog):
     rx._client = _client(dms=SAVED)
     rx._client.get_available_channels.side_effect = [SAVED, scanned]
     _refresh(rx, lambda pos, **_: [_transponder(freq=f) for f in (10773, 10847, 10850, 11954)])
-    rx._client.save_channels.assert_not_called()
+    records = rx._client.save_channels.call_args.args[0]
+    assert [(r["serviceid"], r["position"]) for r in records] == [(1, 0), (2, 1)]
     lost = [r for r in caplog.records if "the scan didn't find it there" in r.getMessage()]
     assert [r.needs_attention for r in lost] == ([] if SAVED[0] in scanned else [True])  # a lost channel fails the run
+
+
+def test_refresh_restores_the_saved_list_the_scan_empties(rx):
+    # The Octopus NET empties its saved list when it scans (2026-10-29): it's read first and saved back after
+    rx._client = _client(dms=SAVED)
+    rx._client.get_dms_channels.side_effect = [[dict(c) for c in SAVED], []]
+    rx._client.get_available_channels.side_effect = [SAVED, [*SAVED]]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=10773), _transponder(freq=11954)])
+    calls = [c[0] for c in rx._client.method_calls]
+    assert calls.index("get_dms_channels") < calls.index("upload_transponders") < calls.index("save_channels")
+    assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [1, 2]
+
+
+def test_refresh_saves_nothing_when_nothing_was_saved(rx):
+    rx._client = _client(dms=[])
+    rx._client.get_available_channels.side_effect = [[], [*SAVED]]
+    _refresh(rx, lambda pos, **_: [_transponder()])
+    rx._client.save_channels.assert_not_called()
 
 
 def test_refresh_retunes_nothing_when_a_position_failed(rx):
     rx.positions = ["1E", "28.2E"]
     rx._client = _client(dms=SAVED)
-    rx._client.get_available_channels.side_effect = [SAVED, [*SAVED, _moved(9, "BBC One HD", 10847, 6301)]]
+    rx._client.get_available_channels.side_effect = [SAVED, [SAVED[1], _moved(9, "BBC One HD", 10847, 6301)]]
     _refresh(rx, lambda pos, **_: [] if pos == "1E" else [_transponder(freq=10847), _transponder(freq=11954)])
-    rx._client.save_channels.assert_not_called()
+    assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [1, 2]  # put back as it was
 
 
 def test_refresh_skips_failing_and_empty_positions(rx, caplog):

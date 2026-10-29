@@ -47,6 +47,39 @@ def _log_tuners(client: OctopusClient) -> None:
     )
 
 
+def _retune_moved(saved: list[OctopusChannel], scanned: list[OctopusChannel]) -> list[OctopusChannel]:
+    """The saved channels, each one the scan no longer found swapped for the same channel the scan found elsewhere.
+
+    The Octopus NET's serviceid includes the frequency, so a channel that moved comes back from the scan
+    as a new record: the same name and DVB service ID, on another frequency. Only an unambiguous match is
+    used; a channel without one is kept as it was. KingOfSat can still list the old frequency (GB News left
+    11670 while it stayed listed), so what counts is what the scan found, not what KingOfSat lists.
+    """
+    found = {str(ch.get("serviceid")) for ch in scanned}
+    records = []
+    for ch in saved:
+        old_mhz = mhz(ch_freq(ch))
+        if old_mhz is not None and str(ch.get("serviceid")) not in found:
+            same = [
+                new
+                for new in scanned
+                if new.get("name") == ch.get("name")
+                and new.get("dvb_serviceid") == ch.get("dvb_serviceid")
+                and mhz(ch_freq(new)) is not None
+            ]
+            if len(same) == 1:
+                logger.info(f"   Retuning {ch.get('name')!r}: {old_mhz:g} → {mhz(ch_freq(same[0])):g} MHz")
+                ch = same[0]
+            else:
+                logger.warning(
+                    f"   {ch.get('name')!r} is saved on {old_mhz:g} MHz, but the scan didn't find it there"
+                    + (f" and found {len(same)} candidates elsewhere" if same else " or anywhere else"),
+                    extra=NEEDS_ATTENTION,
+                )
+        records.append(ch)
+    return records
+
+
 @dataclass
 class OctopusNetReceiver:
     host: str
@@ -89,6 +122,7 @@ class OctopusNetReceiver:
             raise IntegrationError(f"KingOfSat: no transponders for any position ({', '.join(self.positions)})")
 
         client = self._octopus()
+        saved = client.get_dms_channels()  # the Octopus NET empties its saved list when it scans: put it back after
         client.upload_transponders(build_upload_payload(sources))
         before = client.get_available_channels([])
         logger.info(f"   Pre-scan: {len(before)} channels available")
@@ -99,42 +133,10 @@ class OctopusNetReceiver:
         if not after:
             _log_tuners(client)
         log_scan_diff(before, after)
-        if len(sources) == len(self.positions):  # with a position missing, its channels would all look moved
-            self._retune_moved(client, after)
-
-    def _retune_moved(self, client: OctopusClient, scanned: list[OctopusChannel]) -> None:
-        """Swap a saved channel the scan no longer found for the same channel the scan found elsewhere.
-
-        The Octopus NET's serviceid includes the frequency, so a channel that moved comes back from the scan
-        as a new record: the same name and DVB service ID, on another frequency. Only an unambiguous match is
-        used. KingOfSat can still list the old frequency (GB News left 11670 while it stayed listed), so what
-        counts is what the scan found, not what KingOfSat lists.
-        """
-        found = {str(ch.get("serviceid")) for ch in scanned}
-        records, moved = [], 0
-        for i, saved in enumerate(client.get_dms_channels()):
-            old_mhz = mhz(ch_freq(saved))
-            if old_mhz is not None and str(saved.get("serviceid")) not in found:
-                same = [
-                    ch
-                    for ch in scanned
-                    if ch.get("name") == saved.get("name")
-                    and ch.get("dvb_serviceid") == saved.get("dvb_serviceid")
-                    and mhz(ch_freq(ch)) is not None
-                ]
-                if len(same) == 1:
-                    logger.info(f"   Retuning {saved.get('name')!r}: {old_mhz:g} → {mhz(ch_freq(same[0])):g} MHz")
-                    saved, moved = same[0].copy(), moved + 1
-                else:
-                    logger.warning(
-                        f"   {saved.get('name')!r} is saved on {old_mhz:g} MHz, but the scan didn't find it there"
-                        + (f" and found {len(same)} candidates elsewhere" if same else " or anywhere else"),
-                        extra=NEEDS_ATTENTION,
-                    )
-            saved["position"] = i
-            records.append(saved)
-        if moved:
-            client.save_channels(records)
+        if saved:
+            # with a position missing, its channels would all look moved: keep them as they were
+            records = _retune_moved(saved, after) if len(sources) == len(self.positions) else saved
+            client.save_channels([{**ch, "position": i} for i, ch in enumerate(records)])
 
     # SupportsSelection -------------------------------------------------------------------------
 
