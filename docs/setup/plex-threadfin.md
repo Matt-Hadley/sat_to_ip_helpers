@@ -31,7 +31,7 @@ Inside the container the files are then at `/livetv/tv.m3u`, `/livetv/radio.m3u`
 
 Open Threadfin at `http://<your-server>:34400/web/`.
 
-1. **Playlist → New → M3U:** enter `/livetv/tv.m3u`. Set **Tuner / Streams** to how many channels your Octopus can stream at once. Add `/livetv/radio.m3u` as a second playlist only if you want radio in Plex.
+1. **Playlist → New → M3U:** enter `/livetv/tv.m3u`. Set **Tuner / Streams** to how many channels your receiver can stream at once. Add `/livetv/radio.m3u` as a second playlist only if you want radio in Plex.
 2. **XMLTV → New:** enter `/livetv/guide.xml`.
 3. **Mapping:** channels that match the guide switch themselves on. Check the list once, since anything without a match stays off.
 4. **Settings → Schedule for updating:** choose when Threadfin re-reads the files, e.g. `0500`, an hour after your weekly run.

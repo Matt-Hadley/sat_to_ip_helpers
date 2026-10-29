@@ -8,7 +8,7 @@ Have a different SAT>IP receiver? The Octopus is just one plug-in part, so suppo
 
 ```mermaid
 flowchart LR
-    DISH(("🛰️ Satellite dish")) --> OCT["Octopus NET<br/>on your network"]
+    DISH(("🛰️ Satellite dish")) --> OCT["SAT>IP receiver<br/>e.g. Octopus NET"]
     OCT --> TOOL["<b>sat-to-ip</b><br/>picks your channels<br/>and adds the TV guide"]
     GUIDE["📅 TV guide data<br/>(free, from the internet)"] --> TOOL
     TOOL --> CDVR["Channels DVR"]
@@ -19,11 +19,11 @@ flowchart LR
 
 ## What it does for you
 
-Without it, getting satellite channels into a DVR app means doing a handful of fiddly steps by hand every time channels move: telling the Octopus what to scan, picking channels, downloading a playlist, matching every channel to its guide listing, and loading it into each app.
+Without it, getting satellite channels into a DVR app means doing a handful of fiddly steps by hand every time channels move: telling the receiver what to scan, picking channels, downloading a playlist, matching every channel to its guide listing, and loading it into each app.
 
 `sat-to-ip` does all of that in one go:
 
-1. **Rescans the satellite.** It fetches the current list of frequencies and has the Octopus scan them, so moved channels are found again.
+1. **Rescans the satellite.** It fetches the current list of frequencies and has your receiver scan them, so moved channels are found again.
 2. **Applies your channel list.** You keep a simple text file of the channels you want, in the order you want them.
 3. **Adds the TV guide.** It matches each channel to its guide listing.
 4. **Updates every app you use,** all from the same channel list.
@@ -32,8 +32,8 @@ Run it once, or let it run by itself once a week. If something looks wrong, for 
 
 ## What you need
 
-- A dish pointed at Astra 28.2°E and an **Octopus NET**, with its admin password.
-- A computer that's always on and can reach the Octopus, e.g. the one that runs your DVR. macOS, Linux or Windows, with **Python 3.11 or newer**.
+- A dish pointed at Astra 28.2°E and a supported SAT>IP receiver (today: the **Octopus NET**), with its admin password.
+- A computer that's always on and can reach the receiver, e.g. the one that runs your DVR. macOS, Linux or Windows, with **Python 3.11 or newer**.
 - At least one of:
   - **Channels DVR**
   - **Jellyfin** (free)
@@ -73,7 +73,7 @@ Channel 4 HD
 BBC Radio 4
 ```
 
-Use the names exactly as the Octopus shows them. If the same name appears twice (e.g. two regions of a channel), add its frequency: `BBC One HD@10773`. You can also write `all`, `tv` or `radio` to take every channel of that kind.
+Use the names exactly as your receiver shows them. If the same name appears twice (e.g. two regions of a channel), add its frequency: `BBC One HD@10773`. You can also write `all`, `tv` or `radio` to take every channel of that kind.
 
 ### 4. Fill in the config
 
@@ -81,13 +81,13 @@ Open `sat-to-ip.toml`. Every setting has a comment; usually you only change thes
 
 | Section | What to set |
 |---|---|
-| `[receiver]` | `host`: your Octopus's address, e.g. `octopus.local` or `192.168.1.50` |
+| `[receiver]` | `host`: your receiver's address, e.g. `octopus.local` or `192.168.1.50` |
 | `[[publishers]]` | Keep one block per app you use and delete the others. The [app guides](#5-prepare-your-apps) say what to put in each. |
 
 Passwords never go in this file. The config only names a setting such as `OCTOPUS_PASSWORD`, and you set its value in your terminal:
 
 ```bash
-export OCTOPUS_PASSWORD='your-octopus-password'
+export OCTOPUS_PASSWORD='your-receiver-password'
 ```
 
 ### 5. Prepare your apps
@@ -111,7 +111,7 @@ At the end of every run there's a short summary with one line per step and per a
 ```
   refresh                 ok
   select                  ok       76 channels (+2 / -0)
-  publish:channels_dvr    ok       74 channels; tv: 65 → OctopusTV; radio: 9 → OctopusRadio
+  publish:channels_dvr    ok       74 channels; tv: 65 → SatTV; radio: 9 → SatRadio
   publish:jellyfin        ok       76 channels; …
 ```
 
@@ -140,7 +140,7 @@ Any scheduler works. On a Mac or Linux, `crontab -e` and add a line like this on
 
 Here `secrets.env` holds your `export OCTOPUS_PASSWORD=…` lines. Make it private with `chmod 600 secrets.env`.
 
-The scan briefly takes over the Octopus's tuners, so pick a time when nothing is recording. A GitHub Actions workflow on a self-hosted runner works too; keep your config and channel list in a private repo.
+The scan briefly takes over the receiver's tuners, so pick a time when nothing is recording. A GitHub Actions workflow on a self-hosted runner works too; keep your config and channel list in a private repo.
 
 ## Everyday commands
 

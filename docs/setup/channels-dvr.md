@@ -7,8 +7,8 @@
 Do this once in the Channels DVR web settings (`http://<your-server>:8089`). Menu names can differ slightly between versions.
 
 1. Go to **Settings → Sources → Add Source → Custom Channels**.
-2. Give it a name, e.g. `OctopusTV`, choose **MPEG-TS**, and paste anything as the playlist text for now (sat-to-ip replaces it on the first run).
-3. If you want radio as well, repeat with a second source, e.g. `OctopusRadio`.
+2. Give it a name, e.g. `SatTV`, choose **MPEG-TS**, and paste anything as the playlist text for now (sat-to-ip replaces it on the first run).
+3. If you want radio as well, repeat with a second source, e.g. `SatRadio`.
 
 ## 2. Add it to your config
 
@@ -22,8 +22,8 @@ mappings = "uk"
 type = "channels_dvr"
 url = "http://localhost:8089"
 guide = "gracenote"
-tv_source = "OctopusTV"           # the source you created
-# radio_source = "OctopusRadio"   # if you made one for radio
+tv_source = "SatTV"               # the source you created
+# radio_source = "SatRadio"       # if you made one for radio
 ```
 
 `tv_source` and `radio_source` are the source's ID. That's normally the name you gave it. If the first run says it can't find the source, open the source in Channels DVR's web settings and copy the ID shown in the page address.
