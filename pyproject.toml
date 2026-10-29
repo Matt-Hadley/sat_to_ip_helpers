@@ -8,6 +8,7 @@ dependencies = [
     "beautifulsoup4>=4.15.0",
     "requests>=2.34.2",
     "tomlkit>=0.15.2",
+    "urllib3>=2.3",  # the XMLTV download streams with HTTPResponse.read1
 ]
 
 [project.optional-dependencies]
