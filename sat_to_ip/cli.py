@@ -14,8 +14,6 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-import urllib3
-
 from sat_to_ip import pipeline
 from sat_to_ip.config import load_config
 from sat_to_ip.exceptions import ConfigError
@@ -53,7 +51,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)-8s %(message)s"
     )
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # receivers often use self-signed TLS
 
     try:
         config = load_config(args.config)

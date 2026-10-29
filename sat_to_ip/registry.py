@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 BUILDERS: dict[str, dict[str, str]] = {
     "receiver": {
-        "octopus": "sat_to_ip.octopus.receiver:from_config",
+        "octopus_net": "sat_to_ip.octopus_net.receiver:from_config",
     },
     "guide": {
         "gracenote": "sat_to_ip.channels_dvr.guide:from_config",

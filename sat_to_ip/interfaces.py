@@ -7,7 +7,7 @@ before anything is contacted. Log in and connect lazily, on first use.
 from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
-from sat_to_ip.model import GuideMatch, Lineup, PublishResult, SelectionPlan
+from sat_to_ip.model import ChannelRef, GuideMatch, Lineup, PublishResult
 
 
 class Receiver(Protocol):
@@ -16,7 +16,10 @@ class Receiver(Protocol):
     name: str
 
     def lineup(self) -> Lineup:
-        """The receiver's saved channels, in order, with stream URLs. Read live; no caching across runs."""
+        """The receiver's saved channels, in order, with stream URLs. Read live; no caching across runs.
+
+        Leave Channel.number at 0: the pipeline numbers the lineup from the channel list.
+        """
         ...
 
 
@@ -29,18 +32,17 @@ class SupportsRefresh(Protocol):
 
 @runtime_checkable
 class SupportsSelection(Protocol):
-    """A receiver that keeps a saved channel list the pipeline can change."""
+    """A receiver that keeps a saved channel list the pipeline can change.
 
-    def plan_selection(self, specs: Sequence[str]) -> SelectionPlan:
-        """Which channels the specs select, versus what is saved now. Changes nothing."""
+    The core does the rest: matching the channel list, the interactive picker, the safety checks.
+    """
+
+    def selection_candidates(self) -> tuple[Sequence[ChannelRef], Sequence[ChannelRef]]:
+        """(the saved channels in order, other channels the receiver has found), read live."""
         ...
 
-    def plan_selection_interactive(self) -> SelectionPlan | None:
-        """Let a person pick channels in the terminal. None if they cancel. Changes nothing."""
-        ...
-
-    def apply_selection(self, plan: SelectionPlan) -> None:
-        """Save plan.proposed as the receiver's channel list, in that order."""
+    def save_selection(self, channels: Sequence[ChannelRef]) -> None:
+        """Make exactly these the receiver's saved channels, in this order (keys from selection_candidates)."""
         ...
 
 

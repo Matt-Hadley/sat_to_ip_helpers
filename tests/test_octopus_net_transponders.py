@@ -1,5 +1,5 @@
 from sat_to_ip.kingofsat.transponder import Transponder
-from sat_to_ip.octopus.transponders import build_upload_payload, format_source
+from sat_to_ip.octopus_net.transponders import build_upload_payload, format_source
 
 
 def _make_transponder(**kwargs) -> Transponder:

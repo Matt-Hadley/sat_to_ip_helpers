@@ -11,15 +11,18 @@ from sat_to_ip.config import Config, Section
 from sat_to_ip.exceptions import ConfigError, IntegrationError
 from sat_to_ip.interfaces import SupportsRefresh, SupportsSelection
 from sat_to_ip.kingofsat.transponder import Transponder
-from sat_to_ip.model import ChannelRef, SelectionPlan
-from sat_to_ip.octopus.receiver import OctopusReceiver, from_config
+from sat_to_ip.model import ChannelRef
+from sat_to_ip.octopus_net.receiver import OctopusNetReceiver, from_config
+from sat_to_ip.selection import read_spec_file
 from tests.fakes import FakeGuide, FakePublisher
 
 ENV = {"OCTO_PW": "secret"}
 
 
 def _section(**data):
-    return Section("receiver", {"type": "octopus", "host": "octo", "password_env": "OCTO_PW", **data}, Path("."), ENV)
+    return Section(
+        "receiver", {"type": "octopus_net", "host": "octo", "password_env": "OCTO_PW", **data}, Path("."), ENV
+    )
 
 
 def _ch(sid, name, kind="video", freq=10773):
@@ -42,7 +45,7 @@ def _client(dms=DMS, available=AVAILABLE, m3u_text=""):
 
 @pytest.fixture
 def rx():
-    receiver = OctopusReceiver(host="octo", password="pw")
+    receiver = OctopusNetReceiver(host="octo", password="pw")
     receiver._client = _client()
     return receiver
 
@@ -51,7 +54,7 @@ def rx():
 
 
 def test_from_config_defaults_and_no_io():
-    with patch("sat_to_ip.octopus.receiver.OctopusClient") as cls:
+    with patch("sat_to_ip.octopus_net.receiver.OctopusClient") as cls:
         rx = from_config(_section())
     cls.login.assert_not_called()
     assert (rx.host, rx.password, rx.username, rx.positions) == ("octo", "secret", "admin", ["28.2E"])
@@ -61,7 +64,7 @@ def test_from_config_defaults_and_no_io():
         600,
         1,
     )
-    assert rx.name == "octopus" and "secret" not in repr(rx)
+    assert rx.name == "octopus_net" and "secret" not in repr(rx)
     assert isinstance(rx, SupportsRefresh) and isinstance(rx, SupportsSelection)
 
 
@@ -104,8 +107,8 @@ def test_from_config_errors_name_the_key(data, message):
 
 
 def test_logs_in_once_lazily():
-    rx = OctopusReceiver(host="octo", password="pw", username="me")
-    with patch("sat_to_ip.octopus.receiver.OctopusClient.login", return_value=_client()) as login:
+    rx = OctopusNetReceiver(host="octo", password="pw", username="me")
+    with patch("sat_to_ip.octopus_net.receiver.OctopusClient.login", return_value=_client()) as login:
         rx.lineup()
         rx.lineup()
     login.assert_called_once_with("http://octo", "me", "pw")
@@ -121,7 +124,7 @@ def _transponder(sat="Astra 2E"):
 def _refresh(rx, fetch):
     kos = MagicMock()
     kos.fetch_transponders.side_effect = fetch
-    with patch("sat_to_ip.octopus.receiver.KingOfSatClient.create", return_value=kos):
+    with patch("sat_to_ip.octopus_net.receiver.KingOfSatClient.create", return_value=kos):
         rx.refresh()
     return kos
 
@@ -164,89 +167,40 @@ def test_refresh_fails_when_no_position_worked(rx):
     rx._client.start_scan.assert_not_called()
 
 
-# plan_selection ------------------------------------------------------------------------------
+# selection -----------------------------------------------------------------------------------
 
 
 def _keys(refs):
     return [r.key for r in refs]
 
 
-def test_plan_current_is_dms_and_available_ignores_dms(rx):
-    plan = rx.plan_selection([])
-    assert plan.current == (ChannelRef("octopus:1", "BBC One HD"), ChannelRef("octopus:2", "Radio 4"))
-    assert plan.proposed == ()
-    rx._client.get_available_channels.assert_called_once_with(["1", "2"])
+def test_candidates_are_saved_then_found_with_kind_and_frequency(rx):
+    saved, found = rx.selection_candidates()
+    assert saved == [
+        ChannelRef("octopus_net:1", "BBC One HD", "tv", 10773.0),
+        ChannelRef("octopus_net:2", "Radio 4", "radio", 11954.0),
+    ]
+    assert _keys(found) == ["octopus_net:3", "octopus_net:4", "octopus_net:5"]
+    rx._client.get_available_channels.assert_called_with(["1", "2"])
 
 
-@pytest.mark.parametrize(
-    "specs, keys",
-    [
-        (["all"], ["octopus:1", "octopus:2", "octopus:3", "octopus:4", "octopus:5"]),
-        (["tv"], ["octopus:1", "octopus:3", "octopus:4"]),
-        (["video"], ["octopus:1", "octopus:3", "octopus:4"]),
-        (["radio"], ["octopus:2", "octopus:5"]),
-        (["audio"], ["octopus:2", "octopus:5"]),
-        (["itv hd", "Radio 4"], ["octopus:3", "octopus:2"]),  # spec order, case-insensitive
-        (["BBC One HD", "BBC One HD"], ["octopus:1", "octopus:4"]),  # plain name takes the next untaken match
-        (["BBC One HD@10847"], ["octopus:4"]),
-        (["Radio 4", "radio"], ["octopus:2", "octopus:5"]),  # never the same channel twice
-    ],
-)
-def test_plan_spec_forms(rx, specs, keys):
-    plan = rx.plan_selection(specs)
-    assert _keys(plan.proposed) == keys and plan.unmatched_specs == ()
+def test_save_selection_saves_records_in_order_with_positions(rx):
+    saved, found = rx.selection_candidates()
+    rx.save_selection([found[2], saved[0]])
+    records = rx._client.save_channels.call_args.args[0]
+    assert [(r["serviceid"], r["position"], r["extra"]) for r in records] == [(5, 0, "kept"), (1, 1, "kept")]
 
 
-def test_plan_unmatched_specs(rx):
-    plan = rx.plan_selection(["Nope", "BBC One HD@1", "Radio 4", "Radio 4"])
-    assert _keys(plan.proposed) == ["octopus:2"]
-    assert plan.unmatched_specs == ("Nope", "BBC One HD@1", "Radio 4")
-    assert _keys(plan.removed) == ["octopus:1"] and plan.added == ()
+def test_save_selection_refetches_for_refs_made_elsewhere(rx):
+    rx.save_selection([ChannelRef("octopus_net:3", "ITV HD")])
+    assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [3]
 
 
-# apply_selection -----------------------------------------------------------------------------
-
-
-def test_apply_saves_plan_in_order_with_positions(rx):
-    plan = rx.plan_selection(["Classic FM", "BBC One HD"])
-    rx._client.get_dms_channels.reset_mock()
-    rx.apply_selection(plan)
-    saved = rx._client.save_channels.call_args.args[0]
-    assert [(c["serviceid"], c["position"], c["extra"]) for c in saved] == [(5, 0, "kept"), (1, 1, "kept")]
-    rx._client.get_dms_channels.assert_not_called()  # planned dicts reused
-
-
-def test_apply_refetches_for_a_plan_made_elsewhere(rx):
-    rx.apply_selection(SelectionPlan((), (ChannelRef("octopus:3", "ITV HD"),)))
-    rx._client.get_dms_channels.assert_called_once()
-    assert [c["serviceid"] for c in rx._client.save_channels.call_args.args[0]] == [3]
-
-
-def test_apply_unknown_key_saves_nothing(rx):
-    plan = SelectionPlan((), (ChannelRef("octopus:1", "BBC One HD"), ChannelRef("octopus:404", "Gone")))
-    with pytest.raises(IntegrationError, match="octopus:404"):
-        rx.apply_selection(plan)
+def test_save_selection_unknown_key_saves_nothing(rx):
+    refs = [ChannelRef("octopus_net:1", "BBC One HD"), ChannelRef("octopus_net:404", "Gone")]
+    with pytest.raises(IntegrationError, match="octopus_net:404"):
+        rx.save_selection(refs)
     rx._client.save_channels.assert_not_called()
-
-
-# interactive ---------------------------------------------------------------------------------
-
-
-def test_interactive_converts_editor_result(rx):
-    with patch("sat_to_ip.octopus.receiver.dms_editor.interactive_dms_editor") as editor:
-        editor.side_effect = lambda dms, available: [available[0], dms[1]]
-        plan = rx.plan_selection_interactive()
-    assert [c["serviceid"] for c in editor.call_args.args[0]] == [1, 2]
-    assert [c["serviceid"] for c in editor.call_args.args[1]] == [3, 4, 5]
-    assert _keys(plan.current) == ["octopus:1", "octopus:2"]
-    assert _keys(plan.proposed) == ["octopus:3", "octopus:2"]
-    rx.apply_selection(plan)
-    assert [c["position"] for c in rx._client.save_channels.call_args.args[0]] == [0, 1]
-
-
-def test_interactive_cancel_returns_none(rx):
-    with patch("sat_to_ip.octopus.receiver.dms_editor.interactive_dms_editor", return_value=None):
-        assert rx.plan_selection_interactive() is None
 
 
 # lineup --------------------------------------------------------------------------------------
@@ -268,30 +222,32 @@ def test_lineup_maps_dms_order_kinds_and_duplicate_names(caplog):
         _ch(7, "Missing"),
         _ch(1, "BBC One HD", freq="?"),
     ]
-    rx = OctopusReceiver(host="octo", password="pw")
+    rx = OctopusNetReceiver(host="octo", password="pw")
     rx._client = _client(dms=dms, m3u_text=M3U)
     lineup = rx.lineup()
 
     assert [(c.key, c.name, c.kind, c.stream_url, c.number) for c in lineup] == [
-        ("octopus:4", "BBC One HD", "tv", "http://octo/1", 1),
-        ("octopus:Radio 4@11954", "Radio 4", "radio", "http://octo/2", 2),
-        ("octopus:1", "BBC One HD", "tv", "http://octo/4", 3),
+        ("octopus_net:4", "BBC One HD", "tv", "http://octo/1", 0),
+        ("octopus_net:Radio 4@11954", "Radio 4", "radio", "http://octo/2", 0),
+        ("octopus_net:1", "BBC One HD", "tv", "http://octo/4", 0),
     ]
     assert [(c.frequency_mhz, c.service_id) for c in lineup] == [(10847.0, "4"), (11954.0, None), (None, "1")]
-    assert "'Missing' is saved on the Octopus but missing from its M3U" in caplog.text
+    assert "'Missing' is saved on the Octopus NET but missing from its M3U" in caplog.text
 
 
 # pipeline ------------------------------------------------------------------------------------
 
 
-def test_pipeline_runs_against_octopus_receiver(rx, tmp_path):
+def test_pipeline_runs_against_octopus_net_receiver(rx, tmp_path):
     rx._client.download_m3u.return_value = M3U
     specs = tmp_path / "channels.txt"
     specs.write_text("BBC One HD\nRadio 4\nITV HD\n")
     pub = FakePublisher()
-    config = Config(rx, {"guide": FakeGuide()}, (pub,), CheckSettings(), specs, tmp_path / "c.toml")
+    config = Config(
+        rx, {"guide": FakeGuide()}, (pub,), CheckSettings(), specs, tmp_path / "c.toml", tuple(read_spec_file(specs))
+    )
 
-    with patch("sat_to_ip.octopus.receiver.KingOfSatClient.create") as create:
+    with patch("sat_to_ip.octopus_net.receiver.KingOfSatClient.create") as create:
         create.return_value.fetch_transponders.return_value = [_transponder()]
         report = pipeline.run(config)
 
@@ -299,18 +255,18 @@ def test_pipeline_runs_against_octopus_receiver(rx, tmp_path):
     assert [o.name for o in report.outcomes] == ["refresh", "select", "publish:pub"]
     assert [c["serviceid"] for c in rx._client.save_channels.call_args.args[0]] == [1, 2, 3]
     lineup, _, _ = pub.published[0]
-    assert [c.name for c in lineup] == ["BBC One HD", "Radio 4"]
+    assert [(c.number, c.name) for c in lineup] == [(1, "BBC One HD"), (2, "Radio 4")]
     json.dumps(rx._client.save_channels.call_args.args[0])  # what goes to the Octopus is plain JSON
 
 
 def test_host_may_include_a_scheme():
-    rx = OctopusReceiver(host="https://octo", password="pw")
-    with patch("sat_to_ip.octopus.receiver.OctopusClient.login", return_value=_client()) as login:
+    rx = OctopusNetReceiver(host="https://octo", password="pw")
+    with patch("sat_to_ip.octopus_net.receiver.OctopusClient.login", return_value=_client()) as login:
         rx.lineup()
     login.assert_called_once_with("https://octo", "admin", "pw")
 
 
 def test_channel_without_a_type_is_tv():
-    rx = OctopusReceiver(host="octo", password="pw")
+    rx = OctopusNetReceiver(host="octo", password="pw")
     rx._client = _client(dms=[{"serviceid": 9, "name": "BBC One HD"}], m3u_text=M3U)
     assert [c.kind for c in rx.lineup()] == ["tv"]

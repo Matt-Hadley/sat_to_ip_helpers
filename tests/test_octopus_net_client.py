@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from sat_to_ip.octopus.client import OctopusClient
+from sat_to_ip.octopus_net.client import OctopusClient
 
 
 def _client(base_url: str = "http://octopus") -> tuple[OctopusClient, MagicMock]:
@@ -138,7 +138,7 @@ def test_poll_scan_raises_timeout():
 
 
 def test_login_raises_if_no_session_cookie():
-    with patch("sat_to_ip.octopus.client.http.session") as mock_session_cls:
+    with patch("sat_to_ip.octopus_net.client.http.session") as mock_session_cls:
         session = MagicMock()
         session.cookies.__contains__ = lambda self, key: False
         mock_session_cls.return_value = session
@@ -147,7 +147,7 @@ def test_login_raises_if_no_session_cookie():
 
 
 def test_login_returns_client_with_session():
-    with patch("sat_to_ip.octopus.client.http.session") as mock_session_cls:
+    with patch("sat_to_ip.octopus_net.client.http.session") as mock_session_cls:
         session = MagicMock()
         session.cookies.__contains__ = lambda self, key: key == "session_id"
         mock_session_cls.return_value = session
@@ -179,7 +179,7 @@ def test_poll_scan_survives_transient_errors_and_bad_json_then_completes():
         done,
         done,
     ]
-    with patch("sat_to_ip.octopus.client.time.sleep"):
+    with patch("sat_to_ip.octopus_net.client.time.sleep"):
         assert client.poll_scan_until_complete(interval=0) == {}
     assert session.get.call_count == 8
 
@@ -188,7 +188,7 @@ def test_poll_scan_resets_done_count_when_scan_resumes():
     client, session = _client()
     done = _resp(404)
     session.get.side_effect = [done, done, _resp(text="{}", json_value={}), done, done, done]
-    with patch("sat_to_ip.octopus.client.time.sleep"):
+    with patch("sat_to_ip.octopus_net.client.time.sleep"):
         client.poll_scan_until_complete(interval=0)
     assert session.get.call_count == 6
 

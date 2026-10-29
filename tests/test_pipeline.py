@@ -6,8 +6,9 @@ import pytest
 from sat_to_ip import pipeline
 from sat_to_ip.checks import CheckSettings
 from sat_to_ip.config import Config
-from sat_to_ip.model import ChannelRef, SelectionPlan
+from sat_to_ip.model import ChannelRef
 from sat_to_ip.pipeline import RunOptions, Stage
+from sat_to_ip.selection import read_spec_file
 from tests.fakes import BasicReceiver, FakeGuide, FakePublisher, FakeReceiver, channel
 
 
@@ -23,6 +24,7 @@ def _config(tmp_path: Path, receiver=None, guides=None, publishers=None, specs="
         checks=CheckSettings(**checks),
         channels_file=channels_file,
         path=tmp_path / "c.toml",
+        channel_specs=tuple(read_spec_file(channels_file)) if channels_file else None,
     )
 
 
@@ -35,7 +37,7 @@ def test_full_run_refreshes_selects_and_publishes(tmp_path):
     report = pipeline.run(_config(tmp_path, receiver=rx, publishers=[pub]))
     assert report.ok and report.exit_code == 0
     assert _statuses(report) == {"refresh": "ok", "select": "ok", "publish:pub": "ok"}
-    assert rx.refreshed == 1 and len(rx.applied) == 1
+    assert rx.refreshed == 1 and len(rx.saved) == 1
     lineup, match, dry = pub.published[0]
     assert len(lineup) == 3 and len(match.refs) == 3 and dry is False
 
@@ -44,7 +46,7 @@ def test_stages_option_runs_only_those(tmp_path):
     rx = FakeReceiver()
     report = pipeline.run(_config(tmp_path, receiver=rx), RunOptions(stages=frozenset({Stage.PUBLISH})))
     assert _statuses(report) == {"publish:pub": "ok"}
-    assert rx.refreshed == 0 and rx.applied == []
+    assert rx.refreshed == 0 and rx.saved == []
 
 
 def test_receiver_without_capabilities_skips_those_stages(tmp_path):
@@ -71,13 +73,13 @@ def test_removal_check_aborts_and_saves_nothing(tmp_path):
     report = pipeline.run(_config(tmp_path, receiver=rx, specs="Ch 1\n", max_removed=5))
     assert _statuses(report)["select"] == "failed"
     assert "Refusing to remove 9" in report.outcomes[1].detail
-    assert rx.applied == []
+    assert rx.saved == []
 
 
 def test_allow_removals_overrides_check(tmp_path):
     rx = FakeReceiver(channels=[channel(i) for i in range(1, 11)])
     report = pipeline.run(_config(tmp_path, receiver=rx, specs="Ch 1\n"), RunOptions(allow_removals=True))
-    assert report.ok and len(rx.applied[0].proposed) == 1
+    assert report.ok and len(rx.saved[0]) == 1
 
 
 def test_select_logs_changes_and_unmatched_specs(tmp_path, caplog):
@@ -86,17 +88,21 @@ def test_select_logs_changes_and_unmatched_specs(tmp_path, caplog):
     assert "- Ch 3" in caplog.text and "No channel matches 'Nope'" in caplog.text
 
 
-def test_interactive_selection_bypasses_removal_check(tmp_path):
-    current = tuple(ChannelRef(f"k{i}", f"n{i}") for i in range(10))
-    plan = SelectionPlan(current=current, proposed=current[:1])
-    rx = FakeReceiver(interactive_plan=plan)
+def _pick(monkeypatch, result):
+    monkeypatch.setattr("sat_to_ip.pipeline.channel_picker.pick", lambda saved, available: result)
+
+
+def test_interactive_selection_bypasses_removal_check(tmp_path, monkeypatch):
+    rx = FakeReceiver(channels=[channel(i) for i in range(1, 11)])
+    _pick(monkeypatch, [ChannelRef("fake:1", "Ch 1")])
     report = pipeline.run(
-        _config(tmp_path, receiver=rx), RunOptions(interactive=True, stages=frozenset({Stage.SELECT}))
+        _config(tmp_path, receiver=rx, specs=None), RunOptions(interactive=True, stages=frozenset({Stage.SELECT}))
     )
-    assert report.ok and rx.applied == [plan]
+    assert report.ok and rx.saved == [(ChannelRef("fake:1", "Ch 1"),)]
 
 
-def test_interactive_cancel_skips(tmp_path):
+def test_interactive_cancel_skips(tmp_path, monkeypatch):
+    _pick(monkeypatch, None)
     report = pipeline.run(_config(tmp_path), RunOptions(interactive=True, stages=frozenset({Stage.SELECT})))
     assert report.outcomes[0].status == "skipped" and report.outcomes[0].detail == "cancelled"
 
@@ -105,7 +111,7 @@ def test_dry_run_changes_nothing(tmp_path):
     rx, pub = FakeReceiver(), FakePublisher()
     report = pipeline.run(_config(tmp_path, receiver=rx, publishers=[pub]), RunOptions(dry_run=True))
     assert report.ok
-    assert rx.refreshed == 0 and rx.applied == []
+    assert rx.refreshed == 0 and rx.saved == []
     assert _statuses(report)["refresh"] == "skipped"
     assert pub.published[0][2] is True
 
@@ -190,22 +196,41 @@ def test_select_failure_aborts(tmp_path, stage):
 def test_selection_matching_nothing_never_empties_the_receiver(tmp_path, options):
     rx = FakeReceiver()
     report = pipeline.run(_config(tmp_path, receiver=rx, specs="Renamed\n", max_removed=50), options)
-    assert "matches no channels" in report.outcomes[1].detail and rx.applied == []
+    assert "matches no channels" in report.outcomes[1].detail and rx.saved == []
 
 
-def test_interactive_empty_selection_is_refused(tmp_path):
-    current = (ChannelRef("k", "n"),)
-    rx = FakeReceiver(interactive_plan=SelectionPlan(current=current, proposed=()))
+def test_interactive_empty_selection_is_refused(tmp_path, monkeypatch):
+    rx = FakeReceiver()
+    _pick(monkeypatch, [])
     report = pipeline.run(
         _config(tmp_path, receiver=rx), RunOptions(interactive=True, stages=frozenset({Stage.SELECT}))
     )
-    assert report.outcomes[0].status == "failed" and rx.applied == []
+    assert report.outcomes[0].status == "failed" and rx.saved == []
 
 
 def test_added_channels_are_logged(tmp_path, caplog):
     caplog.set_level(logging.INFO)
-    current = (ChannelRef("k1", "Old"),)
-    plan = SelectionPlan(current=current, proposed=current + (ChannelRef("k2", "New"),))
-    rx = FakeReceiver(interactive_plan=plan)
-    pipeline.run(_config(tmp_path, receiver=rx), RunOptions(interactive=True, stages=frozenset({Stage.SELECT})))
+    rx = FakeReceiver(channels=[channel(1)], found=[channel(2, "New")])
+    pipeline.run(_config(tmp_path, receiver=rx, specs="Ch 1\nNew\n"), RunOptions(stages=frozenset({Stage.SELECT})))
     assert "+ New" in caplog.text
+
+
+def test_publish_numbers_the_lineup_from_the_channel_list(tmp_path):
+    pub = FakePublisher(guide=None)
+    rx = FakeReceiver(channels=[channel(2, "B"), channel(1, "A"), channel(3, "R", kind="radio")])
+    pipeline.run(
+        _config(tmp_path, receiver=rx, publishers=[pub], specs="101 = A\nGone\nB\n801 = R\n"),
+        RunOptions(stages=frozenset({Stage.PUBLISH})),
+    )
+    assert [(c.number, c.name) for c in pub.published[0][0]] == [(101, "A"), (103, "B"), (801, "R")]
+
+
+def test_number_clash_fails_publish(tmp_path):
+    rx = FakeReceiver(channels=[channel(1, "A"), channel(2, "B"), channel(3, "C")])
+    report = pipeline.run(
+        _config(tmp_path, receiver=rx, specs="tv\n2 = C\n"), RunOptions(stages=frozenset({Stage.PUBLISH}))
+    )
+    assert (
+        report.outcomes[0] == pipeline.Outcome("publish", "failed", report.outcomes[0].detail)
+        and "already taken" in report.outcomes[0].detail
+    )

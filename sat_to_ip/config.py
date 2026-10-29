@@ -15,6 +15,7 @@ from sat_to_ip import registry
 from sat_to_ip.checks import CheckSettings
 from sat_to_ip.exceptions import ConfigError
 from sat_to_ip.interfaces import GuideSource, Publisher, Receiver
+from sat_to_ip.selection import Spec, read_spec_file
 
 _MISSING: Any = object()
 
@@ -122,6 +123,7 @@ class Config:
     checks: CheckSettings
     channels_file: Path | None
     path: Path
+    channel_specs: tuple[Spec, ...] | None = None  # the parsed channels_file
 
 
 def load_config(path: Path, env: Mapping[str, str] | None = None) -> Config:
@@ -152,13 +154,14 @@ def load_config(path: Path, env: Mapping[str, str] | None = None) -> Config:
     channels_file = sel.get_optional_path("channels")
     if channels_file is not None and not channels_file.is_file():
         raise sel.error("channels", f"no such file: {channels_file}")
+    specs = tuple(read_spec_file(channels_file)) if channels_file else None
     sel.finish()
     checks = _load_checks(section("checks", raw.get("checks", {})))
     guides = _load_guides(raw.get("guides", {}), section)
     publishers = _load_publishers(path, raw.get("publishers", []), section)
     _validate_publishers(publishers, guides)
 
-    return Config(receiver, guides, tuple(publishers), checks, channels_file, path)
+    return Config(receiver, guides, tuple(publishers), checks, channels_file, path, specs)
 
 
 def _load_checks(chk: Section) -> CheckSettings:

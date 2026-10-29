@@ -1,15 +1,11 @@
-"""Octopus channel lists: keys, frequency lookup, matching channel specs, and diffs between lists."""
+"""Octopus NET channel records: keys, frequency lookup, and the diff between two scans."""
 
 import logging
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from sat_to_ip.octopus.client import OctopusChannel
+from sat_to_ip.octopus_net.client import OctopusChannel
 
 logger = logging.getLogger(__name__)
-
-# Spec keywords → the Octopus "type" they select (None = every type)
-KEYWORDS: dict[str, str | None] = {"all": None, "tv": "video", "video": "video", "radio": "audio", "audio": "audio"}
 
 
 def ch_freq(ch: OctopusChannel) -> int | float | str | None:
@@ -17,11 +13,11 @@ def ch_freq(ch: OctopusChannel) -> int | float | str | None:
 
 
 def channel_key(ch: OctopusChannel) -> str:
-    """The stable Channel.key / ChannelRef.key for an Octopus channel."""
+    """The stable Channel.key / ChannelRef.key for an Octopus NET channel."""
     sid = ch.get("serviceid")
     if sid is not None and sid != "":
-        return f"octopus:{sid}"
-    return f"octopus:{ch.get('name', '')}@{ch_freq(ch)}"
+        return f"octopus_net:{sid}"
+    return f"octopus_net:{ch.get('name', '')}@{ch_freq(ch)}"
 
 
 @dataclass
@@ -68,44 +64,3 @@ def log_scan_diff(before: list[OctopusChannel], after: list[OctopusChannel]) -> 
         logger.warning(f"   ⚠️  Channels with changed frequency ({len(diff.freq_changed)}):")
         for ch_before, ch_after in diff.freq_changed:
             logger.warning(f"     ~ {ch_after.get('name', '?')}  {ch_freq(ch_before)} → {ch_freq(ch_after)}")
-
-
-def match_entry(entry: str, channels: list[OctopusChannel], taken: set[str]) -> list[OctopusChannel]:
-    """Return channels matching one 'Name' or 'Name@Frequency' entry, skipping keys already taken."""
-    if "@" in entry:
-        name_part, freq_part = entry.split("@", 1)
-        name_lower, freq = name_part.strip().lower(), freq_part.strip()
-        return [
-            ch
-            for ch in channels
-            if ch.get("name", "").lower() == name_lower
-            and str(ch_freq(ch) or "") == freq
-            and channel_key(ch) not in taken
-        ]
-    # No frequency — first match only; use Name@Frequency to be explicit
-    name_lower = entry.strip().lower()
-    for ch in channels:
-        if ch.get("name", "").lower() == name_lower and channel_key(ch) not in taken:
-            return [ch]
-    return []
-
-
-def filter_channels(channels: list[OctopusChannel], specs: Sequence[str]) -> tuple[list[OctopusChannel], list[str]]:
-    """Return (matched_channels in spec order, unmatched specs). No channel is matched twice.
-
-    Each spec is 'all', 'tv' (or 'video'), 'radio' (or 'audio'), 'Name' or 'Name@Frequency'.
-    """
-    matches: list[OctopusChannel] = []
-    unmatched: list[str] = []
-    taken: set[str] = set()
-    for spec in specs:
-        if spec in KEYWORDS:
-            kind = KEYWORDS[spec]
-            found = [ch for ch in channels if kind in (None, ch.get("type")) and channel_key(ch) not in taken]
-        else:
-            found = match_entry(spec, channels, taken)
-            if not found:
-                unmatched.append(spec)
-        matches.extend(found)
-        taken.update(channel_key(ch) for ch in found)
-    return matches, unmatched

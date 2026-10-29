@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from sat_to_ip.config import Section
-from sat_to_ip.model import Channel, ChannelRef, GuideMatch, GuideRef, Lineup, PublishResult, SelectionPlan
+from sat_to_ip.model import Channel, ChannelRef, GuideMatch, GuideRef, Lineup, PublishResult
 
 
 def channel(n: int, name: str | None = None, kind: str = "tv") -> Channel:
@@ -16,13 +16,13 @@ def channel(n: int, name: str | None = None, kind: str = "tv") -> Channel:
 
 @dataclass
 class FakeReceiver:
-    """A receiver with every optional capability."""
+    """A receiver with every optional capability. Its saved list is `channels`; `found` are extra scanned ones."""
 
     channels: list[Channel] = field(default_factory=lambda: [channel(1), channel(2), channel(3, kind="radio")])
+    found: list[Channel] = field(default_factory=list)
     name: str = "fake"
     refreshed: int = 0
-    applied: list[SelectionPlan] = field(default_factory=list)
-    interactive_plan: SelectionPlan | None = None
+    saved: list[tuple[ChannelRef, ...]] = field(default_factory=list)
     fail_on: str | None = None
 
     def _maybe_fail(self, what: str) -> None:
@@ -37,18 +37,16 @@ class FakeReceiver:
         self._maybe_fail("refresh")
         self.refreshed += 1
 
-    def plan_selection(self, specs: Sequence[str]) -> SelectionPlan:
+    def selection_candidates(self) -> tuple[list[ChannelRef], list[ChannelRef]]:
         self._maybe_fail("select")
-        current = tuple(ChannelRef(c.key, c.name) for c in self.channels)
-        proposed = tuple(r for r in current if r.name in specs)
-        missing = tuple(s for s in specs if s not in {r.name for r in current})
-        return SelectionPlan(current, proposed, missing)
 
-    def plan_selection_interactive(self) -> SelectionPlan | None:
-        return self.interactive_plan
+        def ref(c: Channel) -> ChannelRef:
+            return ChannelRef(c.key, c.name, c.kind, c.frequency_mhz)
 
-    def apply_selection(self, plan: SelectionPlan) -> None:
-        self.applied.append(plan)
+        return [ref(c) for c in self.channels], [ref(c) for c in self.found]
+
+    def save_selection(self, channels: Sequence[ChannelRef]) -> None:
+        self.saved.append(tuple(channels))
 
 
 @dataclass

@@ -1,6 +1,6 @@
 import logging
 
-from sat_to_ip.octopus.selection import compute_scan_diff, log_scan_diff
+from sat_to_ip.octopus_net.channels import compute_scan_diff, log_scan_diff
 
 
 def test_compute_scan_diff():

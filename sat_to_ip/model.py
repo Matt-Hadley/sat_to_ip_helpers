@@ -11,15 +11,15 @@ Kind = Literal["tv", "radio"]
 class Channel:
     """One channel a receiver can stream.
 
-    key:    stable and unique per receiver (e.g. "octopus:10301"); everything else matches on it.
-    number: 1-based position in the receiver's saved list; becomes the channel number.
+    key:    stable and unique per receiver (e.g. "octopus_net:10301"); everything else matches on it.
+    number: the channel number. Receivers leave it at 0; the pipeline assigns it from the channel list.
     """
 
     key: str
     name: str
     kind: Kind
     stream_url: str
-    number: int
+    number: int = 0
     frequency_mhz: float | None = None
     service_id: str | None = None
 
@@ -87,10 +87,12 @@ class GuideMatch:
 
 @dataclass(frozen=True)
 class ChannelRef:
-    """A channel in a receiver's saved list, as selection sees it."""
+    """A channel a receiver can save, as channel lists and the picker see it."""
 
     key: str
     name: str
+    kind: Kind = "tv"
+    frequency_mhz: float | None = None
 
 
 @dataclass(frozen=True)

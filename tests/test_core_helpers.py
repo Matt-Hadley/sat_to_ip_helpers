@@ -2,7 +2,6 @@
 
 import os
 import stat
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,7 +11,6 @@ from sat_to_ip import checks, files, http, m3u, mappings
 from sat_to_ip.exceptions import CheckError, ConfigError
 from sat_to_ip.model import ChannelRef, GuideMatch, GuideRef, Lineup, SelectionPlan
 from sat_to_ip.names import normalize_name
-from sat_to_ip.selection import read_spec_file
 from tests.fakes import channel
 
 # model ------------------------------------------------------------------------------------------
@@ -179,11 +177,3 @@ def test_mappings_bad_header(tmp_path, content):
 def test_mappings_unreadable(tmp_path):
     with pytest.raises(ConfigError, match="Can't read mappings file"):
         mappings.load_csv(tmp_path / "missing.csv")
-
-
-def test_read_spec_file(tmp_path):
-    path = tmp_path / "channels.txt"
-    path.write_text("# TV\nBBC One HD\n\n  # indented comment\nRadio 4@11954 \n")
-    assert read_spec_file(path) == ["BBC One HD", "Radio 4@11954"]
-    with pytest.raises(ConfigError, match="Can't read channel list"):
-        read_spec_file(Path(tmp_path / "missing"))

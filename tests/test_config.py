@@ -69,7 +69,7 @@ def test_defaults(tmp_path):
         ("not toml [", "invalid TOML"),
         ('[[publishers]]\ntype = "fake"\n', "missing [receiver]"),
         ('[receiver]\ntype = "fake"\n', "at least one [[publishers]]"),
-        ('[receiver]\ntype = "nope"\n', "receiver.type: unknown receiver type 'nope' (known: fake, octopus)"),
+        ('[receiver]\ntype = "nope"\n', "receiver.type: unknown receiver type 'nope' (known: fake, octopus_net)"),
         ('[receiver]\ntype = "fake"\nlable = "x"\n[[publishers]]\ntype = "fake"\n', "receiver: unknown key(s) lable"),
         ('[receiver]\ntype = "fake"\n[extra]\n[[publishers]]\ntype = "fake"\n', "unknown section(s) extra"),
         (
@@ -188,3 +188,16 @@ def test_publishers_may_not_share_an_output_dir(tmp_path, monkeypatch):
     text += '[[publishers]]\ntype = "fake"\nname = "b"\noutput_dir = "./out/"\n'
     with pytest.raises(ConfigError, match="publishers\\[1\\].output_dir: also used by 'a'"):
         _load(tmp_path, text)
+
+
+def test_channel_list_is_parsed_at_load(tmp_path):
+    config = _load(tmp_path, VALID)
+    assert [spec.name for spec in config.channel_specs] == ["BBC One HD"]
+
+
+def test_bad_channel_list_is_a_config_error(tmp_path):
+    path = tmp_path / "c.toml"
+    path.write_text('[receiver]\ntype = "fake"\n[selection]\nchannels = "ch.txt"\n[[publishers]]\ntype = "fake"\n')
+    (tmp_path / "ch.txt").write_text("5 = A\n3 = B\n")
+    with pytest.raises(ConfigError, match="numbers must go up"):
+        load_config(path, {})

@@ -3,18 +3,13 @@ from unittest.mock import DEFAULT, MagicMock, patch
 
 import pytest
 
-from sat_to_ip.octopus.dms_editor import (
-    apply_dms_selection,
-    build_dms_entries,
-    dms_draw,
-    handle_dms_key,
-    interactive_dms_editor,
-)
+from sat_to_ip.channel_picker import apply_selection_key, build_entries, draw, handle_key, pick
+from sat_to_ip.model import ChannelRef
 
 CHANNELS = [
-    {"name": "BBC One HD", "type": "video", "frequency": 10773},
-    {"name": "Radio 4", "type": "audio", "freq": 11954},
-    {"name": "Mystery"},
+    ChannelRef("k1", "BBC One HD", "tv", 10773.0),
+    ChannelRef("k2", "Radio 4", "radio", 11954.25),
+    ChannelRef("k3", "Mystery"),
 ]
 
 
@@ -22,7 +17,7 @@ CHANNELS = [
 def no_curses_init():
     """Stub the curses calls that need a real terminal."""
     with patch.multiple(
-        "sat_to_ip.octopus.dms_editor.curses",
+        "sat_to_ip.channel_picker.curses",
         curs_set=DEFAULT,
         start_color=DEFAULT,
         use_default_colors=DEFAULT,
@@ -44,20 +39,20 @@ def _screen(keys=(), size=(10, 80)):
     [
         (ord("a"), [True, True, True]),
         (ord("n"), [False, False, False]),
-        (ord("v"), [True, False, False]),
+        (ord("t"), [True, False, True]),
         (ord("r"), [False, True, False]),
         (ord("x"), [False, False, True]),  # unknown key leaves selection alone
     ],
 )
-def test_apply_dms_selection_bulk_keys(key, expected):
+def test_apply_selection_bulk_keys(key, expected):
     selected = [False, False, True]
-    apply_dms_selection(key, 0, selected, CHANNELS)
+    apply_selection_key(key, 0, selected, CHANNELS)
     assert selected == expected
 
 
-def test_apply_dms_selection_space_toggles_cursor_row():
+def test_apply_selection_space_toggles_cursor_row():
     selected = [False, False, False]
-    apply_dms_selection(ord(" "), 1, selected, CHANNELS)
+    apply_selection_key(ord(" "), 1, selected, CHANNELS)
     assert selected == [False, True, False]
 
 
@@ -77,31 +72,31 @@ def test_apply_dms_selection_space_toggles_cursor_row():
         (ord(" "), 0, (0, False, False)),
     ],
 )
-def test_handle_dms_key(key, cursor, expected):
-    assert handle_dms_key(key, cursor, 5, [False] * 3, CHANNELS) == expected
+def test_handle_key(key, cursor, expected):
+    assert handle_key(key, cursor, 5, [False] * 3, CHANNELS) == expected
 
 
-def test_dms_draw_renders_rows_and_footer(no_curses_init):
+def test_draw_renders_rows_and_footer(no_curses_init):
     stdscr = _screen()
-    dms_draw(stdscr, CHANNELS, ["DMS", "available", "available"], [True, True, False], 1, 0)
+    draw(stdscr, CHANNELS, ["saved", "found", "found"], [True, True, False], 1, 0)
     text = "\n".join(str(c.args[2]) for c in stdscr.addstr.call_args_list)
-    assert "[x] TV  BBC One HD" in text
-    assert "R   Radio 4" in text
-    assert "?   Mystery" in text
+    assert "[x] TV  BBC One HD" in text and "10773 MHz  saved" in text
+    assert "R   Radio 4" in text and "11954.2 MHz" in text
+    assert "[ ] TV  Mystery" in text and "? MHz" in text
     assert "Selected: 2/3    TV: 1    Radio: 1" in text
     stdscr.refresh.assert_called_once()
 
 
-def test_dms_draw_tolerates_tiny_terminal(no_curses_init):
+def test_draw_tolerates_tiny_terminal(no_curses_init):
     stdscr = _screen(size=(5, 20))
     # Writing to the last cell of a curses window raises; every write after the header must survive that
     stdscr.addstr.side_effect = [None] + [curses.error] * 10
-    dms_draw(stdscr, CHANNELS, ["DMS"] * 3, [False] * 3, 0, 0)
+    draw(stdscr, CHANNELS, ["saved"] * 3, [False] * 3, 0, 0)
 
 
-def _run_editor(stdscr, dms, available):
-    with patch("sat_to_ip.octopus.dms_editor.curses.wrapper", side_effect=lambda fn: fn(stdscr)):
-        return interactive_dms_editor(dms, available)
+def _run_editor(stdscr, saved, available):
+    with patch("sat_to_ip.channel_picker.curses.wrapper", side_effect=lambda fn: fn(stdscr)):
+        return pick(saved, available)
 
 
 def test_editor_saves_selection(no_curses_init):
@@ -113,7 +108,7 @@ def test_editor_saves_selection(no_curses_init):
 
 
 def test_editor_scrolls_when_cursor_passes_bottom(no_curses_init):
-    available = [{"name": f"Ch {i}", "type": "video"} for i in range(10)]
+    available = [ChannelRef(f"k{i}", f"Ch {i}") for i in range(10)]
     # 6-row screen leaves 2 list rows; walking down 3 times forces a scroll
     stdscr = _screen([curses.KEY_DOWN] * 3 + [ord(" "), 10], size=(6, 80))
     assert _run_editor(stdscr, [], available) == [available[3]]
@@ -124,20 +119,13 @@ def test_editor_cancel_returns_none(no_curses_init):
 
 
 def test_editor_ctrl_c_returns_none():
-    with patch("sat_to_ip.octopus.dms_editor.curses.wrapper", side_effect=KeyboardInterrupt):
-        assert interactive_dms_editor([], CHANNELS) is None
+    with patch("sat_to_ip.channel_picker.curses.wrapper", side_effect=KeyboardInterrupt):
+        assert pick([], CHANNELS) is None
 
 
-def test_build_dms_entries():
-    dms = [{"name": "BBC One HD", "type": "video"}]
-    available = [{"name": "Radio 1", "type": "audio"}]
-    channels, origins, selected = build_dms_entries(dms, available)
-
-    # Sorted by video-first then name
-    assert channels[0]["name"] == "BBC One HD"
-    assert origins[0] == "DMS"
-    assert selected[0] is True
-
-    assert channels[1]["name"] == "Radio 1"
-    assert origins[1] == "available"
-    assert selected[1] is False
+def test_build_entries_ticks_saved_and_sorts_tv_first():
+    saved = [ChannelRef("r", "Radio 1", "radio")]
+    available = [ChannelRef("b", "BBC One HD")]
+    channels, origins, selected = build_entries(saved, available)
+    assert [c.name for c in channels] == ["BBC One HD", "Radio 1"]
+    assert origins == ["found", "saved"] and selected == [False, True]

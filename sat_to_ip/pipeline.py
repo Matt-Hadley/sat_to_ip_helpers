@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Literal
 
+from sat_to_ip import channel_picker
 from sat_to_ip.checks import (
     check_guide_match,
     check_lineup_not_empty,
@@ -22,7 +23,7 @@ from sat_to_ip.config import Config
 from sat_to_ip.exceptions import PipelineError
 from sat_to_ip.interfaces import SupportsRefresh, SupportsSelection
 from sat_to_ip.model import GuideMatch, Lineup, SelectionPlan
-from sat_to_ip.selection import read_spec_file
+from sat_to_ip.selection import number_lineup, plan_selection
 
 logger = logging.getLogger(__name__)
 
@@ -124,27 +125,29 @@ def _select(config: Config, options: RunOptions, report: RunReport) -> None:
     if not isinstance(receiver, SupportsSelection):
         report.add(Stage.SELECT, "skipped", f"{receiver.name} has no saved channel list")
         return
-
-    plan: SelectionPlan | None
-    if options.interactive:
-        plan = receiver.plan_selection_interactive()
-        if plan is None:
-            report.add(Stage.SELECT, "skipped", "cancelled")
-            return
-    elif config.channels_file is None:
+    if not options.interactive and config.channel_specs is None:
         report.add(Stage.SELECT, "skipped", "no [selection] channels file configured")
         return
+
+    saved, available = receiver.selection_candidates()
+    if options.interactive:
+        chosen = channel_picker.pick(list(saved), list(available))
+        if chosen is None:
+            report.add(Stage.SELECT, "skipped", "cancelled")
+            return
+        plan = SelectionPlan(tuple(saved), tuple(chosen))
     else:
-        plan = receiver.plan_selection(read_spec_file(config.channels_file))
+        assert config.channel_specs is not None
+        plan = plan_selection(saved, available, config.channel_specs)
 
     _log_plan(plan)
     check_selection_not_empty(plan)
-    if not options.interactive:  # a person choosing in the editor has already decided
+    if not options.interactive:  # a person choosing in the picker has already decided
         check_removals(plan, config.checks.max_removed, allow=options.allow_removals)
     if options.dry_run:
         report.add(Stage.SELECT, "ok", f"dry run: would save {len(plan.proposed)} channels")
         return
-    receiver.apply_selection(plan)
+    receiver.save_selection(plan.proposed)
     report.add(Stage.SELECT, "ok", f"{len(plan.proposed)} channels (+{len(plan.added)} / -{len(plan.removed)})")
 
 
@@ -160,7 +163,7 @@ def _log_plan(plan: SelectionPlan) -> None:
 
 def _publish(config: Config, options: RunOptions, report: RunReport) -> None:
     try:
-        lineup = config.receiver.lineup()
+        lineup = number_lineup(config.receiver.lineup(), config.channel_specs)
         check_lineup_not_empty(lineup)
     except Exception as exc:
         _record_failure(report, Stage.PUBLISH, exc)

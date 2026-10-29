@@ -1,39 +1,38 @@
-"""DMS channel list helpers and curses-based interactive editor."""
+"""Interactive channel picker (curses): tick the channels a receiver should save. Works for any receiver."""
 
 import curses
 from collections.abc import Callable
 
-from sat_to_ip.octopus.client import OctopusChannel
-from sat_to_ip.octopus.selection import ch_freq
+from sat_to_ip.model import ChannelRef
 
 
-def build_dms_entries(
-    dms_channels: list[OctopusChannel], available: list[OctopusChannel]
-) -> tuple[list[OctopusChannel], list[str], list[bool]]:
-    """Return (channels, origin_labels, selected) sorted video-first then by name.
+def build_entries(
+    saved: list[ChannelRef], available: list[ChannelRef]
+) -> tuple[list[ChannelRef], list[str], list[bool]]:
+    """Return (channels, origin_labels, selected): saved ones ticked; TV first, then by name.
 
-    origin_labels values: "DMS", "available"
+    origin_labels values: "saved", "found"
     """
     combined = sorted(
-        [(ch, True) for ch in dms_channels] + [(ch, False) for ch in available],
-        key=lambda t: (0 if t[0].get("type") == "video" else 1, t[0].get("name", "").lower()),
+        [(ch, True) for ch in saved] + [(ch, False) for ch in available],
+        key=lambda t: (0 if t[0].kind == "tv" else 1, t[0].name.lower()),
     )
     channels = [ch for ch, _ in combined]
-    in_dms_flags = [d for _, d in combined]
-    origins = ["DMS" if d else "available" for d in in_dms_flags]
-    return channels, origins, list(in_dms_flags)
+    saved_flags = [d for _, d in combined]
+    origins = ["saved" if d else "found" for d in saved_flags]
+    return channels, origins, list(saved_flags)
 
 
-def apply_dms_selection(key: int, cursor: int, selected: list[bool], channels: list[OctopusChannel]) -> None:
+def apply_selection_key(key: int, cursor: int, selected: list[bool], channels: list[ChannelRef]) -> None:
     """Mutate *selected* in-place for toggle / bulk-select keys."""
     if key == ord(" "):
         selected[cursor] = not selected[cursor]
         return
-    bulk: dict[int, Callable[[OctopusChannel], bool]] = {
+    bulk: dict[int, Callable[[ChannelRef], bool]] = {
         ord("a"): lambda _: True,
         ord("n"): lambda _: False,
-        ord("v"): lambda ch: ch.get("type") == "video",
-        ord("r"): lambda ch: ch.get("type") == "audio",
+        ord("t"): lambda ch: ch.kind == "tv",
+        ord("r"): lambda ch: ch.kind == "radio",
     }
     if key in bulk:
         predicate = bulk[key]
@@ -41,8 +40,8 @@ def apply_dms_selection(key: int, cursor: int, selected: list[bool], channels: l
             selected[i] = predicate(ch)
 
 
-def handle_dms_key(
-    key: int, cursor: int, list_h: int, selected: list[bool], channels: list[OctopusChannel]
+def handle_key(
+    key: int, cursor: int, list_h: int, selected: list[bool], channels: list[ChannelRef]
 ) -> tuple[int, bool, bool]:
     """Process a keypress; return (new_cursor, save, cancel)."""
     if key in (ord("q"), 27):
@@ -57,19 +56,19 @@ def handle_dms_key(
         return max(0, cursor - list_h), False, False
     if key == curses.KEY_NPAGE:
         return min(len(channels) - 1, cursor + list_h), False, False
-    apply_dms_selection(key, cursor, selected, channels)
+    apply_selection_key(key, cursor, selected, channels)
     return cursor, False, False
 
 
-def dms_draw(
+def draw(
     stdscr: curses.window,
-    channels: list[OctopusChannel],
+    channels: list[ChannelRef],
     origins: list[str],
     selected: list[bool],
     cursor: int,
     scroll: int,
 ) -> None:
-    """Render the full DMS editor screen."""
+    """Render the whole picker screen."""
     stdscr.erase()
     h, w = stdscr.getmaxyx()
     c_header = curses.color_pair(1)
@@ -77,7 +76,7 @@ def dms_draw(
     c_unchecked = curses.color_pair(3)
     c_cursor = curses.color_pair(4)
 
-    header = "  DMS Editor  |  SPACE=toggle  a=all  n=none  v=video  r=radio  ENTER=save  q=cancel  "
+    header = "  Channels  |  SPACE=toggle  a=all  n=none  t=TV  r=radio  ENTER=save  q=cancel  "
     stdscr.addstr(0, 0, header[: w - 1], c_header | curses.A_BOLD)
     try:
         stdscr.addstr(1, 0, "─" * (w - 1), c_header)
@@ -90,11 +89,10 @@ def dms_draw(
         if idx >= len(channels):
             break
         ch = channels[idx]
-        ch_type = ch.get("type", "?")
-        type_label = "TV" if ch_type == "video" else "R " if ch_type == "audio" else "? "
-        freq = str(ch_freq(ch) or "?")
+        type_label = "TV" if ch.kind == "tv" else "R "
+        freq = f"{ch.frequency_mhz:g}" if ch.frequency_mhz is not None else "?"
         check = "[x]" if selected[idx] else "[ ]"
-        line = f" {check} {type_label}  {ch.get('name', '?'):<34} {freq:>8} MHz  {origins[idx]:<7}"
+        line = f" {check} {type_label}  {ch.name:<34} {freq:>8} MHz  {origins[idx]:<7}"
         colour = c_cursor if idx == cursor else (c_checked if selected[idx] else c_unchecked)
         try:
             stdscr.addstr(2 + row, 0, line[: w - 1], colour)
@@ -102,8 +100,8 @@ def dms_draw(
             pass
 
     n_sel = sum(selected)
-    n_tv = sum(1 for i, ch in enumerate(channels) if selected[i] and ch.get("type") == "video")
-    n_radio = sum(1 for i, ch in enumerate(channels) if selected[i] and ch.get("type") == "audio")
+    n_tv = sum(1 for i, ch in enumerate(channels) if selected[i] and ch.kind == "tv")
+    n_radio = sum(1 for i, ch in enumerate(channels) if selected[i] and ch.kind == "radio")
     footer = (
         f"  Selected: {n_sel}/{len(channels)}    TV: {n_tv}    Radio: {n_radio}    row {cursor + 1}/{len(channels)}  "
     )
@@ -115,21 +113,18 @@ def dms_draw(
     stdscr.refresh()
 
 
-def interactive_dms_editor(
-    dms_channels: list[OctopusChannel], available: list[OctopusChannel]
-) -> list[OctopusChannel] | None:
-    """Curses-based interactive DMS channel selector.
+def pick(saved: list[ChannelRef], available: list[ChannelRef]) -> list[ChannelRef] | None:
+    """Let a person tick channels: saved ones start ticked, newly found ones unticked.
 
-    Shows all channels (DMS ones pre-checked, available ones unchecked).
-    Returns the new desired DMS channel list, or None if the user cancelled.
+    Returns the ticked channels, or None if they cancelled.
 
     Keys:
       ↑/↓ / j/k  navigate        Space  toggle
-      a/n         select all / none      v/r  video / radio only
+      a/n         select all / none      t/r  TV / radio only
       Enter       save            q/Esc  cancel
     """
-    channels, origins, selected = build_dms_entries(dms_channels, available)
-    outcome: dict[str, list[OctopusChannel] | None] = {"result": None}
+    channels, origins, selected = build_entries(saved, available)
+    outcome: dict[str, list[ChannelRef] | None] = {"result": None}
 
     def _run(stdscr: curses.window) -> None:
         curses.curs_set(0)
@@ -147,8 +142,8 @@ def interactive_dms_editor(
             scroll = max(0, min(scroll, cursor))
             if cursor >= scroll + list_h:
                 scroll = cursor - list_h + 1
-            dms_draw(stdscr, channels, origins, selected, cursor, scroll)
-            cursor, save, cancel = handle_dms_key(stdscr.getch(), cursor, list_h, selected, channels)
+            draw(stdscr, channels, origins, selected, cursor, scroll)
+            cursor, save, cancel = handle_key(stdscr.getch(), cursor, list_h, selected, channels)
             if cancel:
                 return
             if save:

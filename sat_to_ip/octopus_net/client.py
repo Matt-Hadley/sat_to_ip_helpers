@@ -4,10 +4,14 @@ import time
 from typing import Any, TypedDict, cast
 
 import requests
+import urllib3
 
 from sat_to_ip import http
 
 logger = logging.getLogger(__name__)
+
+# The Octopus NET serves a self-signed certificate, so its calls use verify=False; only imported when it's configured
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class OctopusChannel(TypedDict, total=False):
