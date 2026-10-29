@@ -1,6 +1,7 @@
 """`sat-to-ip channels`: tick channels from what the receiver has found, and save them as [[channels]] blocks.
 
 Only the [[channels]] part of the config is rewritten; tomlkit keeps every other setting and comment as it was.
+New entries name the broadcast service (`service`) when the receiver knows it, so they keep matching after a rename.
 Existing blocks keep their start, their order and their entries, so channel numbers don't move: an unticked
 channel is dropped, a listed channel the receiver doesn't have stays (it keeps its number free), and newly
 ticked channels go at the end of the last block holding channels of their kind.
@@ -195,11 +196,17 @@ def _ask_number(ask: Ask, say: Say, prompt: str, default: int, minimum: int) -> 
 
 
 def _entry(ch: ChannelRef, everything: Sequence[ChannelRef]) -> Any:
-    """The channel's name, or { name, frequency } when another channel has the same name."""
-    same_name = sum(1 for other in everything if other.name.lower() == ch.name.lower())
-    if same_name > 1 and ch.frequency_mhz is not None:
-        return {"name": ch.name, "frequency": ch.frequency_mhz}
-    return ch.name
+    """{ name, service } when the receiver knows the broadcast service ID, so the entry survives renames;
+    plus the frequency when another channel shares it. Just the name when there's nothing more to say."""
+    entry: dict[str, Any] = {"name": ch.name}
+    if ch.service_id is not None and ch.service_id.isdigit():
+        entry["service"] = int(ch.service_id)
+        twins = sum(1 for other in everything if other.service_id == ch.service_id)
+    else:
+        twins = sum(1 for other in everything if other.name.lower() == ch.name.lower())
+    if twins > 1 and ch.frequency_mhz is not None:
+        entry["frequency"] = ch.frequency_mhz
+    return entry if len(entry) > 1 else ch.name
 
 
 def _inline(value: Any) -> Any:

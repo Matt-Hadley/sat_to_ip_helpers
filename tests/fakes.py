@@ -42,7 +42,7 @@ class FakeReceiver:
         self._maybe_fail("select")
 
         def ref(c: Channel) -> ChannelRef:
-            return ChannelRef(c.key, c.name, c.kind, c.frequency_mhz)
+            return ChannelRef(c.key, c.name, c.kind, c.frequency_mhz, c.service_id)
 
         return [ref(c) for c in self.channels], [ref(c) for c in self.found]
 

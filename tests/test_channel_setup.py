@@ -94,6 +94,27 @@ def test_radio_default_follows_a_long_tv_block(tmp_path):
     assert _blocks(config)[1]["start"] == 901  # 798–802 is TV, so radio starts at the next round number
 
 
+def test_channels_are_written_with_their_service_and_a_frequency_only_when_the_service_repeats(tmp_path):
+    from sat_to_ip.model import Channel
+
+    channels = [
+        Channel("a", "5DRAMA", "tv", "u", frequency_mhz=11305.0, service_id="2105"),
+        Channel("b", "Challenge", "tv", "u", frequency_mhz=12090.0, service_id="7202"),
+        Channel("c", "Challenge", "tv", "u", frequency_mhz=12148.0, service_id="7202"),
+        Channel("d", "Radio 4", "radio", "u", service_id="not-a-number"),
+    ]
+    config = _config(tmp_path, receiver=FakeReceiver(channels=channels))
+    _run(config, answers=("", ""))
+    assert [b["names"] for b in _blocks(config)] == [
+        [
+            {"name": "5DRAMA", "service": 2105},
+            {"name": "Challenge", "service": 7202, "frequency": 12090.0},
+            {"name": "Challenge", "service": 7202, "frequency": 12148.0},
+        ],
+        ["Radio 4"],
+    ]
+
+
 def test_same_name_twice_is_written_with_its_frequency(tmp_path):
     from sat_to_ip.model import Channel
 

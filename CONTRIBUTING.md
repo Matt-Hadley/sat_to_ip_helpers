@@ -139,9 +139,9 @@ A receiver only talks to the box. Matching the channel list, the interactive pic
 
 | Method | Required? | What it does |
 |---|---|---|
-| `lineup() -> Lineup` | yes | The saved channels in order, each a `Channel` with a stable `key` (e.g. `"mybox:<service id>"`), name, `kind` (`"tv"`/`"radio"`), stream URL and, if known, frequency. Leave `number` at 0: the pipeline numbers the lineup. |
+| `lineup() -> Lineup` | yes | The saved channels in order, each a `Channel` with a stable `key` (e.g. `"mybox:<service id>"`), name, `kind` (`"tv"`/`"radio"`), stream URL and, if known, frequency and `service_id` (the same as in `selection_candidates`). Leave `number` at 0: the pipeline numbers the lineup. |
 | `refresh()` | no | Update the box's transponder list and rescan, and point saved channels that moved at their new frequency. [`kingofsat/`](sat_to_ip/kingofsat/) fetches transponder lists for any satellite position, if your box needs one. |
-| `selection_candidates() -> (saved, found)` | no, with `save_selection` | The channels the box has saved, and others it has found, as `ChannelRef`s (key, name, kind, frequency). |
+| `selection_candidates() -> (saved, found)` | no, with `save_selection` | The channels the box has saved, and others it has found, as `ChannelRef`s (key, name, kind, frequency, and `service_id` if the box knows the broadcast service ID, which lets a channel list follow renames). |
 | `save_selection(channels)` | no, with `selection_candidates` | Make exactly these the box's saved channels, in this order. |
 
 Implement only the methods your box supports, in one class: the pipeline checks which Protocols the object satisfies, so don't add methods that raise `NotImplementedError`. Give the class a `name` class attribute (e.g. `name: str = "mybox"`): it labels the receiver in logs and the run summary.

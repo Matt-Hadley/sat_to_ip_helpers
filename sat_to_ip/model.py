@@ -11,8 +11,10 @@ Kind = Literal["tv", "radio"]
 class Channel:
     """One channel a receiver can stream.
 
-    key:    stable and unique per receiver (e.g. "octopus_net:10301@10773"); everything else matches on it.
-    number: the channel number. Receivers leave it at 0; the pipeline assigns it from the channel list.
+    key:        stable and unique per receiver (e.g. "octopus_net:10301@10773"); everything else matches on it.
+    number:     the channel number. Receivers leave it at 0; the pipeline assigns it from the channel list.
+    service_id: the broadcaster's ID for the service (DVB service ID), which survives renames and moves;
+                a channel list entry with `service` matches on it. None when the receiver doesn't know it.
     """
 
     key: str
@@ -21,6 +23,7 @@ class Channel:
     stream_url: str
     number: int = 0
     frequency_mhz: float | None = None
+    service_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -92,6 +95,7 @@ class ChannelRef:
     name: str
     kind: Kind = "tv"
     frequency_mhz: float | None = None
+    service_id: str | None = None  # as Channel.service_id
 
 
 @dataclass(frozen=True)

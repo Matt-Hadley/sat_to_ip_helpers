@@ -35,6 +35,22 @@ def test_blocks_become_specs_with_each_blocks_start_on_its_first_entry():
     ]
 
 
+def test_a_service_entry_matches_the_broadcast_service_whatever_its_name():
+    renamed = ChannelRef("k9", "5DRAMA", "tv", 11305.0, "2105")
+    other = ChannelRef("k8", "5SELECT", "tv", 11305.0, "2108")  # the old name on another service doesn't count
+    specs = specs_from_config([{"names": [{"name": "5SELECT", "service": 2105}]}])
+    assert specs[0].text == "5SELECT#2105" and specs[0].service == "2105"
+    assert match_specs(specs, [other, renamed]) == [(specs[0], [renamed])]
+    both = specs_from_config([{"names": [{"name": "x", "service": 2105, "frequency": 11306}]}])
+    assert match_specs(both, [renamed])[0][1] == []  # with a frequency, both must match
+
+
+def test_numbering_follows_service_entries_after_a_rename():
+    lineup = Lineup((Channel("k1", "Great!Christmas", "tv", "u", service_id="53320"), Channel("k2", "B", "tv", "u")))
+    specs = specs_from_config([{"start": 9035, "names": [{"name": "Great! Romance", "service": 53320}, "B"]}])
+    assert [(c.number, c.name) for c in number_lineup(lineup, specs)] == [(9035, "Great!Christmas"), (9036, "B")]
+
+
 def test_no_blocks_means_no_selection():
     assert specs_from_config(None) is None
 
@@ -47,6 +63,9 @@ def test_names_are_trimmed_and_a_block_may_have_no_start():
 @pytest.mark.parametrize(
     "blocks, message",
     [
+        ([{"names": [{"name": "X", "service": "2105"}]}], "service: must be the broadcast service ID"),
+        ([{"names": [{"name": "X", "service": -1}]}], "service: must be the broadcast service ID"),
+        ([{"names": [{"name": "X", "service": True}]}], "service: must be the broadcast service ID"),
         ("BBC One HD", "must be \\[\\[channels\\]\\] blocks"),
         ([{"names": []}], "channels\\[0\\].names: required"),
         ([{"names": ["A"], "first": 1}], "channels\\[0\\]: unknown key\\(s\\) first"),

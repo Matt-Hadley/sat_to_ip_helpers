@@ -6,6 +6,7 @@ and number the lineup.
     names = [
       "BBC One HD",                               # a channel by name (the first one with that name)
       { name = "BBC One HD", frequency = 10773 }, # that name on that frequency (MHz), when it appears twice
+      { name = "5DRAMA", service = 2105 },        # that broadcast service, whatever it's called now
       { rest = "tv" },                            # every TV / radio / channel ("all") not listed before
     ]
 
@@ -34,11 +35,15 @@ class Spec:
     keyword: str | None = None
     name: str | None = None
     frequency_mhz: float | None = None
+    service: str | None = None  # matched instead of the name, which is then only a label
 
     def matches(self, ch: ChannelRef) -> bool:
         if self.keyword is not None:
             return KEYWORDS[self.keyword] in (None, ch.kind)
-        if self.name is None or ch.name.lower() != self.name.lower():
+        if self.service is not None:
+            if ch.service_id != self.service:
+                return False
+        elif self.name is None or ch.name.lower() != self.name.lower():
             return False
         if self.frequency_mhz is None:
             return True
@@ -52,7 +57,7 @@ def _entry(value: Any, where: str, number: int | None) -> Spec:
         return Spec(value.strip(), where, number, name=value.strip())
     if not isinstance(value, dict):
         raise ConfigError(f'{where}: must be a channel name or a table like {{ name = "…" }}, got {value!r}')
-    unknown = sorted(set(value) - {"name", "frequency", "rest"})
+    unknown = sorted(set(value) - {"name", "frequency", "service", "rest"})
     if unknown:
         raise ConfigError(f"{where}: unknown key(s) {', '.join(unknown)}")
     if "rest" in value:
@@ -63,12 +68,25 @@ def _entry(value: Any, where: str, number: int | None) -> Spec:
     name = value.get("name")
     if not isinstance(name, str) or not name.strip():
         raise ConfigError(f"{where}.name: required, the channel name as your receiver shows it")
+    service = value.get("service")
+    if service is not None and (isinstance(service, bool) or not isinstance(service, int) or service < 0):
+        raise ConfigError(f"{where}.service: must be the broadcast service ID, a whole number, got {service!r}")
     frequency = value.get("frequency")
-    if frequency is None:
-        return Spec(name.strip(), where, number, name=name.strip())
-    if isinstance(frequency, bool) or not isinstance(frequency, (int, float)):
+    if frequency is not None and (isinstance(frequency, bool) or not isinstance(frequency, (int, float))):
         raise ConfigError(f"{where}.frequency: must be a number in MHz, got {frequency!r}")
-    return Spec(f"{name.strip()}@{frequency:g}", where, number, name=name.strip(), frequency_mhz=float(frequency))
+    text = (
+        name.strip()
+        + (f"@{frequency:g}" if frequency is not None else "")
+        + (f"#{service}" if service is not None else "")
+    )
+    return Spec(
+        text,
+        where,
+        number,
+        name=name.strip(),
+        frequency_mhz=float(frequency) if frequency is not None else None,
+        service=str(service) if service is not None else None,
+    )
 
 
 def specs_from_config(blocks: Any) -> list[Spec] | None:
@@ -140,7 +158,7 @@ def number_lineup(lineup: Lineup, specs: Sequence[Spec] | None) -> Lineup:
     number free so later channels don't move. Channels the blocks don't mention come after.
     Without blocks: 1, 2, 3, … in the receiver's order.
     """
-    refs = [ChannelRef(ch.key, ch.name, ch.kind, ch.frequency_mhz) for ch in lineup]
+    refs = [ChannelRef(ch.key, ch.name, ch.kind, ch.frequency_mhz, ch.service_id) for ch in lineup]
     numbers: dict[str, int] = {}
     next_number = 1
     for spec, found in match_specs(specs or (), refs):

@@ -237,6 +237,27 @@ def test_refresh_scans_only_once_more_and_then_flags_what_is_still_missing(rx, c
     assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [1, 2]  # kept, not dropped
 
 
+def test_refresh_follows_a_rename_and_takes_the_scans_current_details(rx, caplog):
+    caplog.set_level(logging.INFO)
+    saved = [{**_moved(1, "Great! Romance", 11306, 53320), "msys": "dvbs"}, SAVED[1]]
+    rx._client = _client(dms=saved)
+    renamed = {**_moved(1, "Great!Christmas", 11306, 53320), "msys": "dvbs2"}  # same serviceid
+    rx._client.get_available_channels.side_effect = [saved, [renamed, SAVED[1]]]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=11306), _transponder(freq=11954)])
+    records = rx._client.save_channels.call_args.args[0]
+    assert [(r["name"], r["msys"], r["position"]) for r in records[:1]] == [("Great!Christmas", "dvbs2", 0)]
+    assert "Renamed 'Great! Romance' → 'Great!Christmas'" in caplog.text
+    assert rx._client.start_scan.call_count == 1  # nothing was lost
+
+
+def test_channels_carry_their_dvb_service_id(rx):
+    rx._client = _client(dms=[{**_ch(1, "5DRAMA", freq=11305), "dvb_serviceid": 2105}, _ch(2, "No ID")])
+    rx._client.download_m3u.return_value = "#EXTM3U\n#EXTINF:-1,5DRAMA\nhttp://o/1\n#EXTINF:-1,No ID\nhttp://o/2\n"
+    saved, _ = rx.selection_candidates()
+    assert [r.service_id for r in saved] == ["2105", None]
+    assert [c.service_id for c in rx.lineup()] == ["2105", None]
+
+
 def test_refresh_restores_the_saved_list_the_scan_empties(rx):
     # The Octopus NET empties its saved list when it scans (2026-10-29): it's read first and saved back after
     rx._client = _client(dms=SAVED)

@@ -130,6 +130,7 @@ names = [
 ```
 
 - **Names** must match your receiver exactly. If a name appears twice (e.g. two regions of a channel), write `{ name = "BBC One HD", frequency = 10773 }` with the frequency in MHz.
+- **Renamed channels:** `{ name = "5DRAMA", service = 2105 }` matches the broadcast service itself, whatever it's called now, so the entry keeps working when a channel is renamed (5SELECT became 5DRAMA) or takes a seasonal name (Great! Romance is Great!Christmas until January). Each rescan picks up the new name, so your apps show what's on air. `sat-to-ip channels` writes `service` for you; an entry that only has a name stops matching once that channel is renamed, and the run says so.
 - **`{ rest = "tv" }`**, `"radio"` or `"all"` takes every channel of that kind you haven't already listed.
 - **Numbers stay put:** if a channel disappears from the satellite, its number is kept free and the channels after it don't move.
 

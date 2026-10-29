@@ -24,8 +24,13 @@ def _kind(ch: OctopusChannel) -> Kind:
     return "radio" if ch.get("type") == "audio" else "tv"  # Octopus NET types are video/audio
 
 
+def _service_id(ch: OctopusChannel) -> str | None:
+    sid = ch.get("dvb_serviceid")
+    return None if sid is None else str(sid)
+
+
 def _ref(ch: OctopusChannel) -> ChannelRef:
-    return ChannelRef(channel_key(ch), ch.get("name", ""), _kind(ch), mhz(ch_freq(ch)))
+    return ChannelRef(channel_key(ch), ch.get("name", ""), _kind(ch), mhz(ch_freq(ch)), _service_id(ch))
 
 
 def _log_tuners(client: OctopusClient) -> None:
@@ -73,15 +78,22 @@ def _lost(saved: list[OctopusChannel], scanned: list[OctopusChannel]) -> list[Oc
 
 
 def _retune_moved(saved: list[OctopusChannel], scanned: list[OctopusChannel]) -> list[OctopusChannel]:
-    """The saved channels, each one the scan no longer found swapped for the same channel the scan found elsewhere.
+    """The saved channels as the scan found them now: renamed ones under their new name, and each one the scan
+    no longer found swapped for the same channel the scan found elsewhere.
 
     Only an unambiguous match is used; a channel without one is kept as it was. KingOfSat can still list the
     old frequency (GB News left 11670 while it stayed listed), so what counts is what the scan found.
     """
-    found = {str(ch.get("serviceid")) for ch in scanned}
+    found = {str(ch.get("serviceid")): ch for ch in scanned}
     records = []
     for ch in saved:
-        same = _candidates(ch, scanned, found)
+        fresh = found.get(str(ch.get("serviceid")))
+        if fresh is not None:  # found where it was: take the scan's current details, its name included
+            if fresh.get("name") != ch.get("name"):
+                logger.info(f"   Renamed {ch.get('name')!r} → {fresh.get('name')!r}")
+            records.append(fresh)
+            continue
+        same = _candidates(ch, scanned, set(found))
         if same is not None:
             old_mhz = mhz(ch_freq(ch))
             if len(same) == 1:
@@ -224,6 +236,7 @@ class OctopusNetReceiver:
                     kind=_kind(ch),
                     stream_url=self._stream_url(entries.pop(0).url),
                     frequency_mhz=mhz(ch_freq(ch)),
+                    service_id=_service_id(ch),
                 )
             )
         return Lineup(tuple(channels))
