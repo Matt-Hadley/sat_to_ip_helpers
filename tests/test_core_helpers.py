@@ -198,6 +198,7 @@ def test_builtin_gracenote_mappings_load():
     assert "uk" in mappings.available_regions("gracenote")
     uk = mappings.load_mappings("gracenote", "uk")
     assert len(uk) > 100 and all(k == k.lower() for k in uk)
+    assert uk["5select"] == "5DRAMA"  # Gracenote renamed station 56888; the satellite still says 5SELECT
 
 
 def test_extra_mappings_win_and_unknown_region():
