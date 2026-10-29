@@ -5,11 +5,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+import urllib3
 
 from sat_to_ip.config import Section
 from sat_to_ip.exceptions import ConfigError, IntegrationError
 from sat_to_ip.model import Lineup
-from sat_to_ip.xmltv.guide import XmltvGuide, from_config
+from sat_to_ip.xmltv.guide import DOWNLOAD_DEADLINE, XmltvGuide, from_config
 from tests.contracts import assert_guide_contract
 from tests.fakes import channel
 
@@ -27,7 +28,7 @@ def _lineup(*names):
 
 def _session(body: bytes, chunk=7):
     sess = MagicMock()
-    sess.get.return_value.iter_content.return_value = [body[i : i + chunk] for i in range(0, len(body), chunk)]
+    sess.get.return_value.raw.read1.side_effect = [body[i : i + chunk] for i in range(0, len(body), chunk)] + [b""]
     return sess
 
 
@@ -48,6 +49,10 @@ def test_from_config_url():
     guide = from_config(_section({"url": URL, "max_bytes": 10}))
     assert (guide.name, guide.kind, guide.url, guide.path, guide.max_bytes) == ("freeview", "xmltv", URL, None, 10)
     assert guide.mappings == {}
+
+
+def test_default_max_bytes():
+    assert from_config(_section({"url": URL})).max_bytes == XmltvGuide("x").max_bytes == 50_000_000
 
 
 def test_from_config_path_resolves_against_config_dir():
@@ -150,6 +155,14 @@ def test_channel_after_programmes_is_ignored():
     assert _ids(match) == {"fake:1": "A.uk"}
 
 
+def test_whitespace_between_elements_is_kept_across_parser_reads():
+    progs = b"".join(b"\n  <programme channel='A.uk' start='%d'><title>t</title></programme>" % i for i in range(2000))
+    feed = b"<tv>\n  <channel id='A.uk'><display-name>A</display-name></channel>" + progs + b"\n</tv>"
+    assert len(feed) > 64 * 1024  # several 16 KiB parser reads
+    match, _ = _match_url(feed, _lineup("A"))
+    assert match.xmltv is not None and match.xmltv.count(b"</programme>\n  <programme") == 1999
+
+
 def test_channel_without_display_name():
     match, _ = _match_url(b"<tv><channel id='Bare.uk'/></tv>", _lineup("Bare"))
     assert match.refs["fake:1"].display_name is None
@@ -165,6 +178,33 @@ def test_downloads_streamed_with_size_cap():
     assert sess.get.call_args.args == (URL,) and sess.get.call_args.kwargs["stream"] is True
     with pytest.raises(IntegrationError, match="larger than max_bytes"):
         _match_url(body, _lineup("BBC One HD"), max_bytes=len(body) - 1)
+
+
+def test_download_reads_decoded_content():
+    _, sess = _match_url(FEED.read_bytes(), _lineup("BBC One HD"))
+    assert sess.get.return_value.raw.read1.call_args.kwargs == {"decode_content": True}
+
+
+def test_download_deadline():
+    clock = iter([0, 1, DOWNLOAD_DEADLINE + 1])
+    with patch("sat_to_ip.xmltv.guide.monotonic", side_effect=lambda: next(clock)):
+        with pytest.raises(IntegrationError, match=rf"^freeview: downloading {URL} took over {DOWNLOAD_DEADLINE}s$"):
+            _match_url(FEED.read_bytes(), _lineup("BBC One HD"))
+
+
+def test_download_read_error():
+    sess = MagicMock()
+    sess.get.return_value.raw.read1.side_effect = urllib3.exceptions.ProtocolError("connection reset")
+    with patch("sat_to_ip.xmltv.guide.http.session", return_value=sess):
+        with pytest.raises(IntegrationError, match=f"freeview: can't download {URL}: connection reset"):
+            XmltvGuide("freeview", url=URL).match(_lineup("A"))
+
+
+def test_gzip_bomb_fails_without_inflating():
+    bomb = gzip.compress(b"<tv>" + b" " * 50_000_000)
+    assert len(bomb) < 1_000_000
+    with pytest.raises(IntegrationError, match=r"larger than max_bytes \(1000000 bytes\)"):
+        _match_url(bomb, _lineup("A"), max_bytes=1_000_000)
 
 
 def test_gzip_feed():
