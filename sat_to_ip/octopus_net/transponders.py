@@ -1,10 +1,14 @@
 """Pure functions for converting KingOfSat Transponder objects into the JSON
 payload expected by Octopus's /channelsearch/uploadCustom endpoint."""
 
-import math
 from typing import Any
 
 from sat_to_ip.kingofsat.transponder import Transponder
+
+
+def _exact(mhz: float) -> str:
+    """'11111.75' for 11111.75 and '10773' for 10773.0: the shortest form that is exactly the value."""
+    return repr(float(mhz)).removesuffix(".0")
 
 
 def format_source(transponders: list[Transponder], position: str, satellite: str) -> dict[str, Any]:
@@ -22,7 +26,7 @@ def format_source(transponders: list[Transponder], position: str, satellite: str
     transponder_list = [
         {
             "Request": (
-                f"freq={math.floor(float(t.frequency) + 0.5)}"  # nearest MHz: 11111.75 tunes 11112, not 11111
+                f"freq={_exact(t.frequency)}"  # exactly as KingOfSat lists it: never rounded
                 f"&pol={t.polarization.lower()}"
                 f"&mtype={t.modulation}"
                 f"&msys={t.system.lower().replace('-', '')}"
