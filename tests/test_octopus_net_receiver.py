@@ -14,6 +14,7 @@ from sat_to_ip.kingofsat.transponder import Transponder
 from sat_to_ip.model import ChannelRef
 from sat_to_ip.octopus_net.receiver import OctopusNetReceiver, from_config
 from sat_to_ip.selection import specs_from_config
+from tests.contracts import assert_receiver_contract
 from tests.fakes import FakeGuide, FakePublisher
 
 ENV = {"OCTO_PW": "secret"}
@@ -267,3 +268,8 @@ def test_channel_without_a_type_is_tv():
     rx = OctopusNetReceiver(host="octo", password="pw")
     rx._client = _client(dms=[{"serviceid": 9, "name": "BBC One HD"}], m3u_text=M3U)
     assert [c.kind for c in rx.lineup()] == ["tv"]
+
+
+def test_octopus_net_receiver_meets_the_receiver_contract(rx):
+    rx._client = _client(dms=[_ch(1, "BBC One HD"), _ch(2, "Radio 4", "audio", 11954)], m3u_text=M3U)
+    assert_receiver_contract(rx)

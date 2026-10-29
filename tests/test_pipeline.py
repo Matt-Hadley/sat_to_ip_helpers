@@ -213,3 +213,31 @@ def test_number_clash_fails_publish(tmp_path):
         report.outcomes[0] == pipeline.Outcome("publish", "failed", report.outcomes[0].detail)
         and "already taken" in report.outcomes[0].detail
     )
+
+
+def test_publish_refuses_when_many_saved_channels_have_no_stream(tmp_path):
+    rx = FakeReceiver(
+        channels=[channel(i) for i in range(1, 11)], unstreamable=frozenset(f"Ch {i}" for i in range(3, 11))
+    )
+    pub = FakePublisher(guide=None)
+    report = pipeline.run(
+        _config(tmp_path, receiver=rx, publishers=[pub], max_removed=5), RunOptions(stages=frozenset({Stage.PUBLISH}))
+    )
+    assert report.outcomes[0].status == "failed" and "8 saved channels have no stream" in report.outcomes[0].detail
+    assert pub.published == []
+
+
+def test_publish_allows_a_few_missing_streams_or_allow_removals(tmp_path):
+    rx = FakeReceiver(
+        channels=[channel(i) for i in range(1, 11)], unstreamable=frozenset(f"Ch {i}" for i in range(3, 11))
+    )
+    pub = FakePublisher(guide=None)
+    options = RunOptions(stages=frozenset({Stage.PUBLISH}), allow_removals=True)
+    assert pipeline.run(_config(tmp_path, receiver=rx, publishers=[pub]), options).ok
+    assert len(pub.published[0][0]) == 2
+
+
+def test_publish_refuses_duplicate_keys(tmp_path):
+    rx = FakeReceiver(channels=[channel(1), channel(1, "Twin")])
+    report = pipeline.run(_config(tmp_path, receiver=rx, specs=None), RunOptions(stages=frozenset({Stage.PUBLISH})))
+    assert "same key: fake:1" in report.outcomes[0].detail

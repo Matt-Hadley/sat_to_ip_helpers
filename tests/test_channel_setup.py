@@ -145,7 +145,9 @@ def test_cli_needs_a_terminal(tmp_path, monkeypatch):
     assert cli.main(["channels", "-c", str(config.path)]) == 2
 
 
-@pytest.mark.parametrize("error, code", [(ConfigError("no"), 2), (IntegrationError("receiver down"), 1)])
+@pytest.mark.parametrize(
+    "error, code", [(ConfigError("no"), 2), (IntegrationError("receiver down"), 1), (RuntimeError("surprise"), 1)]
+)
 def test_cli_runs_the_picker_and_maps_errors(tmp_path, monkeypatch, error, code):
     config = _config(tmp_path)
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)

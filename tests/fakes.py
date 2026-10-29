@@ -24,6 +24,7 @@ class FakeReceiver:
     refreshed: int = 0
     saved: list[tuple[ChannelRef, ...]] = field(default_factory=list)
     fail_on: str | None = None
+    unstreamable: frozenset[str] = frozenset()  # saved channels lineup() leaves out (no stream)
 
     def _maybe_fail(self, what: str) -> None:
         if self.fail_on == what:
@@ -31,7 +32,7 @@ class FakeReceiver:
 
     def lineup(self) -> Lineup:
         self._maybe_fail("lineup")
-        return Lineup(tuple(self.channels))
+        return Lineup(tuple(c for c in self.channels if c.name not in self.unstreamable))
 
     def refresh(self) -> None:
         self._maybe_fail("refresh")

@@ -56,10 +56,24 @@ def test_check_selection_not_empty():
         checks.check_selection_not_empty(_plan(3, 0))
 
 
-def test_check_lineup_not_empty():
-    checks.check_lineup_not_empty(Lineup((channel(1),)))
-    with pytest.raises(CheckError):
-        checks.check_lineup_not_empty(Lineup())
+def test_check_lineup():
+    checks.check_lineup(Lineup((channel(1), channel(2, kind="radio"))))
+    with pytest.raises(CheckError, match="empty lineup"):
+        checks.check_lineup(Lineup())
+    with pytest.raises(CheckError, match="same key: fake:1"):
+        checks.check_lineup(Lineup((channel(1), channel(1, "Other"))))
+    with pytest.raises(CheckError, match="unknown kind 'video'"):
+        checks.check_lineup(Lineup((channel(1, kind="video"),)))
+
+
+def test_check_lineup_complete(caplog):
+    saved = [ChannelRef(f"fake:{i}", f"Ch {i}") for i in range(1, 11)]
+    checks.check_lineup_complete(saved, Lineup(tuple(channel(i) for i in range(1, 11))), 0, allow=False)
+    checks.check_lineup_complete(saved, Lineup((channel(1),)), 9, allow=False)  # 9 missing, limit 9
+    assert "'Ch 10' is saved on the receiver but it has no stream" in caplog.text
+    checks.check_lineup_complete(saved, Lineup((channel(1),)), 0, allow=True)
+    with pytest.raises(CheckError, match=r"9 saved channels have no stream on the receiver \(limit 5\): Ch 2"):
+        checks.check_lineup_complete(saved, Lineup((channel(1),)), 5, allow=False)
 
 
 def test_check_guide_match():
@@ -85,6 +99,20 @@ def test_m3u_round_trip():
 def test_m3u_parse_skips_option_lines_and_handles_missing_url():
     entries = m3u.parse("#EXTM3U\n#EXTINF:-1,A\n#EXTVLCOPT:x=y\n\nhttp://a\n#EXTINF:-1,B\n")
     assert [(e.label, e.url) for e in entries] == [("A", "http://a"), ("B", "")]
+
+
+def test_m3u_parse_comma_inside_a_quoted_attribute():
+    entry = m3u.parse('#EXTINF:-1 tvg-name="A, B" tvg-id="x",Label\nhttp://a\n')[0]
+    assert entry == m3u.Entry("Label", "http://a", (("tvg-name", "A, B"), ("tvg-id", "x")))
+
+
+def test_m3u_parse_entry_without_url_doesnt_take_the_next_ones():
+    entries = m3u.parse("#EXTM3U\n#EXTINF:-1,One\n#EXTINF:-1,Two\nhttp://two\n")
+    assert [(e.label, e.url) for e in entries] == [("One", ""), ("Two", "http://two")]
+
+
+def test_m3u_parse_extinf_without_a_comma():
+    assert m3u.parse("#EXTINF:-1\nhttp://a\n")[0] == m3u.Entry("", "http://a")
 
 
 def test_m3u_render_strips_double_quotes():

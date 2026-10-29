@@ -23,15 +23,33 @@ class Entry:
         return next((v for k, v in self.attrs if k == key), None)
 
 
+def _split_extinf(line: str) -> tuple[str, str]:
+    """Split '#EXTINF:-1 a="x, y",Label' at the first comma outside quotes: (header, label)."""
+    quoted = False
+    for i, char in enumerate(line):
+        if char == '"':
+            quoted = not quoted
+        elif char == "," and not quoted:
+            return line[:i], line[i + 1 :]
+    return line, ""
+
+
 def parse(text: str) -> list[Entry]:
-    """Return every #EXTINF entry; its URL is the next line that isn't a comment."""
+    """Return every #EXTINF entry. Its URL is the next line that isn't a comment, before the next #EXTINF
+    (an entry without one gets an empty URL rather than the next entry's)."""
     lines = [line.strip() for line in text.splitlines()]
     entries = []
     for i, line in enumerate(lines):
         if not line.startswith("#EXTINF:"):
             continue
-        header, _, label = line.partition(",")
-        url = next((nxt for nxt in lines[i + 1 :] if nxt and not nxt.startswith("#")), "")
+        header, label = _split_extinf(line)
+        url = ""
+        for nxt in lines[i + 1 :]:
+            if nxt.startswith("#EXTINF:"):
+                break
+            if nxt and not nxt.startswith("#"):
+                url = nxt
+                break
         entries.append(Entry(label=label.strip(), url=url, attrs=tuple(_ATTR.findall(header))))
     return entries
 

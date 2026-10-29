@@ -16,9 +16,12 @@ class Receiver(Protocol):
     name: str
 
     def lineup(self) -> Lineup:
-        """The receiver's saved channels, in order, with stream URLs. Read live; no caching across runs.
+        """The receiver's saved channels with stream URLs, read live (it runs straight after a save).
 
-        Leave Channel.number at 0: the pipeline numbers the lineup from the channel list.
+        - Each Channel.key is unique and stable, and the same key selection_candidates() uses for it.
+        - kind is "tv" or "radio"; leave number at 0 (the pipeline numbers the lineup).
+        - A saved channel the receiver can't stream may be left out with a warning; the pipeline refuses
+          to publish if too many are missing. Raise IntegrationError if the device can't be read at all.
         """
         ...
 

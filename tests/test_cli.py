@@ -57,3 +57,13 @@ def test_python_dash_m(monkeypatch, config_file):
     with pytest.raises(SystemExit) as exc:
         runpy.run_module("sat_to_ip", run_name="__main__")
     assert exc.value.code == 0
+
+
+def test_urllib3_retry_noise_is_hidden_unless_verbose(config_file):
+    import logging
+
+    cli.main(["check-config", "-c", str(config_file)])
+    assert logging.getLogger("urllib3").level == logging.ERROR
+    logging.getLogger("urllib3").setLevel(logging.NOTSET)
+    cli.main(["-v", "check-config", "-c", str(config_file)])
+    assert logging.getLogger("urllib3").level == logging.NOTSET

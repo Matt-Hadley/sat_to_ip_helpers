@@ -56,6 +56,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)-8s %(message)s"
     )
+    if not args.verbose:  # its "Retrying (Retry(total=2…" lines alarm more than they help; failures are reported anyway
+        logging.getLogger("urllib3").setLevel(logging.ERROR)
 
     try:
         config = load_config(args.config)
@@ -74,6 +76,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 2
         except PipelineError as exc:
             logger.error(str(exc))
+            return 1
+        except Exception as exc:  # e.g. a receiver raising something unexpected; never a traceback for users
+            logger.debug("channels failed", exc_info=exc)
+            logger.error(f"{type(exc).__name__}: {exc} (run with -v for details)")
             return 1
         return 0
 

@@ -7,6 +7,7 @@ import requests
 import urllib3
 
 from sat_to_ip import http
+from sat_to_ip.exceptions import IntegrationError
 
 logger = logging.getLogger(__name__)
 
@@ -40,22 +41,47 @@ class OctopusClient:
         self.base_url = base_url.rstrip("/")
         self.session = session
 
+    def _call(self, method: str, path: str, doing: str, **kwargs: Any) -> requests.Response:
+        """One request; network and HTTP failures become an IntegrationError that says what to check."""
+        try:
+            resp = self.session.request(method, f"{self.base_url}{path}", verify=False, timeout=30, **kwargs)
+            resp.raise_for_status()
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            why = "timed out" if isinstance(exc, requests.Timeout) else "couldn't connect"
+            raise IntegrationError(
+                f"Octopus NET at {self.base_url}: {why} while {doing}. "
+                "Check [receiver] host and that the box is switched on and on the network."
+            ) from exc
+        except requests.HTTPError as exc:
+            raise IntegrationError(
+                f"Octopus NET at {self.base_url}: {doing} failed (HTTP {exc.response.status_code})"
+            ) from exc
+        return resp
+
+    @staticmethod
+    def _json(resp: requests.Response, doing: str) -> Any:
+        try:
+            return resp.json()
+        except ValueError as exc:
+            raise IntegrationError(f"Octopus NET: unexpected reply while {doing} (not JSON)") from exc
+
     @classmethod
     def login(cls, base_url: str, username: str, password: str) -> "OctopusClient":
         """Authenticate against /login and return an authenticated client."""
-        session = http.session()
-        resp = session.post(
-            f"{base_url.rstrip('/')}/login",
+        client = cls(base_url, http.session())
+        client._call(
+            "POST",
+            "/login",
+            "logging in",
             data={"login": username, "passwd": password, "lang": "en", "submit": "Login"},
             allow_redirects=True,
-            verify=False,
-            timeout=30,
         )
-        resp.raise_for_status()
-        if "session_id" not in session.cookies:
-            raise RuntimeError("Login failed: no session_id cookie received")
+        if "session_id" not in client.session.cookies:
+            raise IntegrationError(
+                "Octopus NET: login was refused. Check [receiver] username and the password in its password_env variable."
+            )
         logger.info("Logged in to Octopus")
-        return cls(base_url, session)
+        return client
 
     # ------------------------------------------------------------------
     # Transponder upload & channel scan
@@ -64,13 +90,8 @@ class OctopusClient:
     def upload_transponders(self, payload: dict[str, Any]) -> None:
         """Upload a transponder list JSON to /channelsearch/uploadCustom."""
         json_bytes = json.dumps(payload, indent=2).encode("utf-8")
-        resp = self.session.post(
-            f"{self.base_url}/channelsearch/uploadCustom",
-            files={"transponderlist": ("transponders.json", json_bytes, "application/json")},
-            verify=False,
-            timeout=30,
-        )
-        resp.raise_for_status()
+        files = {"transponderlist": ("transponders.json", json_bytes, "application/json")}
+        self._call("POST", "/channelsearch/uploadCustom", "uploading the transponder list", files=files)
         logger.info("Transponder list uploaded")
 
     def start_scan(self, positions: list[str]) -> None:
@@ -82,13 +103,7 @@ class OctopusClient:
         target_s = [p.replace(".", "").replace("°", "").upper() for p in positions]
         while len(target_s) < 4:
             target_s.append("disabled")
-        resp = self.session.post(
-            f"{self.base_url}/startsearch-satip",
-            json={"target-s": target_s},
-            verify=False,
-            timeout=30,
-        )
-        resp.raise_for_status()
+        self._call("POST", "/startsearch-satip", "starting the scan", json={"target-s": target_s})
         logger.info(f"Scan started: {target_s}")
 
     def poll_scan_until_complete(self, interval: int = 1, timeout: int = 600) -> dict[str, Any]:
@@ -125,7 +140,8 @@ class OctopusClient:
                 time.sleep(interval)
                 continue
             done_confirmations = 0
-            resp.raise_for_status()
+            if resp.status_code >= 400:
+                raise IntegrationError(f"Octopus NET at {self.base_url}: scan status failed (HTTP {resp.status_code})")
             try:
                 status = resp.json()
             except ValueError:
@@ -140,7 +156,7 @@ class OctopusClient:
                 f"Scan in progress... {progress}% — {found} channels found ({source}) — retrying in {interval}s"
             )
             time.sleep(interval)
-        raise TimeoutError(f"Scan did not complete within {timeout}s")
+        raise IntegrationError(f"Octopus NET: the scan didn't finish within {timeout}s; raise [receiver] scan_timeout")
 
     # ------------------------------------------------------------------
     # DMS channel management
@@ -148,39 +164,20 @@ class OctopusClient:
 
     def get_dms_channels(self) -> list[OctopusChannel]:
         """Return the channels currently saved in the DMS."""
-        resp = self.session.post(
-            f"{self.base_url}/channels/data",
-            params={"selected": "1"},
-            verify=False,
-            timeout=30,
-        )
-        resp.raise_for_status()
-        return _channel_list(resp.json())
+        doing = "reading its saved channels"
+        return _channel_list(self._json(self._call("POST", "/channels/data", doing, params={"selected": "1"}), doing))
 
     def get_available_channels(self, ignore_ids: list[str]) -> list[OctopusChannel]:
         """Return channels from the last scan that are not yet in the DMS."""
-        resp = self.session.post(
-            f"{self.base_url}/channels/data",
-            data={"ignore": ",".join(ignore_ids)},
-            verify=False,
-            timeout=30,
-        )
-        resp.raise_for_status()
-        return _channel_list(resp.json())
+        doing = "reading the channels it found"
+        resp = self._call("POST", "/channels/data", doing, data={"ignore": ",".join(ignore_ids)})
+        return _channel_list(self._json(resp, doing))
 
     def save_channels(self, channels: list[OctopusChannel]) -> None:
         """Replace the DMS channel list with the provided list."""
-        resp = self.session.post(
-            f"{self.base_url}/channels/save",
-            json=channels,
-            verify=False,
-            timeout=30,
-        )
-        resp.raise_for_status()
+        self._call("POST", "/channels/save", "saving the channel list", json=channels)
         logger.info(f"Saved {len(channels)} channels to DMS")
 
     def download_m3u(self) -> str:
         """Download the M3U playlist for the current DMS channel list."""
-        resp = self.session.get(f"{self.base_url}/channels/m3u", verify=False, timeout=30)
-        resp.raise_for_status()
-        return resp.text
+        return self._call("GET", "/channels/m3u", "downloading its M3U").text

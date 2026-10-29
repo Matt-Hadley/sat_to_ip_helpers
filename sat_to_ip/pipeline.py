@@ -14,7 +14,8 @@ from typing import Literal
 
 from sat_to_ip.checks import (
     check_guide_match,
-    check_lineup_not_empty,
+    check_lineup,
+    check_lineup_complete,
     check_removals,
     check_selection_not_empty,
 )
@@ -151,8 +152,12 @@ def _log_plan(plan: SelectionPlan) -> None:
 
 def _publish(config: Config, options: RunOptions, report: RunReport) -> None:
     try:
-        lineup = number_lineup(config.receiver.lineup(), config.channel_specs)
-        check_lineup_not_empty(lineup)
+        lineup = config.receiver.lineup()
+        check_lineup(lineup)
+        if isinstance(config.receiver, SupportsSelection):
+            saved, _ = config.receiver.selection_candidates()
+            check_lineup_complete(saved, lineup, config.checks.max_removed, allow=options.allow_removals)
+        lineup = number_lineup(lineup, config.channel_specs)
     except Exception as exc:
         _record_failure(report, Stage.PUBLISH, exc)
         return
