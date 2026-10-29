@@ -1,6 +1,7 @@
 """Octopus NET channel records: keys, frequency lookup, and the diff between two scans."""
 
 import logging
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -14,10 +15,12 @@ def ch_freq(ch: OctopusChannel) -> int | float | str | None:
 
 
 def mhz(value: Any) -> float | None:
+    """A frequency in MHz, or None when the record has no usable one."""
     try:
-        return float(value)
+        freq = float(value)
     except (TypeError, ValueError):
         return None
+    return freq if math.isfinite(freq) else None
 
 
 def channel_key(ch: OctopusChannel) -> str:

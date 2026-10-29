@@ -12,6 +12,7 @@ from sat_to_ip.exceptions import ConfigError, IntegrationError
 from sat_to_ip.interfaces import SupportsRefresh, SupportsSelection
 from sat_to_ip.kingofsat.transponder import Transponder
 from sat_to_ip.model import ChannelRef
+from sat_to_ip.octopus_net.channels import channel_key
 from sat_to_ip.octopus_net.receiver import OctopusNetReceiver, from_config
 from sat_to_ip.selection import specs_from_config
 from tests.contracts import assert_receiver_contract
@@ -218,6 +219,11 @@ def test_channels_sharing_a_service_id_on_different_frequencies_stay_apart():
     saved, found = rx.selection_candidates()
     assert _keys(saved) == ["octopus_net:1@10773", "octopus_net:1@12000"]
     assert _keys(found) == ["octopus_net:1@11500"]
+
+
+@pytest.mark.parametrize("freq", ["nan", "inf", float("-inf")])
+def test_a_frequency_that_isnt_a_number_counts_as_none(freq):
+    assert channel_key(_ch(1, "BBC One HD", freq=freq)) == "octopus_net:1"
 
 
 def test_a_saved_channel_without_a_frequency_hides_scanned_ones_with_its_service_id():
