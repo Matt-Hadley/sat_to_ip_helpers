@@ -26,7 +26,7 @@ tv_source = "SatTV"               # the source you created
 # radio_source = "SatRadio"       # if you made one for radio
 ```
 
-`tv_source` and `radio_source` are the source's ID. That's normally the name you gave it. If the first run says it can't find the source, open the source in Channels DVR's web settings and copy the ID shown in the page address.
+`tv_source` and `radio_source` are the source's ID, which is the name you gave it in step 1. If a run says the source doesn't exist, check the spelling (and capitals) match.
 
 ## 3. Try it
 
@@ -39,6 +39,7 @@ Then look at **Guide** in Channels: your satellite channels appear with their li
 
 ## Good to know
 
-- **Each run also sets the source's options:** refresh every 24 hours, a limit of 8 streams at once, logos from the guide, and Channels' "ignore" option for channel numbers in the playlist. If you change these in Channels, the next run sets them back.
+- **Your source settings are left alone.** A run only swaps in the new channel list, keeping everything else you set for the source in Channels (stream limit, starting number, logos and so on), then asks Channels to reload it straight away instead of waiting for its next scheduled refresh.
+- **Channel numbers:** by default Channels numbers the channels itself, counting up from the source's starting number (e.g. 9000). To use the numbers from your channel list instead, add `channel_numbers = "list"` to the publisher. The run then tells Channels to prefer those numbers. To choose the numbers, see "Choose your channels" in the [README](../../README.md).
 - **No login needed** on a home network. If your Channels DVR does ask for one, copy the `SID` cookie from your browser while signed in. Put it in an environment variable, and add `sid_env = "CHANNELS_DVR_SID"` to both the guide and the publisher.
 - **Channels without a guide listing are left out**, and the run lists them. To match one by hand, see "A channel has no TV guide" in the [README](../../README.md#troubleshooting).
