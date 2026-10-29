@@ -1,11 +1,15 @@
 """DMS channel list helpers and curses-based interactive editor."""
 
 import curses
+from collections.abc import Callable
 
-from sat_to_ip.channels import ch_freq
+from sat_to_ip.octopus.client import OctopusChannel
+from sat_to_ip.octopus.selection import ch_freq
 
 
-def build_dms_entries(dms_channels: list[dict], available: list[dict]) -> tuple[list[dict], list[str], list[bool]]:
+def build_dms_entries(
+    dms_channels: list[OctopusChannel], available: list[OctopusChannel]
+) -> tuple[list[OctopusChannel], list[str], list[bool]]:
     """Return (channels, origin_labels, selected) sorted video-first then by name.
 
     origin_labels values: "DMS", "available"
@@ -20,12 +24,12 @@ def build_dms_entries(dms_channels: list[dict], available: list[dict]) -> tuple[
     return channels, origins, list(in_dms_flags)
 
 
-def apply_dms_selection(key: int, cursor: int, selected: list[bool], channels: list[dict]) -> None:
+def apply_dms_selection(key: int, cursor: int, selected: list[bool], channels: list[OctopusChannel]) -> None:
     """Mutate *selected* in-place for toggle / bulk-select keys."""
     if key == ord(" "):
         selected[cursor] = not selected[cursor]
         return
-    bulk = {
+    bulk: dict[int, Callable[[OctopusChannel], bool]] = {
         ord("a"): lambda _: True,
         ord("n"): lambda _: False,
         ord("v"): lambda ch: ch.get("type") == "video",
@@ -38,7 +42,7 @@ def apply_dms_selection(key: int, cursor: int, selected: list[bool], channels: l
 
 
 def handle_dms_key(
-    key: int, cursor: int, list_h: int, selected: list[bool], channels: list[dict]
+    key: int, cursor: int, list_h: int, selected: list[bool], channels: list[OctopusChannel]
 ) -> tuple[int, bool, bool]:
     """Process a keypress; return (new_cursor, save, cancel)."""
     if key in (ord("q"), 27):
@@ -58,8 +62,8 @@ def handle_dms_key(
 
 
 def dms_draw(
-    stdscr,
-    channels: list[dict],
+    stdscr: curses.window,
+    channels: list[OctopusChannel],
     origins: list[str],
     selected: list[bool],
     cursor: int,
@@ -111,7 +115,9 @@ def dms_draw(
     stdscr.refresh()
 
 
-def interactive_dms_editor(dms_channels: list[dict], available: list[dict]) -> list[dict] | None:
+def interactive_dms_editor(
+    dms_channels: list[OctopusChannel], available: list[OctopusChannel]
+) -> list[OctopusChannel] | None:
     """Curses-based interactive DMS channel selector.
 
     Shows all channels (DMS ones pre-checked, available ones unchecked).
@@ -123,9 +129,9 @@ def interactive_dms_editor(dms_channels: list[dict], available: list[dict]) -> l
       Enter       save            q/Esc  cancel
     """
     channels, origins, selected = build_dms_entries(dms_channels, available)
-    outcome: dict = {"result": None}
+    outcome: dict[str, list[OctopusChannel] | None] = {"result": None}
 
-    def _run(stdscr):
+    def _run(stdscr: curses.window) -> None:
         curses.curs_set(0)
         curses.start_color()
         curses.use_default_colors()
