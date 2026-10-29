@@ -90,6 +90,14 @@ def test_name_with_frequency_picks_the_right_one_within_tolerance():
     assert _match({"name": "BBC One HD", "frequency": 11000}) == [("BBC One HD@11000", [])]
 
 
+def test_an_entry_takes_one_channel_even_when_name_and_frequency_repeat():
+    twins = [ChannelRef("a", "BBC One NI HD", "tv", 10847.0), ChannelRef("b", "BBC One NI HD", "tv", 10847.0)]
+    once = specs_from_config([{"names": [{"name": "BBC One NI HD", "frequency": 10847}]}])
+    twice = specs_from_config([{"names": [{"name": "BBC One NI HD", "frequency": 10847}] * 2}])
+    assert [[c.key for c in found] for _, found in match_specs(once, twins)] == [["a"]]
+    assert [[c.key for c in found] for _, found in match_specs(twice, twins)] == [["a"], ["b"]]
+
+
 def test_rest_takes_what_is_left_of_its_kind():
     assert _match("ITV1 HD", {"rest": "tv"}, {"rest": "radio"}, {"rest": "all"}) == [
         ("ITV1 HD", ["k3"]),

@@ -107,14 +107,14 @@ def specs_from_config(blocks: Any) -> list[Spec] | None:
 def match_specs(specs: Sequence[Spec], channels: Sequence[ChannelRef]) -> list[tuple[Spec, list[ChannelRef]]]:
     """Each entry with the channels it selects, in order. A channel is only ever selected once.
 
-    A name takes the first match; a name with a frequency takes every match on that frequency; `rest`
-    takes every channel of that kind not already selected.
+    A name (with or without a frequency) takes the first match not already selected, so listing it twice
+    takes two channels of that name; `rest` takes every channel of that kind not already selected.
     """
     taken: set[str] = set()
     result = []
     for spec in specs:
         found = [ch for ch in channels if ch.key not in taken and spec.matches(ch)]
-        if spec.keyword is None and spec.frequency_mhz is None:
+        if spec.keyword is None:
             found = found[:1]
         taken.update(ch.key for ch in found)
         result.append((spec, found))
