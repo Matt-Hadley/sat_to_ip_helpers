@@ -1,62 +1,83 @@
-# Plex through Threadfin setup (once)
+# Plex (through Threadfin)
 
-Plex only talks to HDHomeRun-style tuners, so [Threadfin](https://github.com/Threadfin/Threadfin) sits in between: it reads the playlist and guide files this pipeline writes and presents them to Plex as an HDHomeRun. Live TV in Plex needs **Plex Pass**.
+**What you'll end up with:** your satellite channels in Plex's **Live TV & DVR**, with a 7-day TV guide. Live TV in Plex needs **Plex Pass**.
 
-Each run writes, atomically, into `output_dir`: `tv.m3u`, `radio.m3u` (header-only when empty) and `guide.xml` (the XMLTV feed filtered to the matched channels; only when a guide is set). Entries carry `tvg-id` (the XMLTV channel id), `tvg-name`, `tvg-chno` and `group-title` (`TV` / `Radio`).
+Plex can only use TV tuner boxes (HDHomeRun-style), not channel lists. [Threadfin](https://github.com/Threadfin/Threadfin) is a free app that bridges the gap: it reads the files sat-to-ip writes and shows itself to Plex as a tuner.
 
-## 1. Give the Threadfin container the files
+```mermaid
+flowchart LR
+    TOOL["sat-to-ip"] -- "writes channels + guide" --> FILES[("folder")]
+    FILES --> TF["Threadfin"]
+    TF -- "looks like a tuner" --> PLEX["Plex"]
+```
 
-Mount `output_dir` into the container, e.g. with Docker Compose:
+## 1. Run Threadfin and let it see the files
+
+Pick a folder on the computer that runs sat-to-ip, e.g. `/srv/threadfin/livetv`, and mount it into Threadfin. With Docker Compose:
 
 ```yaml
 services:
   threadfin:
     image: fyb3roptik/threadfin
     ports:
-      - "34400:34400"             # Threadfin's default port
+      - "34400:34400"
     volumes:
-      - /srv/threadfin/files:/livetv:ro
+      - /srv/threadfin/livetv:/livetv:ro
 ```
 
-The paths below (`/livetv/...`) are the container-side paths.
+Inside the container the files are then at `/livetv/tv.m3u`, `/livetv/radio.m3u` and `/livetv/guide.xml`.
 
-## 2. Playlist, XMLTV and mapping in Threadfin
+## 2. Set up Threadfin
 
-In Threadfin's web UI (`http://<host>:34400/web/`):
+Open Threadfin at `http://<your-server>:34400/web/`.
 
-1. **Playlist → New → M3U**: "File path or URL of the M3U" = `/livetv/tv.m3u`. Set "Tuner / Streams" to the number of streams your receiver can serve at once. Add `/livetv/radio.m3u` as a second playlist only if you want radio in Plex.
-2. **XMLTV → New**: file `/livetv/guide.xml`.
-3. **Mapping**: when Threadfin first sees a channel whose `tvg-id` matches a `<channel id>` in an XMLTV file, it maps and activates it on its own. Check the list once; channels without a match stay inactive. The channel number comes from `tvg-chno`.
-4. **Settings**: "Schedule for updating (Playlist, XMLTV, Backup)" decides when Threadfin re-reads the files by itself (e.g. `0400`).
-
-### Optional: update straight after each run
-
-Threadfin has an API (`POST /api/`, commands `update.xmltv`, `update.m3u`, …). To use it:
-
-- **Settings → API Interface**: on.
-- If you also turn on **API Authentication** (in the authentication settings; check where in your version), create a Threadfin user with **API Access** and give the publisher its `username` and `password_env`.
-
-The publisher then sends `update.xmltv` (when a guide is written) and `update.m3u`, which rebuilds Threadfin's channel list and maps new channels.
+1. **Playlist → New → M3U:** enter `/livetv/tv.m3u`. Set **Tuner / Streams** to how many channels your Octopus can stream at once. Add `/livetv/radio.m3u` as a second playlist only if you want radio in Plex.
+2. **XMLTV → New:** enter `/livetv/guide.xml`.
+3. **Mapping:** channels that match the guide switch themselves on. Check the list once, since anything without a match stays off.
+4. **Settings → Schedule for updating:** choose when Threadfin re-reads the files, e.g. `0500`, an hour after your weekly run.
 
 ## 3. Add Threadfin to Plex
 
-Plex Web → **Settings → Live TV & DVR → Set up Plex DVR** (check the wording in your version). If Threadfin isn't found automatically, enter its address by hand, `<host>:34400`. For the guide, choose XMLTV and give Threadfin's guide URL, `http://<host>:34400/xmltv/threadfin.xml`, then confirm the channel list.
+In Plex, go to **Settings → Live TV & DVR → Set up Plex DVR**. Wording varies by version.
 
-## 4. Configure the publisher
+1. If Threadfin isn't found automatically, enter its address: `<your-server>:34400`.
+2. For the guide, choose **XMLTV** and enter `http://<your-server>:34400/xmltv/threadfin.xml`.
+3. Confirm the channel list.
+
+## 4. Add it to your config
 
 ```toml
 [guides.freeview]
 type = "xmltv"
-url = "https://example.org/epg.xml.gz"
+url = "https://raw.githubusercontent.com/dp247/Freeview-EPG/master/epg.xml"
 mappings = "freeview-epg"
 
 [[publishers]]
 type = "threadfin"
-output_dir = "/srv/threadfin/files"     # host path mounted into the container
-guide = "freeview"                      # optional; without it every channel is written, with no guide.xml
-# api_url = "http://localhost:34400"    # optional: update Threadfin right after writing
-# username = "sat-to-ip"                # only with Threadfin's API Authentication on
-# password_env = "THREADFIN_PASSWORD"
+output_dir = "/srv/threadfin/livetv"    # the folder from step 1 (its path on this computer)
+guide = "freeview"
 ```
 
-Check it with `sat-to-ip check-config -c sat-to-ip.toml`, then `sat-to-ip run -c sat-to-ip.toml --dry-run` (writes to a temp directory and calls nothing).
+If you also use Jellyfin, give it a **different** folder.
+
+## 5. Try it
+
+```bash
+sat-to-ip run -c sat-to-ip.toml --dry-run
+sat-to-ip run -c sat-to-ip.toml
+```
+
+## Optional: update Threadfin straight after each run
+
+Instead of waiting for Threadfin's schedule, sat-to-ip can tell it to reload:
+
+1. In Threadfin, turn on **Settings → API Interface**.
+2. Add `api_url = "http://localhost:34400"` to the publisher.
+3. If you also turn on Threadfin's **API Authentication**, create a Threadfin user with API access and add:
+
+   ```toml
+   username = "sat-to-ip"
+   password_env = "THREADFIN_PASSWORD"
+   ```
+
+Note that this makes Threadfin reload *all* its playlists, not just these.
