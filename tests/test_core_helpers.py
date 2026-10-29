@@ -10,7 +10,7 @@ import requests
 from sat_to_ip import checks, files, http, m3u, mappings
 from sat_to_ip.exceptions import CheckError, ConfigError
 from sat_to_ip.model import ChannelRef, GuideMatch, GuideRef, Lineup, SelectionPlan
-from sat_to_ip.names import normalize_name
+from sat_to_ip.names import normalize_name, slot_name
 from tests.fakes import channel
 
 # model ------------------------------------------------------------------------------------------
@@ -188,6 +188,15 @@ def test_adapter_applies_default_timeout_only_when_unset():
 
 
 # names / mappings / selection -------------------------------------------------------------------
+
+
+def test_shared_slot_channels_are_kept_under_their_main_name():
+    assert [slot_name(n) for n in ("CBBC HD", "CBeebies", "BBC Three HD", "5DRAMA")] == [
+        "BBC Three HD",
+        "BBC Four",
+        "BBC Three HD",
+        "5DRAMA",
+    ]
 
 
 def test_normalize_name():

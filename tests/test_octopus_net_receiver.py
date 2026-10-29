@@ -250,6 +250,40 @@ def test_refresh_follows_a_rename_and_takes_the_scans_current_details(rx, caplog
     assert rx._client.start_scan.call_count == 1  # nothing was lost
 
 
+@pytest.mark.parametrize(
+    "saved_name, scanned_name, kept, logged",
+    [
+        ("BBC Three HD", "CBBC HD", "BBC Three HD", False),  # a daytime scan: not a rename
+        ("CBBC HD", "BBC Three HD", "BBC Three HD", True),  # saved during the day: settles on the main name
+        ("CBBC HD", "CBBC HD", "BBC Three HD", True),
+    ],
+)
+def test_refresh_keeps_shared_slot_channels_under_their_main_name(rx, caplog, saved_name, scanned_name, kept, logged):
+    caplog.set_level(logging.INFO)
+    saved = [_moved(1, saved_name, 10847, 6952)]
+    rx._client = _client(dms=saved)
+    rx._client.get_available_channels.side_effect = [saved, [_moved(1, scanned_name, 10847, 6952)]]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=10847)])
+    assert [r["name"] for r in rx._client.save_channels.call_args.args[0]] == [kept]
+    assert ("Renamed" in caplog.text) == logged
+
+
+def test_a_moved_shared_slot_channel_is_retuned_under_its_main_name(rx):
+    saved = [_moved(1, "BBC Four HD", 10818, 10366)]
+    rx._client = _client(dms=saved)
+    rx._client.get_available_channels.side_effect = [saved, [_moved(9, "CBeebies HD", 10817, 10366)]]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=10817)])
+    assert [(r["serviceid"], r["name"]) for r in rx._client.save_channels.call_args.args[0]] == [(9, "BBC Four HD")]
+
+
+def test_a_shared_slot_channel_picked_during_the_day_is_saved_under_its_main_name(rx):
+    rx._client = _client(dms=[], available=[_moved(3, "CBBC HD", 10847, 6952)])
+    _, found = rx.selection_candidates()
+    assert [r.name for r in found] == ["BBC Three HD"]
+    rx.save_selection(found)
+    assert [r["name"] for r in rx._client.save_channels.call_args.args[0]] == ["BBC Three HD"]
+
+
 def test_channels_carry_their_dvb_service_id(rx):
     rx._client = _client(dms=[{**_ch(1, "5DRAMA", freq=11305), "dvb_serviceid": 2105}, _ch(2, "No ID")])
     rx._client.download_m3u.return_value = "#EXTM3U\n#EXTINF:-1,5DRAMA\nhttp://o/1\n#EXTINF:-1,No ID\nhttp://o/2\n"

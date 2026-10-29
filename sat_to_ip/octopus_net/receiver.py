@@ -13,6 +13,7 @@ from sat_to_ip.config import Section
 from sat_to_ip.exceptions import IntegrationError
 from sat_to_ip.kingofsat.client import KingOfSatClient
 from sat_to_ip.model import Channel, ChannelRef, Kind, Lineup
+from sat_to_ip.names import slot_name
 from sat_to_ip.octopus_net.channels import ch_freq, channel_key, log_scan_diff, mhz
 from sat_to_ip.octopus_net.client import OctopusChannel, OctopusClient
 from sat_to_ip.octopus_net.transponders import build_upload_payload, format_source
@@ -30,7 +31,13 @@ def _service_id(ch: OctopusChannel) -> str | None:
 
 
 def _ref(ch: OctopusChannel) -> ChannelRef:
-    return ChannelRef(channel_key(ch), ch.get("name", ""), _kind(ch), mhz(ch_freq(ch)), _service_id(ch))
+    return ChannelRef(channel_key(ch), slot_name(ch.get("name", "")), _kind(ch), mhz(ch_freq(ch)), _service_id(ch))
+
+
+def _slot_named(ch: OctopusChannel) -> OctopusChannel:
+    """The record under the name it's kept by (see names.SHARED_SLOTS)."""
+    name = ch.get("name")
+    return {**ch, "name": slot_name(name)} if name is not None and slot_name(name) != name else ch
 
 
 def _log_tuners(client: OctopusClient) -> None:
@@ -65,7 +72,7 @@ def _candidates(ch: OctopusChannel, scanned: list[OctopusChannel], found: set[st
     return [
         new
         for new in scanned
-        if new.get("name") == ch.get("name")
+        if slot_name(new.get("name", "")) == slot_name(ch.get("name", ""))
         and new.get("dvb_serviceid") == ch.get("dvb_serviceid")
         and mhz(ch_freq(new)) is not None
     ]
@@ -89,6 +96,7 @@ def _retune_moved(saved: list[OctopusChannel], scanned: list[OctopusChannel]) ->
     for ch in saved:
         fresh = found.get(str(ch.get("serviceid")))
         if fresh is not None:  # found where it was: take the scan's current details, its name included
+            fresh = _slot_named(fresh)
             if fresh.get("name") != ch.get("name"):
                 logger.info(f"   Renamed {ch.get('name')!r} → {fresh.get('name')!r}")
             records.append(fresh)
@@ -98,7 +106,7 @@ def _retune_moved(saved: list[OctopusChannel], scanned: list[OctopusChannel]) ->
             old_mhz = mhz(ch_freq(ch))
             if len(same) == 1:
                 logger.info(f"   Retuning {ch.get('name')!r}: {old_mhz:g} → {mhz(ch_freq(same[0])):g} MHz")
-                ch = same[0]
+                ch = _slot_named(same[0])
             else:
                 logger.warning(
                     f"   {ch.get('name')!r} is saved on {old_mhz:g} MHz, but the scan didn't find it there"
@@ -207,7 +215,7 @@ class OctopusNetReceiver:
             raise IntegrationError(f"Octopus NET: channel(s) not found, nothing saved: {', '.join(missing)}")
         records = []
         for i, ref in enumerate(channels):
-            record = self._known[ref.key].copy()
+            record = _slot_named(self._known[ref.key]).copy()
             record["position"] = i
             records.append(record)
         self._octopus().save_channels(records)
