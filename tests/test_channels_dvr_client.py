@@ -1,6 +1,10 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
+import requests
 
 from sat_to_ip.channels_dvr.client import ChannelsDVRClient
+from sat_to_ip.exceptions import IntegrationError
 
 
 def _client(base_url: str = "http://dvr:8089") -> tuple[ChannelsDVRClient, MagicMock]:
@@ -35,6 +39,35 @@ def test_get_gracenote_unwraps_outer_list():
     session.get.return_value.json.return_value = [inner]  # nested
     result = client.get_gracenote("GBR-1000193-DEFAULT")
     assert result == inner
+
+
+def test_get_gracenote_http_error_is_integration_error():
+    client, session = _client()
+    session.get.return_value.raise_for_status.side_effect = requests.HTTPError("404 Not Found")
+    with pytest.raises(IntegrationError, match="can't fetch station list 'X'.*404"):
+        client.get_gracenote("X")
+
+
+def test_get_gracenote_connection_error_is_integration_error():
+    client, session = _client()
+    session.get.side_effect = requests.ConnectionError("refused")
+    with pytest.raises(IntegrationError, match="refused"):
+        client.get_gracenote("X")
+
+
+def test_get_gracenote_bad_json_is_integration_error():
+    client, session = _client()
+    session.get.return_value.json.side_effect = ValueError("Expecting value")
+    with pytest.raises(IntegrationError, match="not JSON"):
+        client.get_gracenote("X")
+
+
+@pytest.mark.parametrize("data", [{"error": "nope"}, ["BBC1NWHD"], None])
+def test_get_gracenote_unexpected_shape_is_integration_error(data):
+    client, session = _client()
+    session.get.return_value.json.return_value = data
+    with pytest.raises(IntegrationError, match="not a list of stations"):
+        client.get_gracenote("X")
 
 
 # ---------------------------------------------------------------------------
@@ -78,21 +111,31 @@ def test_update_m3u_source_custom_options():
     assert payload["limit"] == "4"
 
 
+def test_update_m3u_source_http_error_is_integration_error():
+    client, session = _client()
+    session.put.return_value.raise_for_status.side_effect = requests.HTTPError("500")
+    with pytest.raises(IntegrationError, match="can't update source 'src'"):
+        client.update_m3u_source("src", "Source", "#EXTM3U\n")
+
+
 # ---------------------------------------------------------------------------
-# with_sid classmethod
+# connect classmethod
 # ---------------------------------------------------------------------------
 
 
-def test_with_sid_sets_correct_base_url():
-    client = ChannelsDVRClient.with_sid("myserver", 8089, "abc123")
+def test_connect_keeps_base_url_and_uses_shared_session():
+    with patch("sat_to_ip.http.session", return_value=requests.Session()) as make:
+        client = ChannelsDVRClient.connect("http://myserver:8089/", "abc123")
+    make.assert_called_once_with()
     assert client.base_url == "http://myserver:8089"
 
 
-def test_with_sid_sets_sid_cookie():
-    client = ChannelsDVRClient.with_sid("myserver", 8089, "abc123")
+def test_connect_sets_sid_cookie():
+    client = ChannelsDVRClient.connect("http://myserver:8089", "abc123")
     assert client.session.cookies.get("SID") == "abc123"
+    assert client.session.get_adapter("http://myserver:8089").timeout == 30
 
 
-def test_with_sid_without_sid_sets_no_cookie():
-    client = ChannelsDVRClient.with_sid("myserver", 8089, None)
+def test_connect_without_sid_sets_no_cookie():
+    client = ChannelsDVRClient.connect("http://myserver:8089")
     assert "SID" not in client.session.cookies

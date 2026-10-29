@@ -1,0 +1,9 @@
+#EXTM3U
+#EXTINF:-1 channel-id="BBC1NWHD" tvc-guide-stationid="10001" tvg-name="BBC One North West HD",BBC One NW HD
+rtsp://octopus:554/?src=1&freq=10847&pol=v&msys=dvbs2&sr=23000&pids=0,6301
+#EXTINF:-1 channel-id="ITV1GHD" tvc-guide-stationid="10002" tvg-name="ITV1 Granada HD",ITV1GHD
+rtsp://octopus:554/?src=1&freq=11097&pol=v&msys=dvbs2&sr=23000&pids=0,10060
+#EXTINF:-1 channel-id="CH5HD" tvc-guide-stationid="10005" tvg-name="Channel 5 HD",5 HD
+rtsp://octopus:554/?src=1&freq=10964&pol=h&msys=dvbs2&sr=23000&pids=0,8500
+#EXTINF:-1 channel-id="QUEST" tvc-guide-stationid="10006" tvg-name="Quest",Quest
+rtsp://octopus:554/?src=1&freq=11426&pol=h&msys=dvbs2&sr=27500&pids=0,8030

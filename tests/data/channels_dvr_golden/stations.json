@@ -1,0 +1,10 @@
+[
+  {"callSign": "BBC1NWHD", "stationId": "10001", "name": "BBC One North West HD", "channel": "1"},
+  {"callSign": "ITV1GHD", "stationId": "10002", "name": "ITV1 Granada HD", "channel": "3"},
+  {"callSign": "CH4HD", "stationId": "10004", "name": "Channel 4 HD", "channel": "4"},
+  {"callSign": "CH5HD", "stationId": "10005", "name": "Channel 5 HD", "channel": "5"},
+  {"callSign": "QUEST", "stationId": "10006", "name": "", "channel": "37"},
+  {"callSign": "BBCR1", "stationId": "20001", "name": "BBC Radio 1", "channel": "700"},
+  {"callSign": "BBCR4", "stationId": "20004", "name": "BBC Radio 4", "channel": "704"},
+  {"callSign": "", "stationId": "99999", "name": "No Call Sign", "channel": ""}
+]
