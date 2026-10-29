@@ -112,6 +112,22 @@ def test_download_m3u_returns_response_text():
     assert result == "#EXTM3U\n"
 
 
+def test_get_tuner_status_reads_tuner_list():
+    client, session = _client()
+    # From a real Octopus NET Pro (idle), trimmed to two inputs
+    session.request.return_value.json.return_value = {
+        "TunerList": [
+            {"Input": "1", "Status": "Inactive", "Lock": False, "Strength": -39020, "SNR": 0, "Quality": 0, "Level": 0},
+            {"Input": "2", "Status": "Inactive", "Lock": False, "Strength": -38390, "SNR": 16310, "Quality": 0},
+        ]
+    }
+    tuners = client.get_tuner_status()
+    assert [t["Input"] for t in tuners] == ["1", "2"]
+    session.request.assert_called_once_with(
+        "GET", "http://octopus/octoserve/tunerstatus.json", verify=False, timeout=30
+    )
+
+
 # ---------------------------------------------------------------------------
 # poll_scan_until_complete
 # ---------------------------------------------------------------------------

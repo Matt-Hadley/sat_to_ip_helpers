@@ -182,3 +182,9 @@ class OctopusClient:
     def download_m3u(self) -> str:
         """Download the M3U playlist for the current DMS channel list."""
         return self._call("GET", "/channels/m3u", "downloading its M3U").text
+
+    def get_tuner_status(self) -> list[dict[str, Any]]:
+        """Each input's Lock, Strength (0.001 dBm) and SNR (0.001 dB), as octoserve reports them."""
+        doing = "reading its tuner status"
+        data = self._json(self._call("GET", "/octoserve/tunerstatus.json", doing), doing)
+        return cast(list[dict[str, Any]], data.get("TunerList", []) if isinstance(data, dict) else [])

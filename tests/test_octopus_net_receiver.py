@@ -145,6 +145,26 @@ def test_refresh_uploads_scans_and_logs_diff(rx, caplog):
     rx._client.start_scan.assert_called_once_with(["28.2E"])
     rx._client.poll_scan_until_complete.assert_called_once_with(interval=7, timeout=99)
     assert "+ New" in caplog.text
+    rx._client.get_tuner_status.assert_not_called()
+
+
+def test_refresh_logs_tuner_status_when_the_scan_finds_nothing(rx, caplog):
+    rx._client.get_available_channels.side_effect = [[], []]
+    rx._client.get_tuner_status.return_value = [
+        {"Input": "1", "Lock": False, "Strength": -39020, "SNR": 0},
+        {"Input": "2", "Lock": True, "Strength": -38390, "SNR": 16310},
+    ]
+    _refresh(rx, lambda pos, channel_filter, cl: [_transponder()])
+    assert "the scan found no channels" in caplog.text
+    assert "Input 1: no lock, strength -39.0 dBm, SNR 0.0 dB" in caplog.text
+    assert "Input 2: locked, strength -38.4 dBm, SNR 16.3 dB" in caplog.text
+
+
+def test_refresh_carries_on_when_tuner_status_fails_after_an_empty_scan(rx, caplog):
+    rx._client.get_available_channels.side_effect = [[], []]
+    rx._client.get_tuner_status.side_effect = IntegrationError("HTTP 500")
+    _refresh(rx, lambda pos, channel_filter, cl: [_transponder()])
+    assert "tuner status couldn't be read: HTTP 500" in caplog.text
 
 
 def _moved(sid, name, freq, dvb, kind="video"):

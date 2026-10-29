@@ -25,6 +25,21 @@ def _ref(ch: OctopusChannel) -> ChannelRef:
     return ChannelRef(channel_key(ch), ch.get("name", ""), _kind(ch), mhz(ch_freq(ch)))
 
 
+def _log_tuners(client: OctopusClient) -> None:
+    """After an empty scan, show each input's signal so a dead dish or cable stands out from a bad transponder list."""
+    try:
+        tuners = client.get_tuner_status()
+        lines = [
+            f"Input {t.get('Input', '?')}: {'locked' if t.get('Lock') else 'no lock'}, "
+            f"strength {int(t.get('Strength', 0)) / 1000:.1f} dBm, SNR {int(t.get('SNR', 0)) / 1000:.1f} dB"
+            for t in tuners
+        ]
+    except (IntegrationError, TypeError, ValueError) as exc:  # only explains the empty scan; never fails the run
+        logger.warning(f"Octopus NET: the scan found no channels, and its tuner status couldn't be read: {exc}")
+        return
+    logger.warning("Octopus NET: the scan found no channels. Tuner status:\n   " + "\n   ".join(lines or ["(none)"]))
+
+
 @dataclass
 class OctopusNetReceiver:
     host: str
@@ -76,6 +91,8 @@ class OctopusNetReceiver:
         client.poll_scan_until_complete(interval=self.scan_poll_interval, timeout=self.scan_timeout)
         after = client.get_available_channels([])
         logger.info(f"   Post-scan: {len(after)} channels found")
+        if not after:
+            _log_tuners(client)
         log_scan_diff(before, after)
         if len(sources) == len(self.positions):  # with a position missing, its channels would all look moved
             self._retune_moved(client, after, live_mhz)
