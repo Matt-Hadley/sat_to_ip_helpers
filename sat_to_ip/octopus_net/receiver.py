@@ -66,7 +66,6 @@ class OctopusNetReceiver:
     def refresh(self) -> None:
         kos = KingOfSatClient.create()
         sources = []
-        live_mhz: list[float] = []  # every transponder frequency KingOfSat lists now
         for pos in self.positions:
             try:
                 transponders = kos.fetch_transponders(
@@ -79,7 +78,6 @@ class OctopusNetReceiver:
                 logger.warning(f"KingOfSat: no transponders found for {pos}")
                 continue
             sources.append(format_source(transponders, pos, transponders[0].satellite))
-            live_mhz += [t.frequency for t in transponders]
         if not sources:
             raise IntegrationError(f"KingOfSat: no transponders for any position ({', '.join(self.positions)})")
 
@@ -95,28 +93,27 @@ class OctopusNetReceiver:
             _log_tuners(client)
         log_scan_diff(before, after)
         if len(sources) == len(self.positions):  # with a position missing, its channels would all look moved
-            self._retune_moved(client, after, live_mhz)
+            self._retune_moved(client, after)
 
-    def _retune_moved(self, client: OctopusClient, scanned: list[OctopusChannel], live_mhz: list[float]) -> None:
-        """Swap a saved channel whose frequency KingOfSat no longer lists for the same channel the scan found.
+    def _retune_moved(self, client: OctopusClient, scanned: list[OctopusChannel]) -> None:
+        """Swap a saved channel the scan no longer found for the same channel the scan found elsewhere.
 
         The Octopus NET's serviceid includes the frequency, so a channel that moved comes back from the scan
-        as a new record: the same name and DVB service ID, on a live frequency. Only an unambiguous match is used.
+        as a new record: the same name and DVB service ID, on another frequency. Only an unambiguous match is
+        used. KingOfSat can still list the old frequency (GB News left 11670 while it stayed listed), so what
+        counts is what the scan found, not what KingOfSat lists.
         """
-
-        def live(freq: float | None) -> bool:
-            return freq is not None and any(abs(freq - f) < 1 for f in live_mhz)
-
+        found = {str(ch.get("serviceid")) for ch in scanned}
         records, moved = [], 0
         for i, saved in enumerate(client.get_dms_channels()):
             old_mhz = mhz(ch_freq(saved))
-            if old_mhz is not None and not live(old_mhz):
+            if old_mhz is not None and str(saved.get("serviceid")) not in found:
                 same = [
                     ch
                     for ch in scanned
                     if ch.get("name") == saved.get("name")
                     and ch.get("dvb_serviceid") == saved.get("dvb_serviceid")
-                    and live(mhz(ch_freq(ch)))
+                    and mhz(ch_freq(ch)) is not None
                 ]
                 if len(same) == 1:
                     logger.info(f"   Retuning {saved.get('name')!r}: {old_mhz:g} → {mhz(ch_freq(same[0])):g} MHz")

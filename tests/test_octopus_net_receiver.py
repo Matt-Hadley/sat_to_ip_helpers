@@ -174,32 +174,39 @@ def _moved(sid, name, freq, dvb, kind="video"):
 SAVED = [_moved(1, "BBC One HD", 10773, 6301), _moved(2, "Radio 4", 11954, 6401, "audio")]
 
 
-def test_refresh_retunes_a_saved_channel_whose_frequency_is_gone(rx, caplog):
+@pytest.mark.parametrize(
+    "live",
+    [
+        [10847, 11954, 11000],  # KingOfSat no longer lists 10773
+        [10773, 10847, 11954, 11000],  # it still lists 10773, but the scan found nothing there (GB News, 2026-10-29)
+    ],
+)
+def test_refresh_retunes_a_saved_channel_the_scan_found_elsewhere(rx, caplog, live):
     caplog.set_level(logging.INFO)
     rx._client = _client(dms=SAVED)
-    # BBC One HD moved: a new serviceid on 10847 (KingOfSat no longer lists 10773); Radio 4 didn't
-    scanned = [*SAVED, _moved(9, "BBC One HD", 10847, 6301), _moved(8, "BBC One HD", 11000, 9999)]
+    # BBC One HD moved: a new serviceid on 10847, none on 10773; Radio 4 didn't move
+    scanned = [SAVED[1], _moved(9, "BBC One HD", 10847, 6301), _moved(8, "BBC One HD", 11000, 9999)]
     rx._client.get_available_channels.side_effect = [SAVED, scanned]
-    _refresh(rx, lambda pos, **_: [_transponder(freq=10847), _transponder(freq=11954), _transponder(freq=11000)])
+    _refresh(rx, lambda pos, **_: [_transponder(freq=f) for f in live])
     records = rx._client.save_channels.call_args.args[0]
     assert [(r["serviceid"], r["frequency"], r["position"]) for r in records] == [(9, 10847, 0), (2, 11954, 1)]
     assert "Retuning 'BBC One HD': 10773 → 10847 MHz" in caplog.text
 
 
 @pytest.mark.parametrize(
-    "scanned, live",
+    "scanned",
     [
-        ([], [10773, 11954.25]),  # every saved frequency is still listed (to within 1 MHz)
-        ([_moved(9, "BBC One HD", 10847, 6301)], [10773, 11954, 10847]),  # moved copy, but the old one still airs
-        ([_moved(9, "BBC One HD", 10847, 1234)], [10847, 11954]),  # same name, different DVB service ID
-        ([_moved(9, "BBC One HD", 10847, 6301), _moved(8, "BBC One HD", 10850, 6301)], [10847, 10850, 11954]),
-        ([_moved(9, "BBC One HD", 12000, 6301)], [10847, 11954]),  # found only on a frequency KingOfSat doesn't list
+        [*SAVED],  # both still found where they were saved
+        [*SAVED, _moved(9, "BBC One HD", 10847, 6301)],  # a copy elsewhere, but the saved one still airs
+        [SAVED[1], _moved(9, "BBC One HD", 10847, 1234)],  # same name, different DVB service ID
+        [SAVED[1], _moved(9, "BBC One HD", 10847, 6301), _moved(8, "BBC One HD", 10850, 6301)],  # two candidates
+        [SAVED[1], _moved(9, "BBC One HD", "", 6301)],  # a candidate without a frequency
     ],
 )
-def test_refresh_saves_nothing_without_one_clear_replacement(rx, scanned, live):
+def test_refresh_saves_nothing_without_one_clear_replacement(rx, scanned):
     rx._client = _client(dms=SAVED)
-    rx._client.get_available_channels.side_effect = [SAVED, [*SAVED, *scanned]]
-    _refresh(rx, lambda pos, **_: [_transponder(freq=f) for f in live])
+    rx._client.get_available_channels.side_effect = [SAVED, scanned]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=f) for f in (10773, 10847, 10850, 11954)])
     rx._client.save_channels.assert_not_called()
 
 
