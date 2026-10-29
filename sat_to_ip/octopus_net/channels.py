@@ -2,6 +2,7 @@
 
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 
 from sat_to_ip.octopus_net.client import OctopusChannel
 
@@ -12,12 +13,24 @@ def ch_freq(ch: OctopusChannel) -> int | float | str | None:
     return ch.get("frequency") or ch.get("freq")
 
 
+def mhz(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def channel_key(ch: OctopusChannel) -> str:
-    """The stable Channel.key / ChannelRef.key for an Octopus NET channel."""
+    """The Channel.key / ChannelRef.key for an Octopus NET channel: service ID and frequency.
+
+    Service IDs are only unique per transponder, so the frequency (whole MHz, however the record writes it)
+    tells apart two channels that share one.
+    """
     sid = ch.get("serviceid")
-    if sid is not None and sid != "":
-        return f"octopus_net:{sid}"
-    return f"octopus_net:{ch.get('name', '')}@{ch_freq(ch)}"
+    if sid is None or sid == "":
+        return f"octopus_net:{ch.get('name', '')}@{ch_freq(ch)}"
+    freq = mhz(ch_freq(ch))
+    return f"octopus_net:{sid}" + (f"@{round(freq)}" if freq is not None else "")
 
 
 @dataclass

@@ -78,9 +78,9 @@ def test_handle_key(key, cursor, expected):
 
 def test_draw_renders_rows_and_footer(no_curses_init):
     stdscr = _screen()
-    draw(stdscr, CHANNELS, ["saved", "found", "found"], [True, True, False], 1, 0)
+    draw(stdscr, CHANNELS, ["listed", "found", "found"], [True, True, False], 1, 0)
     text = "\n".join(str(c.args[2]) for c in stdscr.addstr.call_args_list)
-    assert "[x] TV  BBC One HD" in text and "10773 MHz  saved" in text
+    assert "[x] TV  BBC One HD" in text and "10773 MHz  listed" in text
     assert "R   Radio 4" in text and "11954.2 MHz" in text
     assert "[ ] TV  Mystery" in text and "? MHz" in text
     assert "Selected: 2/3    TV: 1    Radio: 1" in text
@@ -91,7 +91,7 @@ def test_draw_tolerates_tiny_terminal(no_curses_init):
     stdscr = _screen(size=(5, 20))
     # Writing to the last cell of a curses window raises; every write after the header must survive that
     stdscr.addstr.side_effect = [None] + [curses.error] * 10
-    draw(stdscr, CHANNELS, ["saved"] * 3, [False] * 3, 0, 0)
+    draw(stdscr, CHANNELS, ["listed"] * 3, [False] * 3, 0, 0)
 
 
 def _run_editor(stdscr, saved, available):
@@ -128,4 +128,4 @@ def test_build_entries_ticks_saved_and_sorts_tv_first():
     available = [ChannelRef("b", "BBC One HD")]
     channels, origins, selected = build_entries(saved, available)
     assert [c.name for c in channels] == ["BBC One HD", "Radio 1"]
-    assert origins == ["found", "saved"] and selected == [False, True]
+    assert origins == ["found", "listed"] and selected == [False, True]

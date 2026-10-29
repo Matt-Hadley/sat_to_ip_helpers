@@ -4,25 +4,17 @@ and its M3U of stream URLs."""
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
 
 from sat_to_ip import m3u
 from sat_to_ip.config import Section
 from sat_to_ip.exceptions import IntegrationError
 from sat_to_ip.kingofsat.client import KingOfSatClient
 from sat_to_ip.model import Channel, ChannelRef, Kind, Lineup
-from sat_to_ip.octopus_net.channels import ch_freq, channel_key, log_scan_diff
+from sat_to_ip.octopus_net.channels import ch_freq, channel_key, log_scan_diff, mhz
 from sat_to_ip.octopus_net.client import OctopusChannel, OctopusClient
 from sat_to_ip.octopus_net.transponders import build_upload_payload, format_source
 
 logger = logging.getLogger(__name__)
-
-
-def _mhz(value: Any) -> float | None:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _kind(ch: OctopusChannel) -> Kind:
@@ -30,7 +22,7 @@ def _kind(ch: OctopusChannel) -> Kind:
 
 
 def _ref(ch: OctopusChannel) -> ChannelRef:
-    return ChannelRef(channel_key(ch), ch.get("name", ""), _kind(ch), _mhz(ch_freq(ch)))
+    return ChannelRef(channel_key(ch), ch.get("name", ""), _kind(ch), mhz(ch_freq(ch)))
 
 
 @dataclass
@@ -99,8 +91,9 @@ class OctopusNetReceiver:
         for i, saved in enumerate(client.get_dms_channels()):
             found = by_sid.get(str(saved.get("serviceid")), [])
             new = found[0] if len(found) == 1 else None
-            old_mhz, new_mhz = _mhz(ch_freq(saved)), _mhz(ch_freq(new)) if new else None
-            if new and new_mhz is not None and new_mhz != old_mhz and new.get("name") == saved.get("name"):
+            old_mhz, new_mhz = mhz(ch_freq(saved)), mhz(ch_freq(new)) if new else None
+            moved_far = new_mhz is not None and old_mhz is not None and abs(new_mhz - old_mhz) >= 1
+            if new and moved_far and new.get("name") == saved.get("name"):
                 logger.info(f"   Retuning {saved.get('name')!r}: {old_mhz} → {new_mhz} MHz")
                 saved, moved = new.copy(), moved + 1
             saved["position"] = i
@@ -114,7 +107,14 @@ class OctopusNetReceiver:
         """(DMS channels, scanned channels not in the DMS), live; remembered for save_selection."""
         client = self._octopus()
         dms = client.get_dms_channels()
-        available = client.get_available_channels([str(ch["serviceid"]) for ch in dms if "serviceid" in ch])
+        saved = {channel_key(ch) for ch in dms}
+        # a saved record without a frequency can't be told apart from a scanned one: hide its service ID
+        no_freq = {str(ch.get("serviceid")) for ch in dms if mhz(ch_freq(ch)) is None}
+        available = [
+            ch
+            for ch in client.get_available_channels([])
+            if channel_key(ch) not in saved and str(ch.get("serviceid")) not in no_freq
+        ]
         self._known = {channel_key(ch): ch for ch in dms + available}
         return dms, available
 
@@ -158,7 +158,7 @@ class OctopusNetReceiver:
                     name=name,
                     kind=_kind(ch),
                     stream_url=entries.pop(0).url,
-                    frequency_mhz=_mhz(ch_freq(ch)),
+                    frequency_mhz=mhz(ch_freq(ch)),
                 )
             )
         return Lineup(tuple(channels))

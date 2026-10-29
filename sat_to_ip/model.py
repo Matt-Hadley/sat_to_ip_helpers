@@ -11,7 +11,7 @@ Kind = Literal["tv", "radio"]
 class Channel:
     """One channel a receiver can stream.
 
-    key:    stable and unique per receiver (e.g. "octopus_net:10301"); everything else matches on it.
+    key:    stable and unique per receiver (e.g. "octopus_net:10301@10773"); everything else matches on it.
     number: the channel number. Receivers leave it at 0; the pipeline assigns it from the channel list.
     """
 

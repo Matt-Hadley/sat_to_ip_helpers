@@ -163,6 +163,7 @@ def test_refresh_retunes_saved_channels_the_scan_found_on_a_new_frequency(rx, ca
         [_ch(1, "BBC One HD"), _ch(2, "Radio 4", "audio", 11954)],  # nothing moved
         [_ch(1, "Some Other Channel", freq=10847)],  # same service ID, different channel
         [_ch(1, "BBC One HD", freq="?")],  # no usable frequency
+        [_ch(1, "BBC One HD", freq=10773.25), _ch(2, "Radio 4", "audio", 11954)],  # same transponder, written finer
     ],
 )
 def test_refresh_saves_nothing_when_no_saved_channel_clearly_moved(rx, scanned):
@@ -203,11 +204,27 @@ def _keys(refs):
 def test_candidates_are_saved_then_found_with_kind_and_frequency(rx):
     saved, found = rx.selection_candidates()
     assert saved == [
-        ChannelRef("octopus_net:1", "BBC One HD", "tv", 10773.0),
-        ChannelRef("octopus_net:2", "Radio 4", "radio", 11954.0),
+        ChannelRef("octopus_net:1@10773", "BBC One HD", "tv", 10773.0),
+        ChannelRef("octopus_net:2@11954", "Radio 4", "radio", 11954.0),
     ]
-    assert _keys(found) == ["octopus_net:3", "octopus_net:4", "octopus_net:5"]
-    rx._client.get_available_channels.assert_called_with(["1", "2"])
+    assert _keys(found) == ["octopus_net:3@11386", "octopus_net:4@10847", "octopus_net:5@10773"]
+
+
+def test_channels_sharing_a_service_id_on_different_frequencies_stay_apart():
+    dms = [_ch(1, "BBC One HD"), _ch(1, "Other TV", freq=12000)]
+    scanned = [_ch(1, "BBC One HD", freq="10773.0"), _ch(1, "Third TV", freq=11500)]  # the first is already saved
+    rx = OctopusNetReceiver(host="octo", password="pw")
+    rx._client = _client(dms=dms, available=scanned)
+    saved, found = rx.selection_candidates()
+    assert _keys(saved) == ["octopus_net:1@10773", "octopus_net:1@12000"]
+    assert _keys(found) == ["octopus_net:1@11500"]
+
+
+def test_a_saved_channel_without_a_frequency_hides_scanned_ones_with_its_service_id():
+    rx = OctopusNetReceiver(host="octo", password="pw")
+    rx._client = _client(dms=[_ch(1, "BBC One HD", freq=None)], available=[_ch(1, "BBC One HD"), _ch(3, "ITV HD")])
+    saved, found = rx.selection_candidates()
+    assert _keys(saved) == ["octopus_net:1"] and _keys(found) == ["octopus_net:3@10773"]
 
 
 def test_save_selection_saves_records_in_order_with_positions(rx):
@@ -218,12 +235,12 @@ def test_save_selection_saves_records_in_order_with_positions(rx):
 
 
 def test_save_selection_refetches_for_refs_made_elsewhere(rx):
-    rx.save_selection([ChannelRef("octopus_net:3", "ITV HD")])
+    rx.save_selection([ChannelRef("octopus_net:3@11386", "ITV HD")])
     assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [3]
 
 
 def test_save_selection_unknown_key_saves_nothing(rx):
-    refs = [ChannelRef("octopus_net:1", "BBC One HD"), ChannelRef("octopus_net:404", "Gone")]
+    refs = [ChannelRef("octopus_net:1@10773", "BBC One HD"), ChannelRef("octopus_net:404", "Gone")]
     with pytest.raises(IntegrationError, match="octopus_net:404"):
         rx.save_selection(refs)
     rx._client.save_channels.assert_not_called()
@@ -253,7 +270,7 @@ def test_lineup_maps_dms_order_kinds_and_duplicate_names(caplog):
     lineup = rx.lineup()
 
     assert [(c.key, c.name, c.kind, c.stream_url, c.number) for c in lineup] == [
-        ("octopus_net:4", "BBC One HD", "tv", "http://octo/1", 0),
+        ("octopus_net:4@10847", "BBC One HD", "tv", "http://octo/1", 0),
         ("octopus_net:Radio 4@11954", "Radio 4", "radio", "http://octo/2", 0),
         ("octopus_net:1", "BBC One HD", "tv", "http://octo/4", 0),
     ]

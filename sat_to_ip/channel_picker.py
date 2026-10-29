@@ -7,20 +7,20 @@ from sat_to_ip.model import ChannelRef
 
 
 def build_entries(
-    saved: list[ChannelRef], available: list[ChannelRef]
+    listed: list[ChannelRef], available: list[ChannelRef]
 ) -> tuple[list[ChannelRef], list[str], list[bool]]:
-    """Return (channels, origin_labels, selected): saved ones ticked; TV first, then by name.
+    """Return (channels, origin_labels, selected): the ones in your channel list ticked; TV first, then by name.
 
-    origin_labels values: "saved", "found"
+    origin_labels values: "listed" (in your channel list, or saved on the receiver), "found"
     """
     combined = sorted(
-        [(ch, True) for ch in saved] + [(ch, False) for ch in available],
+        [(ch, True) for ch in listed] + [(ch, False) for ch in available],
         key=lambda t: (0 if t[0].kind == "tv" else 1, t[0].name.lower()),
     )
     channels = [ch for ch, _ in combined]
-    saved_flags = [d for _, d in combined]
-    origins = ["saved" if d else "found" for d in saved_flags]
-    return channels, origins, list(saved_flags)
+    listed_flags = [d for _, d in combined]
+    origins = ["listed" if d else "found" for d in listed_flags]
+    return channels, origins, list(listed_flags)
 
 
 def apply_selection_key(key: int, cursor: int, selected: list[bool], channels: list[ChannelRef]) -> None:
@@ -113,8 +113,8 @@ def draw(
     stdscr.refresh()
 
 
-def pick(saved: list[ChannelRef], available: list[ChannelRef]) -> list[ChannelRef] | None:
-    """Let a person tick channels: saved ones start ticked, newly found ones unticked.
+def pick(listed: list[ChannelRef], available: list[ChannelRef]) -> list[ChannelRef] | None:
+    """Let a person tick channels: listed ones start ticked, newly found ones unticked.
 
     Returns the ticked channels, or None if they cancelled.
 
@@ -123,7 +123,7 @@ def pick(saved: list[ChannelRef], available: list[ChannelRef]) -> list[ChannelRe
       a/n         select all / none      t/r  TV / radio only
       Enter       save            q/Esc  cancel
     """
-    channels, origins, selected = build_entries(saved, available)
+    channels, origins, selected = build_entries(listed, available)
     outcome: dict[str, list[ChannelRef] | None] = {"result": None}
 
     def _run(stdscr: curses.window) -> None:
