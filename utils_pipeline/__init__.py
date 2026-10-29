@@ -9,7 +9,7 @@ from utils_pipeline.exceptions import (
     StateError,
     StepError,
 )
-from utils_pipeline.scan import ch_freq, log_scan_diff
+from utils_pipeline.scan import ch_freq, compute_scan_diff, log_scan_diff
 
 __all__ = [
     "ConfigurationError",
@@ -20,6 +20,7 @@ __all__ = [
     "interactive_dms_editor",
     "available_regions",
     "ch_freq",
+    "compute_scan_diff",
     "load_region_mappings",
     "log_scan_diff",
 ]

@@ -47,7 +47,7 @@ pip install -r requirements.txt
 
 ```bash
 export OCTOPUS_PASSWORD="your_octopus_password"
-export CHANNELS_DVR_SID="your_channels_dvr_sid_cookie"
+export CHANNELS_DVR_SID="your_channels_dvr_sid_cookie"  # only if Channels DVR asks for a login
 
 python pipeline.py --octopus-host octopus.local \
   --source-id <your-tv-source-id> \
@@ -58,7 +58,7 @@ This runs all 8 steps in sequence. Output from each step is saved to `.pipeline_
 
 ### Getting the Channels DVR SID cookie
 
-The SID is a long-lived session cookie. Grab it from your browser:
+Only needed if your Channels DVR asks for a login; on the local network it usually doesn't. The SID is a long-lived session cookie. Grab it from your browser:
 
 1. Open Channels DVR in your browser (e.g. `http://localhost:8089`)
 2. Open DevTools → Application → Cookies
@@ -96,6 +96,13 @@ python pipeline.py --steps 7 8 --source-id <your-tv-source-id> --source-id-radio
 python pipeline.py --steps 1 2 --octopus-host octopus.local
 ```
 
+### Safety checks
+
+Two checks stop the pipeline before it can wipe your lineup after a bad run (rain during the scan, an empty Gracenote reply), which matters when you run it unattended, e.g. from cron or a scheduled CI job. Both compare against live data, so there is no state to keep between runs:
+
+- **Step 4** downloads the current DMS from the Octopus and fails, saving nothing, if `--add-channels` would remove more than `--max-removed` of those channels. Pass `--allow-removals` after deliberately trimming your list.
+- **Step 7** fails, before anything is saved or pushed, if fewer than `--min-guide-match` of the channels match Gracenote.
+
 ---
 
 ## Configuration
@@ -103,7 +110,7 @@ python pipeline.py --steps 1 2 --octopus-host octopus.local
 | Env var | Description |
 |---|---|
 | `OCTOPUS_PASSWORD` | Octopus NET login password |
-| `CHANNELS_DVR_SID` | Channels DVR SID session cookie |
+| `CHANNELS_DVR_SID` | Channels DVR SID session cookie (optional) |
 
 ```
 python pipeline.py --help
@@ -127,6 +134,9 @@ Step 4 — Add channels to DMS:
                              name@frequency e.g. 'BBC One HD@10773,ITV HD@11386' |
                              path to a .txt file (one name per line, # comments supported)
                              Omit to use the interactive editor (TTY) or list available channels.
+  --max-removed N            with --add-channels, fail rather than remove more than N channels
+                             already in the DMS  (default: 5)
+  --allow-removals           skip the --max-removed check
 
 Channels DVR connection (steps 6, 8):
   --channels-dvr-host HOST   (default: localhost)
@@ -138,6 +148,7 @@ Step 6 — Gracenote options:
 
 Step 7 — M3U enrichment options:
   --mapping-region REGION         built-in region mappings to use  (default: uk)
+  --min-guide-match RATIO         fail if fewer than this share of channels match Gracenote  (default: 0.5)
 
 Step 8 — Push to Channels DVR:
   --source-id ID                  Channels DVR M3U source ID for TV channels
@@ -181,7 +192,6 @@ sat_to_ip_helpers/
 │   ├── client.py                    ← KingOfSatClient (HTTP)
 │   ├── scraper.py                   ← KingOfSatScraper (pure HTML → Transponder objects)
 │   ├── transponder.py               ← Transponder dataclass
-│   ├── channel.py                   ← Channel dataclass
 │   └── tests/
 │       └── test_client.py
 │

@@ -18,10 +18,14 @@ class ChannelsDVRClient:
         self.session = session
 
     @classmethod
-    def with_sid(cls, host: str, port: int, sid: str) -> "ChannelsDVRClient":
-        """Create a client authenticated via the SID session cookie."""
+    def with_sid(cls, host: str, port: int, sid: str | None) -> "ChannelsDVRClient":
+        """Create a client, authenticated via the SID session cookie when one is given.
+
+        Channels DVR doesn't ask for a login on the local network unless that is turned on.
+        """
         session = requests.Session()
-        session.cookies.set("SID", sid)
+        if sid:
+            session.cookies.set("SID", sid)
         return cls(f"http://{host}:{port}", session)
 
     def get_gracenote(self, station_list: str) -> list[dict]:

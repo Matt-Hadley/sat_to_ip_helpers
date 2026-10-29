@@ -17,7 +17,7 @@ individual steps without repeating earlier ones.
 
 Secrets via env vars (preferred) or CLI flags:
     OCTOPUS_PASSWORD
-    CHANNELS_DVR_SID
+    CHANNELS_DVR_SID   (optional: only if Channels DVR asks for a login)
 
 Examples:
   # Run the full pipeline:
@@ -51,6 +51,7 @@ from utils_pipeline import (
     StepError,
     available_regions,
     ch_freq,
+    compute_scan_diff,
     filter_channels,
     interactive_dms_editor,
     load_region_mappings,
@@ -107,8 +108,6 @@ def _octopus(args) -> OctopusClient:
 
 def _channels_dvr(args) -> ChannelsDVRClient:
     sid = args.channels_dvr_sid or os.environ.get("CHANNELS_DVR_SID")
-    if not sid:
-        raise ConfigurationError("Set CHANNELS_DVR_SID env var or pass --channels-dvr-sid")
     return ChannelsDVRClient.with_sid(
         host=args.channels_dvr_host,
         port=args.channels_dvr_port,
@@ -228,11 +227,29 @@ def step_4(args, state: dict) -> None:
         logger.info("   Nothing matched --add-channels spec.")
         return
 
+    _check_dms_removals(args, dms, to_add)
     for i, ch in enumerate(to_add):
         ch["position"] = i
     client.save_channels(to_add)
     save_state(args.state_dir, "dms_channels", to_add)
     logger.info(f"✅  Step 4 done — {len(to_add)} channels saved to DMS")
+
+
+def _check_dms_removals(args, current: list[dict], new: list[dict]) -> None:
+    """Refuse to save a DMS list that drops more than --max-removed of the channels on the Octopus now.
+
+    Guards unattended runs: a bad scan (rain, dish fault) matches fewer channels and would otherwise
+    shrink the DMS, and then the Channels DVR lineup.
+    """
+    diff = compute_scan_diff(current, new)
+    logger.info(f"   DMS change: +{len(diff.added)} / -{len(diff.removed)} channels")
+    for ch in diff.removed:
+        logger.warning(f"     - {ch.get('name', '?')}  freq={ch_freq(ch)}")
+    if len(diff.removed) > args.max_removed and not args.allow_removals:
+        raise StepError(
+            f"Refusing to remove {len(diff.removed)} channels from the DMS (limit: --max-removed {args.max_removed}).\n"
+            "   Check the scan, or re-run with --allow-removals if this is intended."
+        )
 
 
 def _resolve_add_channels_spec(spec: str) -> str:
@@ -291,6 +308,15 @@ def step_7(args, state: dict) -> None:
 
     tv_result = enrich_m3u_text(tv_m3u, explicit_mappings, lookups)
     radio_result = enrich_m3u_text(radio_m3u, explicit_mappings, lookups)
+
+    # Checked before saving so a later --steps 8 can't push a gutted playlist either
+    enriched = tv_result.enriched + radio_result.enriched
+    total = enriched + tv_result.skipped + radio_result.skipped
+    if total and enriched / total < args.min_guide_match:
+        raise StepError(
+            f"Only {enriched}/{total} channels matched Gracenote (minimum: --min-guide-match {args.min_guide_match}).\n"
+            "   Check the Gracenote station list (step 6) before pushing to Channels DVR."
+        )
 
     save_state(args.state_dir, "enriched_m3u_tv", tv_result.text, text=True)
     save_state(args.state_dir, "enriched_m3u_radio", radio_result.text, text=True)
@@ -414,6 +440,19 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    g.add_argument(
+        "--max-removed",
+        type=int,
+        default=5,
+        metavar="N",
+        help="With --add-channels, fail rather than remove more than N channels already in the DMS (default: 5)",
+    )
+    g.add_argument(
+        "--allow-removals",
+        action="store_true",
+        help="Skip the --max-removed check, e.g. after deliberately trimming the channel list",
+    )
+
     g = p.add_argument_group("Channels DVR connection — required for steps 6, 8")
     g.add_argument(
         "--channels-dvr-host",
@@ -425,7 +464,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--channels-dvr-port", type=int, default=8089, metavar="PORT", help="Channels DVR port (default: 8089)"
     )
     g.add_argument(
-        "--channels-dvr-sid", default=None, metavar="SID", help="SID session cookie. Overrides CHANNELS_DVR_SID env var"
+        "--channels-dvr-sid",
+        default=None,
+        metavar="SID",
+        help="SID session cookie, if Channels DVR requires a login. Overrides CHANNELS_DVR_SID env var",
     )
 
     g = p.add_argument_group("Step 6 — Gracenote options")
@@ -446,6 +488,14 @@ def build_parser() -> argparse.ArgumentParser:
             f"(available: {', '.join(available_regions()) or 'none'}). "
             f"Default: uk"
         ),
+    )
+
+    g.add_argument(
+        "--min-guide-match",
+        type=float,
+        default=0.5,
+        metavar="RATIO",
+        help="Fail if fewer than this share of channels match Gracenote (default: 0.5)",
     )
 
     g = p.add_argument_group("Step 8 — Push to Channels DVR")

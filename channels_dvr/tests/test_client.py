@@ -91,3 +91,8 @@ def test_with_sid_sets_correct_base_url():
 def test_with_sid_sets_sid_cookie():
     client = ChannelsDVRClient.with_sid("myserver", 8089, "abc123")
     assert client.session.cookies.get("SID") == "abc123"
+
+
+def test_with_sid_without_sid_sets_no_cookie():
+    client = ChannelsDVRClient.with_sid("myserver", 8089, None)
+    assert "SID" not in client.session.cookies

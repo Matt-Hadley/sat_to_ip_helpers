@@ -68,10 +68,11 @@ def test_octopus_logs_in_with_env_password(tmp_path, monkeypatch):
     login.assert_called_once_with(base_url="http://octo", username="admin", password="pw")
 
 
-def test_channels_dvr_requires_sid(tmp_path, monkeypatch):
+def test_channels_dvr_sid_is_optional(tmp_path, monkeypatch):
     monkeypatch.delenv("CHANNELS_DVR_SID", raising=False)
-    with pytest.raises(ConfigurationError, match="CHANNELS_DVR_SID"):
+    with patch("pipeline.ChannelsDVRClient.with_sid") as with_sid:
         pipeline._channels_dvr(_args(tmp_path))
+    with_sid.assert_called_once_with(host="localhost", port=8089, sid=None)
 
 
 def test_channels_dvr_uses_cli_sid(tmp_path):
@@ -172,6 +173,30 @@ def test_step_4_spec_matching_nothing_saves_nothing(tmp_path, octopus):
     octopus.save_channels.assert_not_called()
 
 
+def _big_dms(n):
+    return [{"name": f"Ch {i}", "type": "video", "serviceid": str(i)} for i in range(n)]
+
+
+def test_step_4_refuses_to_remove_more_than_limit(tmp_path, octopus, caplog):
+    octopus.get_dms_channels.return_value = _big_dms(10)
+    with pytest.raises(StepError, match="Refusing to remove 7 channels"):
+        pipeline.step_4(_args(tmp_path, "--add-channels", "Ch 0,Ch 1,Ch 2", "--max-removed", "6"), {"octopus": octopus})
+    octopus.save_channels.assert_not_called()
+    assert "- Ch 9" in caplog.text
+
+
+def test_step_4_removals_within_limit_are_saved(tmp_path, octopus):
+    octopus.get_dms_channels.return_value = _big_dms(10)
+    pipeline.step_4(_args(tmp_path, "--add-channels", "Ch 0,Ch 1,Ch 2", "--max-removed", "7"), {"octopus": octopus})
+    assert len(octopus.save_channels.call_args.args[0]) == 3
+
+
+def test_step_4_allow_removals_overrides_limit(tmp_path, octopus):
+    octopus.get_dms_channels.return_value = _big_dms(10)
+    pipeline.step_4(_args(tmp_path, "--add-channels", "Ch 0", "--allow-removals"), {"octopus": octopus})
+    assert len(octopus.save_channels.call_args.args[0]) == 1
+
+
 def test_resolve_add_channels_spec_reads_file(tmp_path):
     spec = tmp_path / "channels.txt"
     spec.write_text("# TV\nBBC One HD\n\nRadio 4@11954\n", encoding="utf-8")
@@ -217,6 +242,25 @@ def test_step_7_loads_region_mappings(tmp_path):
     with patch("pipeline.load_region_mappings", return_value={}) as load:
         pipeline.step_7(_args(tmp_path), state)
     load.assert_called_once_with("uk")
+
+
+def test_step_7_refuses_when_too_few_channels_match_guide(tmp_path):
+    state = {
+        "octopus_m3u_tv": "#EXTM3U\n#EXTINF:-1,BBC One HD\nhttp://o/1\n#EXTINF:-1,Unknown\nhttp://o/9\n",
+        "octopus_m3u_radio": "#EXTM3U\n",
+        "gracenote": [{"callSign": "OTHER", "name": "Something Else"}],
+    }
+    with pytest.raises(StepError, match="Only 0/2 channels matched Gracenote"):
+        pipeline.step_7(_args(tmp_path, "--mapping-region", ""), state)
+    assert "enriched_m3u_tv" not in state
+    with pytest.raises(StateError):
+        pipeline.load_state(str(tmp_path), "enriched_m3u_tv", text=True)
+
+
+def test_step_7_allows_empty_playlists(tmp_path):
+    state = {"octopus_m3u_tv": "#EXTM3U\n", "octopus_m3u_radio": "#EXTM3U\n", "gracenote": GRACENOTE}
+    pipeline.step_7(_args(tmp_path, "--mapping-region", ""), state)
+    assert state["enriched_m3u_tv"] == "#EXTM3U\n"
 
 
 def test_step_8_requires_a_source(tmp_path):
