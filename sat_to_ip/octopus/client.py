@@ -1,10 +1,28 @@
 import json
 import logging
 import time
+from typing import Any, TypedDict, cast
 
 import requests
 
+from sat_to_ip import http
+
 logger = logging.getLogger(__name__)
+
+
+class OctopusChannel(TypedDict, total=False):
+    """A channel as the Octopus API returns it (only the keys we read; the rest pass through untouched)."""
+
+    name: str
+    serviceid: str | int
+    type: str  # "video" | "audio"
+    frequency: int | float | str
+    freq: int | float | str
+    position: int
+
+
+def _channel_list(data: Any) -> list[OctopusChannel]:
+    return cast(list[OctopusChannel], data.get("data", data) if isinstance(data, dict) else data)
 
 
 class OctopusClient:
@@ -21,7 +39,7 @@ class OctopusClient:
     @classmethod
     def login(cls, base_url: str, username: str, password: str) -> "OctopusClient":
         """Authenticate against /login and return an authenticated client."""
-        session = requests.Session()
+        session = http.session()
         resp = session.post(
             f"{base_url.rstrip('/')}/login",
             data={"login": username, "passwd": password, "lang": "en", "submit": "Login"},
@@ -39,7 +57,7 @@ class OctopusClient:
     # Transponder upload & channel scan
     # ------------------------------------------------------------------
 
-    def upload_transponders(self, payload: dict) -> None:
+    def upload_transponders(self, payload: dict[str, Any]) -> None:
         """Upload a transponder list JSON to /channelsearch/uploadCustom."""
         json_bytes = json.dumps(payload, indent=2).encode("utf-8")
         resp = self.session.post(
@@ -69,7 +87,7 @@ class OctopusClient:
         resp.raise_for_status()
         logger.info(f"Scan started: {target_s}")
 
-    def poll_scan_until_complete(self, interval: int = 1, timeout: int = 600) -> dict:
+    def poll_scan_until_complete(self, interval: int = 1, timeout: int = 600) -> dict[str, Any]:
         """Poll /status/octoscan-satip until the scan finishes.
 
         The Octopus returns 200 + JSON progress while scanning, and 404 once
@@ -124,7 +142,7 @@ class OctopusClient:
     # DMS channel management
     # ------------------------------------------------------------------
 
-    def get_dms_channels(self) -> list[dict]:
+    def get_dms_channels(self) -> list[OctopusChannel]:
         """Return the channels currently saved in the DMS."""
         resp = self.session.post(
             f"{self.base_url}/channels/data",
@@ -133,10 +151,9 @@ class OctopusClient:
             timeout=30,
         )
         resp.raise_for_status()
-        data = resp.json()
-        return data.get("data", data) if isinstance(data, dict) else data
+        return _channel_list(resp.json())
 
-    def get_available_channels(self, ignore_ids: list[str]) -> list[dict]:
+    def get_available_channels(self, ignore_ids: list[str]) -> list[OctopusChannel]:
         """Return channels from the last scan that are not yet in the DMS."""
         resp = self.session.post(
             f"{self.base_url}/channels/data",
@@ -145,10 +162,9 @@ class OctopusClient:
             timeout=30,
         )
         resp.raise_for_status()
-        data = resp.json()
-        return data.get("data", data) if isinstance(data, dict) else data
+        return _channel_list(resp.json())
 
-    def save_channels(self, channels: list[dict]) -> None:
+    def save_channels(self, channels: list[OctopusChannel]) -> None:
         """Replace the DMS channel list with the provided list."""
         resp = self.session.post(
             f"{self.base_url}/channels/save",

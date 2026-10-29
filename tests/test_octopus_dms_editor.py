@@ -3,7 +3,7 @@ from unittest.mock import DEFAULT, MagicMock, patch
 
 import pytest
 
-from sat_to_ip.dms_editor import (
+from sat_to_ip.octopus.dms_editor import (
     apply_dms_selection,
     build_dms_entries,
     dms_draw,
@@ -22,7 +22,7 @@ CHANNELS = [
 def no_curses_init():
     """Stub the curses calls that need a real terminal."""
     with patch.multiple(
-        "sat_to_ip.dms_editor.curses",
+        "sat_to_ip.octopus.dms_editor.curses",
         curs_set=DEFAULT,
         start_color=DEFAULT,
         use_default_colors=DEFAULT,
@@ -100,7 +100,7 @@ def test_dms_draw_tolerates_tiny_terminal(no_curses_init):
 
 
 def _run_editor(stdscr, dms, available):
-    with patch("sat_to_ip.dms_editor.curses.wrapper", side_effect=lambda fn: fn(stdscr)):
+    with patch("sat_to_ip.octopus.dms_editor.curses.wrapper", side_effect=lambda fn: fn(stdscr)):
         return interactive_dms_editor(dms, available)
 
 
@@ -124,7 +124,7 @@ def test_editor_cancel_returns_none(no_curses_init):
 
 
 def test_editor_ctrl_c_returns_none():
-    with patch("sat_to_ip.dms_editor.curses.wrapper", side_effect=KeyboardInterrupt):
+    with patch("sat_to_ip.octopus.dms_editor.curses.wrapper", side_effect=KeyboardInterrupt):
         assert interactive_dms_editor([], CHANNELS) is None
 
 

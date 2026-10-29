@@ -138,7 +138,7 @@ def test_poll_scan_raises_timeout():
 
 
 def test_login_raises_if_no_session_cookie():
-    with patch("sat_to_ip.octopus.client.requests.Session") as mock_session_cls:
+    with patch("sat_to_ip.octopus.client.http.session") as mock_session_cls:
         session = MagicMock()
         session.cookies.__contains__ = lambda self, key: False
         mock_session_cls.return_value = session
@@ -147,7 +147,7 @@ def test_login_raises_if_no_session_cookie():
 
 
 def test_login_returns_client_with_session():
-    with patch("sat_to_ip.octopus.client.requests.Session") as mock_session_cls:
+    with patch("sat_to_ip.octopus.client.http.session") as mock_session_cls:
         session = MagicMock()
         session.cookies.__contains__ = lambda self, key: key == "session_id"
         mock_session_cls.return_value = session

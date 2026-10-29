@@ -1,10 +1,12 @@
 """Pure functions for converting KingOfSat Transponder objects into the JSON
 payload expected by Octopus's /channelsearch/uploadCustom endpoint."""
 
+from typing import Any
+
 from sat_to_ip.kingofsat.transponder import Transponder
 
 
-def format_source(transponders: list[Transponder], position: str, satellite: str) -> dict:
+def format_source(transponders: list[Transponder], position: str, satellite: str) -> dict[str, Any]:
     """Build one Octopus SourceList entry from a list of Transponders.
 
     Args:
@@ -36,6 +38,6 @@ def format_source(transponders: list[Transponder], position: str, satellite: str
     }
 
 
-def build_upload_payload(sources: list[dict]) -> dict:
+def build_upload_payload(sources: list[dict[str, Any]]) -> dict[str, Any]:
     """Wrap a list of source dicts into the top-level uploadCustom payload."""
     return {"GroupList": [], "SourceList": sources}

@@ -14,7 +14,7 @@ class KingOfSatScraper:
         :param html_content: HTML content as a string
         """
         self.soup = BeautifulSoup(html_content, "html.parser")
-        self.transponders = []
+        self.transponders: list[Transponder] = []
 
     def _validate_header_table(self) -> bool:
         expected_columns = [

@@ -17,7 +17,7 @@ class Transponder:
     nid: int  # Network ID, e.g., 2
     tid: int  # Transport Stream ID, e.g., 2045
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         valid_polarizations = {"H", "V"}
         if self.polarization.upper() not in valid_polarizations:
             raise ValueError(f"Invalid polarization: {self.polarization}. Must be 'H' or 'V'.")
