@@ -11,12 +11,13 @@ Exit codes: 0 everything succeeded, 1 something failed (see the summary), 2 bad 
 
 import argparse
 import logging
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 from sat_to_ip import channel_setup, pipeline
-from sat_to_ip.config import load_config
+from sat_to_ip.config import Config, load_config
 from sat_to_ip.exceptions import ConfigError, PipelineError
 
 logger = logging.getLogger(__name__)
@@ -62,7 +63,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         config = load_config(args.config)
     except ConfigError as exc:
-        logger.error(f"Config error: {exc}")
+        print(f"Config error: {exc}", file=sys.stderr)
         return 2
 
     if args.command == "channels":
@@ -87,6 +88,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         guides = ", ".join(f"{name} ({g.kind})" for name, g in config.guides.items()) or "none"
         print(f"Config OK: receiver {config.receiver.name}; guides: {guides}")
         print(f"Publishers: {', '.join(p.name for p in config.publishers)}")
+        for note in _notes(config):
+            print(f"Note: {note}")
         return 0
 
     options = pipeline.RunOptions(
@@ -97,6 +100,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = pipeline.run(config, options)
     logger.info("Summary:\n" + report.summary())
     return report.exit_code
+
+
+def _notes(config: Config) -> list[str]:
+    """Things that aren't errors but will bite on the first real run."""
+    notes = []
+    if config.channel_specs is None:
+        notes.append(f"no [[channels]] yet; pick them with: sat-to-ip channels -c {config.path}")
+    for pub in config.publishers:
+        folder = getattr(pub, "output_dir", None)
+        if not isinstance(folder, Path):
+            continue
+        existing = next((p for p in (folder, *folder.parents) if p.exists()), None)
+        if existing is None or not os.access(existing, os.W_OK):
+            notes.append(f"{pub.name}: can't create or write {folder}; fix output_dir or its permissions")
+        elif existing != folder:
+            notes.append(f"{pub.name}: {folder} doesn't exist yet; it'll be created on the first run")
+    return notes
 
 
 if __name__ == "__main__":  # pragma: no cover

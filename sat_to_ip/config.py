@@ -4,6 +4,7 @@ Integrations read their own section through `Section`, which tracks the keys it 
 `finish()` can reject typos ("ouput_dir") instead of silently ignoring them.
 """
 
+import difflib
 import os
 import tomllib
 from collections.abc import Callable, Mapping
@@ -38,7 +39,7 @@ class Section:
         self._used.add(key)
         if key not in self.data:
             if default is _MISSING:
-                raise self.error(key, "required")
+                raise self.error(key, "required" + self._typo_hint(key))
             return default
         value = self.data[key]
         if isinstance(value, bool) and bool not in (kind if isinstance(kind, tuple) else (kind,)):
@@ -46,6 +47,12 @@ class Section:
         if not isinstance(value, kind):
             raise self.error(key, f"must be {kind_name}, got {value!r}")
         return value
+
+    def _typo_hint(self, key: str) -> str:
+        """' (is "hots" a typo for host?)' when an unread key looks like the one that's missing."""
+        unread = [k for k in self.data if k not in self._used and k not in ("type", "name")]
+        close = difflib.get_close_matches(key, unread, n=1, cutoff=0.6)
+        return f" (is {close[0]!r} a typo for {key}?)" if close else ""
 
     def get_str(self, key: str, default: Any = _MISSING) -> str:
         value = self._get(key, default, str, "a string")
@@ -114,7 +121,7 @@ class Section:
             return None
         value = self.env.get(var)
         if not value and required:
-            raise self.error(env_key, f"environment variable {var} is not set")
+            raise self.error(env_key, f"environment variable {var} is not set (set it with: export {var}='…')")
         return value or None
 
     def finish(self) -> None:

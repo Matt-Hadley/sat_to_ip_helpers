@@ -194,3 +194,16 @@ def test_str_map():
     assert s.get_str_map("m") == {"ITV1 HD": "ITV1Granada.uk"} and s.get_str_map("missing") == {}
     with pytest.raises(ConfigError, match="x.bad: every entry must be"):
         s.get_str_map("bad")
+
+
+def test_missing_required_key_suggests_a_close_typo():
+    s = _section({"hots": "octopus.local"})
+    with pytest.raises(ConfigError, match="x.host: required \\(is 'hots' a typo for host\\?\\)"):
+        s.get_str("host")
+    with pytest.raises(ConfigError, match="x.url: required$"):
+        _section({"hots": "x"}).get_str("url")
+
+
+def test_missing_secret_says_how_to_set_it():
+    with pytest.raises(ConfigError, match="export UNSET='…'"):
+        _section({"e": "UNSET"}).get_secret("e")
