@@ -178,7 +178,7 @@ The tool runs unattended, so it refuses to make a change that looks like a mista
 
 If one app can't be updated, the others still are.
 
-Some changes it can't fix by itself, so it does what it safely can and still exits with an error, listing each one under "need attention" at the end of the summary:
+Some changes it can't fix by itself, so it does what it safely can and still exits with code `4`, listing each one under "need attention" at the end of the summary:
 
 - a channel in your list that the receiver no longer has
 - a saved channel the rescan found neither on its frequency nor, unambiguously, anywhere else (a channel that simply moved is retuned for you)
@@ -231,7 +231,17 @@ The name on the left is the channel name from your list; the ID on the right is 
 
 **Jellyfin shows the old guide.** Jellyfin keeps a downloaded guide for up to an hour; it'll update on its next refresh.
 
-**It ran but nothing changed.** Look at the summary: each line says `ok`, `failed` or `skipped`, with the reason. The command exits with `0` when everything worked, `1` when something failed or needs attention, and `2` when the settings are wrong.
+**It ran but nothing changed.** Look at the summary: each line says `ok`, `failed` or `skipped`, with the reason. The exit code says what happened, so a scheduler can tell the cases apart:
+
+| Code | Meaning |
+|---|---|
+| `0` | everything worked |
+| `1` | something failed: a device or website couldn't be reached, or answered in a way the tool doesn't understand |
+| `2` | the settings (or the command) are wrong; nothing ran |
+| `3` | a safety check refused a change, so that part changed nothing (see [Keeping your channels safe](#keeping-your-channels-safe)) |
+| `4` | everything ran, but something needs you; it's listed under "need attention" at the end of the summary |
+
+When several apply, the lowest non-zero code wins.
 
 ## Help and contributing
 

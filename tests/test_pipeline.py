@@ -84,7 +84,7 @@ def test_refresh_failure_aborts_before_publishing(tmp_path):
 def test_removal_check_aborts_and_saves_nothing(tmp_path):
     rx = FakeReceiver(channels=[channel(i) for i in range(1, 11)])
     report = pipeline.run(_config(tmp_path, receiver=rx, specs="Ch 1\n", max_removed=5))
-    assert _statuses(report)["select"] == "failed"
+    assert _statuses(report)["select"] == "refused" and report.exit_code == pipeline.ExitCode.REFUSED
     assert "Refusing to remove 9" in report.outcomes[1].detail
     assert rx.saved == []
 
@@ -114,7 +114,7 @@ def test_dry_run_changes_nothing(tmp_path):
 def test_empty_lineup_is_never_published(tmp_path):
     pub = FakePublisher()
     report = pipeline.run(_config(tmp_path, receiver=FakeReceiver(channels=[]), publishers=[pub], specs=None))
-    assert _statuses(report)["publish"] == "failed" and pub.published == []
+    assert _statuses(report)["publish"] == "refused" and pub.published == []
 
 
 def test_lineup_error_fails_publish(tmp_path):
@@ -147,6 +147,15 @@ def test_guide_below_minimum_match_blocks_its_publishers(tmp_path):
         RunOptions(stages=frozenset({Stage.PUBLISH})),
     )
     assert "matched only 1/3" in report.outcomes[0].detail and pub.published == []
+    assert report.outcomes[0].status == "refused" and report.exit_code == pipeline.ExitCode.REFUSED
+
+
+def test_a_failure_outranks_a_refusal_in_the_exit_code():
+    report = pipeline.RunReport()
+    report.add("publish:a", "refused", "check")
+    assert report.exit_code == pipeline.ExitCode.REFUSED
+    report.add("publish:b", "failed", "unreachable")
+    assert report.exit_code == pipeline.ExitCode.FAILED and not report.ok
 
 
 def test_shared_guide_matches_once(tmp_path):
@@ -217,7 +226,7 @@ def test_number_clash_fails_publish(tmp_path):
         _config(tmp_path, receiver=rx, specs="tv\n2 = C\n"), RunOptions(stages=frozenset({Stage.PUBLISH}))
     )
     assert (
-        report.outcomes[0] == pipeline.Outcome("publish", "failed", report.outcomes[0].detail)
+        report.outcomes[0] == pipeline.Outcome("publish", "refused", report.outcomes[0].detail)
         and "already taken" in report.outcomes[0].detail
     )
 
@@ -230,7 +239,7 @@ def test_publish_refuses_when_many_saved_channels_have_no_stream(tmp_path):
     report = pipeline.run(
         _config(tmp_path, receiver=rx, publishers=[pub], max_removed=5), RunOptions(stages=frozenset({Stage.PUBLISH}))
     )
-    assert report.outcomes[0].status == "failed" and "8 saved channels have no stream" in report.outcomes[0].detail
+    assert report.outcomes[0].status == "refused" and "8 saved channels have no stream" in report.outcomes[0].detail
     assert pub.published == []
 
 

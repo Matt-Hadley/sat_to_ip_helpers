@@ -1,7 +1,7 @@
 """Run the stages against whatever the config built. The only module that knows how they connect.
 
 Failure rules:
-- refresh or select failing aborts the run: the receiver's state is then uncertain.
+- refresh or select failing (or refused by a safety check) aborts the run: the receiver's state is then uncertain.
 - In publish, a guide source failing (or failing its check) fails only the publishers using it,
   and each publisher is isolated from the others.
 """
@@ -9,7 +9,7 @@ Failure rules:
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 from typing import Literal
 
 from sat_to_ip.checks import (
@@ -21,14 +21,24 @@ from sat_to_ip.checks import (
     check_selection_not_empty,
 )
 from sat_to_ip.config import Config
-from sat_to_ip.exceptions import PipelineError
+from sat_to_ip.exceptions import CheckError, PipelineError
 from sat_to_ip.interfaces import SupportsRefresh, SupportsSelection
 from sat_to_ip.model import GuideMatch, Lineup, SelectionPlan
 from sat_to_ip.selection import number_lineup, plan_selection
 
 logger = logging.getLogger(__name__)
 
-Status = Literal["ok", "failed", "skipped"]
+Status = Literal["ok", "failed", "refused", "skipped"]  # refused: a safety check stopped it, nothing changed
+
+
+class ExitCode(IntEnum):
+    """What `sat-to-ip` exits with; when several apply, the lowest non-zero one wins."""
+
+    OK = 0
+    FAILED = 1  # something couldn't be done: a device unreachable, an unexpected reply, a bug
+    CONFIG = 2  # the config or the command line is wrong; nothing ran
+    REFUSED = 3  # a safety check refused a change, so that part changed nothing
+    ATTENTION = 4  # everything ran, but something needs a person (see the summary's "need attention")
 
 
 class Stage(StrEnum):
@@ -60,18 +70,20 @@ class RunReport:
 
     def add(self, name: str, status: Status, detail: str = "") -> None:
         self.outcomes.append(Outcome(name, status, detail))
-        log = logger.error if status == "failed" else logger.info
-        log(
-            f"{'✅' if status == 'ok' else '❌' if status == 'failed' else '⏭️ '} {name}: {status}{' — ' + detail if detail else ''}"
-        )
+        log = logger.error if status in ("failed", "refused") else logger.info
+        icon = {"ok": "✅", "failed": "❌", "refused": "🛑"}.get(status, "⏭️ ")
+        log(f"{icon} {name}: {status}{' — ' + detail if detail else ''}")
 
     @property
     def ok(self) -> bool:
-        return all(o.status != "failed" for o in self.outcomes)
+        return all(o.status not in ("failed", "refused") for o in self.outcomes)
 
     @property
-    def exit_code(self) -> int:
-        return 0 if self.ok else 1
+    def exit_code(self) -> ExitCode:
+        statuses = {o.status for o in self.outcomes}
+        if "failed" in statuses:
+            return ExitCode.FAILED
+        return ExitCode.REFUSED if "refused" in statuses else ExitCode.OK
 
     def summary(self) -> str:
         width = max((len(o.name) for o in self.outcomes), default=0)
@@ -101,7 +113,11 @@ def run(config: Config, options: RunOptions | None = None) -> RunReport:
 def _record_failure(report: RunReport, name: str, exc: BaseException) -> None:
     if not isinstance(exc, PipelineError):
         logger.debug(f"{name} failed", exc_info=exc)
-    report.add(name, "failed", _describe(exc))
+    report.add(name, _status(exc), _describe(exc))
+
+
+def _status(exc: BaseException) -> Status:
+    return "refused" if isinstance(exc, CheckError) else "failed"
 
 
 def _describe(exc: BaseException) -> str:
@@ -171,7 +187,8 @@ def _publish(config: Config, options: RunOptions, report: RunReport) -> None:
     for pub in config.publishers:
         target = f"publish:{pub.name}"
         if pub.guide in guide_errors:
-            report.add(target, "failed", f"guide {pub.guide!r}: {guide_errors[pub.guide]}")
+            error = guide_errors[pub.guide]
+            report.add(target, _status(error), f"guide {pub.guide!r}: {_describe(error)}")
             continue
         try:
             result = pub.publish(lineup, matches.get(pub.guide) if pub.guide else None, dry_run=options.dry_run)
@@ -181,9 +198,11 @@ def _publish(config: Config, options: RunOptions, report: RunReport) -> None:
         report.add(target, "ok", f"{result.channels} channels{'; ' + result.detail if result.detail else ''}")
 
 
-def _match_guides(config: Config, lineup: Lineup, names: Iterable[str]) -> tuple[dict[str, GuideMatch], dict[str, str]]:
+def _match_guides(
+    config: Config, lineup: Lineup, names: Iterable[str]
+) -> tuple[dict[str, GuideMatch], dict[str, Exception]]:
     matches: dict[str, GuideMatch] = {}
-    errors: dict[str, str] = {}
+    errors: dict[str, Exception] = {}
     for name in sorted(names):
         try:
             match = config.guides[name].match(lineup)
@@ -195,7 +214,7 @@ def _match_guides(config: Config, lineup: Lineup, names: Iterable[str]) -> tuple
         except Exception as exc:
             if not isinstance(exc, PipelineError):
                 logger.debug(f"guide {name} failed", exc_info=exc)
-            errors[name] = _describe(exc)
+            errors[name] = exc
             continue
         logger.info(f"Guide {name!r}: matched {len(match.refs)}/{match.total}")
         matches[name] = match

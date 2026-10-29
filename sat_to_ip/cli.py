@@ -6,7 +6,13 @@
   sat-to-ip channels -c sat-to-ip.toml                # tick channels from the receiver; saves [[channels]]
   sat-to-ip check-config -c sat-to-ip.toml            # validate the config without connecting
 
-Exit codes: 0 everything succeeded, 1 something failed or needs attention (see the summary), 2 bad config or usage.
+Exit codes (pipeline.ExitCode), so a scheduler can tell what happened:
+  0 everything succeeded
+  1 something failed: a device unreachable, an unexpected reply, a bug
+  2 the config or the command line is wrong; nothing ran
+  3 a safety check refused a change, so that part changed nothing (see the summary)
+  4 it all ran, but something needs a person; listed under "need attention" in the summary
+When several apply, the lowest non-zero code wins.
 """
 
 import argparse
@@ -64,25 +70,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         config = load_config(args.config)
     except ConfigError as exc:
         print(f"Config error: {exc}", file=sys.stderr)
-        return 2
+        return pipeline.ExitCode.CONFIG
 
     if args.command == "channels":
         if not sys.stdin.isatty():
             logger.error("sat-to-ip channels needs a terminal to show the channel picker")
-            return 2
+            return pipeline.ExitCode.CONFIG
         try:
             channel_setup.choose_channels(config)
         except ConfigError as exc:
             logger.error(str(exc))
-            return 2
+            return pipeline.ExitCode.CONFIG
         except PipelineError as exc:
             logger.error(str(exc))
-            return 1
+            return pipeline.ExitCode.FAILED
         except Exception as exc:  # e.g. a receiver raising something unexpected; never a traceback for users
             logger.debug("channels failed", exc_info=exc)
             logger.error(f"{type(exc).__name__}: {exc} (run with -v for details)")
-            return 1
-        return 0
+            return pipeline.ExitCode.FAILED
+        return pipeline.ExitCode.OK
 
     if args.command == "check-config":
         guides = ", ".join(f"{name} ({g.kind})" for name, g in config.guides.items()) or "none"
@@ -90,7 +96,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Publishers: {', '.join(p.name for p in config.publishers)}")
         for note in _notes(config):
             print(f"Note: {note}")
-        return 0
+        return pipeline.ExitCode.OK
 
     return _run(config, args)
 
@@ -113,8 +119,7 @@ def _run(config: Config, args: argparse.Namespace) -> int:
             f"{len(attention.messages)} thing(s) need attention; the run can't fix them by itself:\n  "
             + "\n  ".join(attention.messages)
         )
-        return 1
-    return report.exit_code
+    return report.exit_code or (pipeline.ExitCode.ATTENTION if attention.messages else pipeline.ExitCode.OK)
 
 
 class _Attention(logging.Handler):
