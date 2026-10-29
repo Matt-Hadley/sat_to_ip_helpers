@@ -1,5 +1,6 @@
 import logging
 from typing import Any
+from urllib.parse import quote, urlsplit
 
 import requests
 
@@ -28,12 +29,15 @@ class ChannelsDVRClient:
         """
         session = http.session()
         if sid:
-            session.cookies.set("SID", sid)
+            # only for the DVR's own host, so a redirect elsewhere never carries it.
+            # The cookie jar matches a dotless host such as "localhost" as "localhost.local".
+            host = urlsplit(base_url).hostname or ""
+            session.cookies.set("SID", sid, domain=host if "." in host else f"{host}.local")
         return cls(base_url, session)
 
     def get_gracenote(self, station_list: str) -> list[dict[str, Any]]:
         """Fetch Gracenote station data for the given station list name."""
-        url = f"{self.base_url}/dvr/guide/stations/{station_list}"
+        url = f"{self.base_url}/dvr/guide/stations/{quote(station_list, safe='')}"
         try:
             resp = self.session.get(url)
             resp.raise_for_status()
@@ -85,4 +89,4 @@ class ChannelsDVRClient:
             raise IntegrationError(f"Channels DVR: can't refresh source {source_id!r}: {exc}") from exc
 
     def _source_url(self, source_id: str) -> str:
-        return f"{self.base_url}/providers/m3u/sources/{source_id}"
+        return f"{self.base_url}/providers/m3u/sources/{quote(source_id, safe='')}"

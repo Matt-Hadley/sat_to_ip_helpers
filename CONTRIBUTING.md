@@ -144,6 +144,8 @@ A receiver only talks to the box. Matching the channel list, the interactive pic
 | `selection_candidates() -> (saved, found)` | no, with `save_selection` | The channels the box has saved, and others it has found, as `ChannelRef`s (key, name, kind, frequency). |
 | `save_selection(channels)` | no, with `selection_candidates` | Make exactly these the box's saved channels, in this order. |
 
+Implement only the methods your box supports, in one class: the pipeline checks which Protocols the object satisfies, so don't add methods that raise `NotImplementedError`. Give the class a `name` class attribute (e.g. `name: str = "mybox"`): it labels the receiver in logs and the run summary.
+
 Without the selection methods, the select stage is skipped and the lineup is whatever the box has saved. [`octopus_net/receiver.py`](sat_to_ip/octopus_net/receiver.py) is a complete example; `FakeReceiver` and `BasicReceiver` in [tests/fakes.py](tests/fakes.py) are the smallest ones.
 
 ### Any part
@@ -151,14 +153,19 @@ Without the selection methods, the select stage is skipped and the lineup is wha
 1. **Write the class.** Satisfy the matching `Protocol` in [`interfaces.py`](sat_to_ip/interfaces.py). The smallest working examples are in [tests/fakes.py](tests/fakes.py).
 2. **Add a builder,** `def from_config(section: Section) -> YourClass`:
    - Read every setting through `Section` (`get_str`, `get_url`, `get_path`, `get_secret`, …). It checks types and names the key in errors.
-   - Take secrets only via `*_env` keys.
+   - Take secrets only via `*_env` keys, and declare those fields with `field(repr=False)` so they never show up in logs.
+   - Guides and publishers take their name from `section.name` (the config gives it); receivers use their class `name`.
    - Do **no network I/O** in the builder: `check-config` must work offline. Connect on first use.
-3. **Register it** with one line in [`registry.py`](sat_to_ip/registry.py).
-4. **Test it:**
+3. **Raise the right errors.** The CLI shows these as one plain line, so make the message say what to do:
+   - `ConfigError` for a setting that can't work (`section.error(key, "…")` names the key for you). Exit code 2.
+   - `IntegrationError` when the box, feed or app is unreachable or answers in a way you can't use. Catch `requests.RequestException` and re-raise it as this. Exit code 1.
+   - Anything else is treated as a bug and printed with a traceback.
+4. **Register it** with one line in [`registry.py`](sat_to_ip/registry.py).
+5. **Test it:**
    - Call `assert_guide_contract` / `assert_publisher_contract` from [tests/contracts.py](tests/contracts.py).
    - Stub HTTP with `MagicMock` sessions, as the existing tests do.
    - Run it through `pipeline.run` once with the fakes.
-5. **Document it:** add a setup guide under `docs/setup/` and link it from the README.
+6. **Document it:** add a setup guide under `docs/setup/`, link it from the README, add a commented block to [`examples/sat-to-ip.toml`](examples/sat-to-ip.toml), and for a receiver add it to **Supported receivers** and "What you need" in the README.
 
 Nothing else should need to change. If it does, the boundary is in the wrong place; open an issue first.
 
@@ -166,6 +173,7 @@ Conventions worth keeping:
 
 - Writes are never retried. Anything that replaces a list (a DVR source, a playlist file, the receiver's channel list) must refuse to replace it with nothing.
 - File writes go through `files.write_atomic`.
+- HTTP goes through `http.session()` (timeouts, and retries for GET only). Quote config values that end up in a URL path with `urllib.parse.quote(value, safe="")`.
 - External text that ends up in an M3U goes through `m3u.render`, which cleans it.
 
 ## Guide mappings

@@ -8,6 +8,7 @@ last one may still use the previous guide.
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 
@@ -25,7 +26,7 @@ class JellyfinPublisher:
     name: str
     output_dir: Path
     url: str = "http://localhost:8096"
-    api_key: str | None = None
+    api_key: str | None = field(default=None, repr=False)
     refresh: bool = True
     guide: str | None = None
     accepts_guides: frozenset[str] = frozenset({"xmltv"})
@@ -41,7 +42,9 @@ class JellyfinPublisher:
             return PublishResult(self.name, out.channels, f"wrote {out.directory}; guide refresh off")
         try:
             task_id = self._refresh_task_id()
-            self.session.post(f"{self.url}/ScheduledTasks/Running/{task_id}", headers=self._headers).raise_for_status()
+            self.session.post(
+                f"{self.url}/ScheduledTasks/Running/{quote(task_id, safe='')}", headers=self._headers
+            ).raise_for_status()
         except (requests.RequestException, IntegrationError) as exc:
             raise IntegrationError(
                 f"{self.name}: files written to {out.directory}, but starting Refresh Guide failed: {exc}"

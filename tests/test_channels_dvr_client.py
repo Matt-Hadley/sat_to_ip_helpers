@@ -158,6 +158,22 @@ def test_connect_sets_sid_cookie():
     assert client.session.get_adapter("http://myserver:8089").timeout == 30
 
 
+@pytest.mark.parametrize(
+    "base", ["http://localhost:8089", "http://server-01:8089", "http://10.0.0.5", "https://dvr.lan"]
+)
+def test_sid_cookie_goes_only_to_the_dvr(base):
+    session = ChannelsDVRClient.connect(base, "abc123").session
+    cookie = lambda url: session.prepare_request(requests.Request("GET", url)).headers.get("Cookie")  # noqa: E731
+    assert cookie(f"{base}/dvr") == "SID=abc123" and cookie("http://elsewhere.example/") is None
+
+
+def test_ids_are_quoted_in_urls():
+    session = MagicMock()
+    session.get.return_value.json.return_value = {}
+    ChannelsDVRClient("http://dvr", session).get_m3u_source("../dvr/x?y")
+    assert session.get.call_args[0][0] == "http://dvr/providers/m3u/sources/..%2Fdvr%2Fx%3Fy"
+
+
 def test_connect_without_sid_sets_no_cookie():
     client = ChannelsDVRClient.connect("http://myserver:8089")
     assert "SID" not in client.session.cookies

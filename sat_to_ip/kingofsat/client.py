@@ -2,6 +2,7 @@ import logging
 
 import requests
 
+from sat_to_ip import http
 from sat_to_ip.kingofsat import DEFAULT_BASE_URL
 from sat_to_ip.kingofsat.scraper import KingOfSatScraper
 from sat_to_ip.kingofsat.transponder import Transponder
@@ -22,7 +23,7 @@ class KingOfSatClient:
 
     @classmethod
     def create(cls, base_url: str = DEFAULT_BASE_URL) -> "KingOfSatClient":
-        return cls(base_url, requests.Session())
+        return cls(base_url, http.session())
 
     def _build_url(self, position: str, channel_filter: str, cl: str) -> str:
         return f"{self.base_url}?pos={position}" f"&standard=All&ordre=freq&filtre={channel_filter}&cl={cl}"

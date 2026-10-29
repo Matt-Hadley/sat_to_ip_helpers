@@ -28,7 +28,7 @@ class ThreadfinPublisher:
     output_dir: Path
     api_url: str | None = None
     username: str | None = None
-    password: str | None = None
+    password: str | None = field(default=None, repr=False)
     guide: str | None = None
     accepts_guides: frozenset[str] = frozenset({"xmltv"})
     session: requests.Session = field(default_factory=http.session, repr=False)

@@ -32,7 +32,7 @@ Homepage = "https://github.com/Matt-Hadley/sat_to_ip_helpers"
 include = ["sat_to_ip*"]
 
 [tool.setuptools.package-data]
-"sat_to_ip" = ["data/mappings/*/*/*.csv"]
+"sat_to_ip" = ["data/mappings/*/*/*.csv", "py.typed"]
 
 [tool.black]
 line-length = 120

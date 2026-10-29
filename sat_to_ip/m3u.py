@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 _ATTR = re.compile(r'([A-Za-z0-9_-]+)="([^"]*)"')
-_CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
+_CONTROL = re.compile(r"[\x00-\x1f\x7f\x85  ]+")
 
 
 def _clean(value: str) -> str:

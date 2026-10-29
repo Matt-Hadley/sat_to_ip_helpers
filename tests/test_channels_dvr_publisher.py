@@ -105,6 +105,7 @@ def test_all_options():
         env={"DVR_SID": "abc"},
     )
     assert (pub.url, pub.sid, pub.guide) == ("https://dvr.lan:8089", "abc", "gn")
+    assert "abc" not in repr(pub)
     assert pub.sources == (Source("tv", "TV1", "Octopus TV"), Source("radio", "R1", "Octopus Radio"))
     assert pub.channel_numbers == "list"
 
@@ -207,7 +208,7 @@ def test_missing_source_fails_before_anything_is_written(http_session):
 
 def test_sid_cookie_set_on_first_use(http_session):
     build({**BOTH, "sid_env": "SID"}, env={"SID": "abc"}).publish(LINEUP, GUIDE, dry_run=False)
-    http_session.cookies.set.assert_called_once_with("SID", "abc")
+    http_session.cookies.set.assert_called_once_with("SID", "abc", domain="localhost.local")
 
 
 def test_dry_run_makes_no_write_call(http_session):

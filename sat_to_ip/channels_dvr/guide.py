@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Any
 
@@ -24,7 +24,7 @@ class GracenoteGuide:
 
     name: str
     url: str
-    sid: str | None
+    sid: str | None = field(repr=False)
     station_list: str
     region: str | None
     extra_mappings: dict[str, str]

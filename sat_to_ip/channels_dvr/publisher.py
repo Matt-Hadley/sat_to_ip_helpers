@@ -29,7 +29,7 @@ class Source:
 class ChannelsDVRPublisher:
     name: str
     url: str
-    sid: str | None
+    sid: str | None = field(repr=False)
     guide: str | None
     sources: tuple[Source, ...]
     channel_numbers: str = "channels_dvr"

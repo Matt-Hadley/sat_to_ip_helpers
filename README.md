@@ -158,7 +158,7 @@ Any scheduler works. On a Mac or Linux, `crontab -e` and add a line like this on
 
 Here `secrets.env` holds your `export OCTOPUS_PASSWORD=…` lines. Make it private with `chmod 600 secrets.env`.
 
-The scan briefly takes over the receiver's tuners, so pick a time when nothing is recording. A GitHub Actions workflow on a self-hosted runner works too; keep your config in a private repo.
+The scan briefly takes over the receiver's tuners, so pick a time when nothing is recording. A GitHub Actions workflow on a self-hosted runner works too; keep your config in a private repo. A job that installs from GitHub should pin a commit (`pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers@<commit>`) rather than `@main`, so an update only reaches your setup when you choose it.
 
 ## Everyday commands
 

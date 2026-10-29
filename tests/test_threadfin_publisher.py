@@ -59,6 +59,7 @@ def test_from_config_files_only(tmp_path):
 def test_from_config_with_api_and_login(tmp_path):
     pub = from_config(_section(tmp_path, api_url="http://tf:34400/", username="sat", password_env="TF_PASS"))
     assert (pub.api_url, pub.username, pub.password) == ("http://tf:34400", "sat", "pw")
+    assert "pw" not in repr(pub)
 
 
 def test_from_config_does_no_io(tmp_path):

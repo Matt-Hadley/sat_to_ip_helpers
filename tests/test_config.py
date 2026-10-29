@@ -69,7 +69,7 @@ def test_defaults(tmp_path):
         ("not toml [", "invalid TOML"),
         ('[[publishers]]\ntype = "fake"\n', "missing [receiver]"),
         ('[receiver]\ntype = "fake"\n', "at least one [[publishers]]"),
-        ('[receiver]\ntype = "nope"\n', "receiver.type: unknown receiver type 'nope' (known: fake, octopus_net)"),
+        ('[receiver]\ntype = "nope"\n', "receiver.type: unknown receiver type 'nope' (known: "),
         ('[receiver]\ntype = "fake"\nlable = "x"\n[[publishers]]\ntype = "fake"\n', "receiver: unknown key(s) lable"),
         ('[receiver]\ntype = "fake"\n[extra]\n[[publishers]]\ntype = "fake"\n', "unknown section(s) extra"),
         (

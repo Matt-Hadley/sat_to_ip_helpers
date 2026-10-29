@@ -45,6 +45,7 @@ def _publisher(tmp_path, **kw):
 def test_from_config_defaults(tmp_path):
     pub = from_config(_section(tmp_path, api_key_env="JF_KEY", guide="freeview"))
     assert pub.name == "jellyfin" and pub.url == "http://localhost:8096" and pub.api_key == "secret"
+    assert "secret" not in repr(pub)
     assert pub.output_dir == tmp_path / "out" and pub.refresh is True and pub.guide == "freeview"
     assert pub.accepts_guides == {"xmltv"}
 

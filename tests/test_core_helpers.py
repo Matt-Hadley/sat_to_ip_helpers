@@ -129,6 +129,11 @@ def test_m3u_render_cannot_be_injected_into():
     assert text.splitlines()[2].startswith("http://o/1")  # glued into one line, not a second entry
 
 
+def test_m3u_render_strips_unicode_line_breaks():
+    text = m3u.render([m3u.Entry("A\u2028#EXTINF:-1,B\x85C\u2029", "u")])
+    assert len(text.splitlines()) == 3  # str.splitlines() breaks on these too
+
+
 def test_m3u_render_empty():
     assert m3u.render([]) == "#EXTM3U\n"
 
@@ -143,6 +148,17 @@ def test_write_atomic_creates_dirs_and_is_world_readable(tmp_path):
     assert target.read_bytes() == b"bytes"
     assert stat.S_IMODE(os.stat(target).st_mode) == 0o644
     assert [p.name for p in target.parent.iterdir()] == ["b.m3u"]
+
+
+def test_write_atomic_keeps_an_existing_files_mode_and_follows_symlinks(tmp_path):
+    real = tmp_path / "real.toml"
+    real.write_text("old")
+    real.chmod(0o600)
+    link = tmp_path / "link.toml"
+    link.symlink_to(real)
+    files.write_atomic(link, "new")
+    assert link.is_symlink() and real.read_text() == "new"
+    assert stat.S_IMODE(os.stat(real).st_mode) == 0o600
 
 
 def test_write_atomic_cleans_up_on_failure(tmp_path):

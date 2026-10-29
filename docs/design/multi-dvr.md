@@ -100,7 +100,7 @@ class Publisher(Protocol):
 
 Receivers only talk to the device: matching the channel list, the interactive picker, channel numbering and the safety checks are core (`selection.py`, `channel_picker.py`, `checks.py`), so every manufacturer gets the same behaviour. Channel numbers come from the `[[channels]]` blocks (each block's `start`, then counting up); a listed channel that's missing keeps its number free so the rest don't shift. `sat-to-ip channels` writes those blocks from the picker (tomlkit keeps the rest of the file as it was).
 
-Optional receiver capabilities are separate Protocols, so a receiver with no scan or no saved list simply doesn't implement them, and the pipeline skips that stage with a warning.
+Optional receiver capabilities are separate Protocols, so a receiver with no scan or no saved list simply doesn't implement them, and the pipeline skips that stage and says so in the run summary.
 
 ## Configuration
 

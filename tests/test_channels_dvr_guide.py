@@ -73,6 +73,7 @@ def test_all_options(tmp_path):
         base_dir=tmp_path,
     )
     assert (guide.url, guide.sid, guide.station_list, guide.region) == ("http://dvr:8089", "s3cret", "GBR-X", "UK")
+    assert "s3cret" not in repr(guide)
     assert guide.extra_mappings == {"Mystery TV": "QUEST"}
 
 
@@ -170,7 +171,7 @@ def test_empty_lineup(http_session):
 
 def test_sid_is_sent_as_cookie(http_session):
     build({"sid_env": "SID"}, env={"SID": "abc"}).match(Lineup())
-    http_session.cookies.set.assert_called_once_with("SID", "abc")
+    http_session.cookies.set.assert_called_once_with("SID", "abc", domain="localhost.local")
 
 
 def test_http_error_is_integration_error(http_session):
