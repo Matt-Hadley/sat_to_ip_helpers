@@ -1,6 +1,10 @@
 import logging
+from typing import Any
 
 import requests
+
+from sat_to_ip import http
+from sat_to_ip.exceptions import IntegrationError
 
 logger = logging.getLogger(__name__)
 
@@ -9,8 +13,7 @@ class ChannelsDVRClient:
     """HTTP client for the Channels DVR REST API.
 
     Pass an already-configured requests.Session (useful for testing with a
-    mock/stub).  Use the classmethod ChannelsDVRClient.with_sid() to create
-    a session-cookie-authenticated instance in production code.
+    mock/stub), or use ChannelsDVRClient.connect() in production code.
     """
 
     def __init__(self, base_url: str, session: requests.Session):
@@ -18,24 +21,32 @@ class ChannelsDVRClient:
         self.session = session
 
     @classmethod
-    def with_sid(cls, host: str, port: int, sid: str | None) -> "ChannelsDVRClient":
+    def connect(cls, base_url: str, sid: str | None = None) -> "ChannelsDVRClient":
         """Create a client, authenticated via the SID session cookie when one is given.
 
         Channels DVR doesn't ask for a login on the local network unless that is turned on.
         """
-        session = requests.Session()
+        session = http.session()
         if sid:
             session.cookies.set("SID", sid)
-        return cls(f"http://{host}:{port}", session)
+        return cls(base_url, session)
 
-    def get_gracenote(self, station_list: str) -> list[dict]:
+    def get_gracenote(self, station_list: str) -> list[dict[str, Any]]:
         """Fetch Gracenote station data for the given station list name."""
-        resp = self.session.get(f"{self.base_url}/dvr/guide/stations/{station_list}", timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
+        url = f"{self.base_url}/dvr/guide/stations/{station_list}"
+        try:
+            resp = self.session.get(url)
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.RequestException as exc:
+            raise IntegrationError(f"Channels DVR: can't fetch station list {station_list!r}: {exc}") from exc
+        except ValueError as exc:
+            raise IntegrationError(f"Channels DVR: station list {station_list!r} is not JSON: {exc}") from exc
         # Channels DVR occasionally wraps the list in an outer list
         if isinstance(data, list) and data and isinstance(data[0], list):
-            return data[0]
+            data = data[0]
+        if not isinstance(data, list) or not all(isinstance(entry, dict) for entry in data):
+            raise IntegrationError(f"Channels DVR: station list {station_list!r} is not a list of stations")
         return data
 
     def update_m3u_source(
@@ -63,10 +74,9 @@ class ChannelsDVRClient:
             "xmltv_url": "",
             "xmltv_refresh": "",
         }
-        resp = self.session.put(
-            f"{self.base_url}/providers/m3u/sources/{source_id}",
-            json=payload,
-            timeout=30,
-        )
-        resp.raise_for_status()
+        try:
+            resp = self.session.put(f"{self.base_url}/providers/m3u/sources/{source_id}", json=payload)
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            raise IntegrationError(f"Channels DVR: can't update source {source_id!r}: {exc}") from exc
         logger.info(f"Updated Channels DVR source '{source_id}'")

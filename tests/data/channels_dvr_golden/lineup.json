@@ -1,0 +1,13 @@
+[
+  {"name": "BBC One NW HD", "kind": "tv", "url": "rtsp://octopus:554/?src=1&freq=10847&pol=v&msys=dvbs2&sr=23000&pids=0,6301"},
+  {"name": "Channel 4 HD", "kind": "tv", "url": "rtsp://octopus:554/?src=1&freq=10891&pol=h&msys=dvbs2&sr=23000&pids=0,21200"},
+  {"name": "ITV1GHD", "kind": "tv", "url": "rtsp://octopus:554/?src=1&freq=11097&pol=v&msys=dvbs2&sr=23000&pids=0,10060"},
+  {"name": "Radio 4", "kind": "radio", "url": "rtsp://octopus:554/?src=1&freq=11954&pol=h&msys=dvbs&sr=27500&pids=0,6060"},
+  {"name": "5 HD", "kind": "tv", "url": "rtsp://octopus:554/?src=1&freq=10964&pol=h&msys=dvbs2&sr=23000&pids=0,8500"},
+  {"name": "5 USA", "kind": "tv", "url": "rtsp://octopus:554/?src=1&freq=10964&pol=h&msys=dvbs2&sr=23000&pids=0,8510"},
+  {"name": "Quest", "kind": "tv", "url": "rtsp://octopus:554/?src=1&freq=11426&pol=h&msys=dvbs2&sr=27500&pids=0,8030"},
+  {"name": "Mystery TV", "kind": "tv", "url": "rtsp://octopus:554/?src=1&freq=12000&pol=h&msys=dvbs&sr=27500&pids=0,999"},
+  {"name": "BBC R1", "kind": "radio", "url": "rtsp://octopus:554/?src=1&freq=11954&pol=h&msys=dvbs&sr=27500&pids=0,6010"},
+  {"name": "BBC Radio 4", "kind": "radio", "url": "rtsp://octopus:554/?src=1&freq=11954&pol=h&msys=dvbs&sr=27500&pids=0,6061"},
+  {"name": "Pirate FM", "kind": "radio", "url": "rtsp://octopus:554/?src=1&freq=12100&pol=v&msys=dvbs&sr=27500&pids=0,777"}
+]

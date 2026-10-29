@@ -1,0 +1,5 @@
+#EXTM3U
+#EXTINF:-1 channel-id="BBCR1" tvc-guide-stationid="20001" tvg-name="BBC Radio 1",BBC R1
+rtsp://octopus:554/?src=1&freq=11954&pol=h&msys=dvbs&sr=27500&pids=0,6010
+#EXTINF:-1 channel-id="BBCR4" tvc-guide-stationid="20004" tvg-name="BBC Radio 4",BBC Radio 4
+rtsp://octopus:554/?src=1&freq=11954&pol=h&msys=dvbs&sr=27500&pids=0,6061
