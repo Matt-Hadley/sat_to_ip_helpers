@@ -164,9 +164,11 @@ class OctopusClient:
     # ------------------------------------------------------------------
 
     def get_dms_channels(self) -> list[OctopusChannel]:
-        """Return the channels currently saved in the DMS."""
+        """Return the channels currently saved in the DMS, in their saved order."""
         doing = "reading its saved channels"
-        return _channel_list(self._json(self._call("POST", "/channels/data", doing, params={"selected": "1"}), doing))
+        dms = _channel_list(self._json(self._call("POST", "/channels/data", doing, params={"selected": "1"}), doing))
+        # The Octopus NET lists them sorted by name; `position` is the saved order (records without one go last)
+        return sorted(dms, key=lambda ch: ch.get("position", len(dms)))
 
     def get_available_channels(self, ignore_ids: list[str]) -> list[OctopusChannel]:
         """Return channels from the last scan that are not yet in the DMS."""

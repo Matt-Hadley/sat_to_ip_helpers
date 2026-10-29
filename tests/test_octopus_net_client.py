@@ -64,6 +64,18 @@ def test_get_dms_channels_unwraps_data_key():
     assert result == [{"serviceid": "456"}]
 
 
+def test_get_dms_channels_returns_the_saved_order_not_the_name_order():
+    client, session = _client()
+    session.request.return_value.json.return_value = [  # as the box sends them: sorted by name
+        {"name": "4seven", "position": 2},
+        {"name": "BBC One NW HD", "position": 0},
+        {"name": "No position"},
+        {"name": "talkSPORT", "position": 1},
+    ]
+    names = [ch["name"] for ch in client.get_dms_channels()]
+    assert names == ["BBC One NW HD", "talkSPORT", "4seven", "No position"]
+
+
 def test_get_dms_channels_posts_with_selected_param():
     client, session = _client()
     session.request.return_value.json.return_value = []
