@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tv generator-info-name="fixture" source-info-url="https://example.org/epg">
+  <channel id="BBCOne.uk">
+    <display-name lang="en">BBC One HD</display-name>
+    <display-name lang="en">BBC 1</display-name>
+    <icon src="https://example.org/bbcone.png"/>
+  </channel>
+  <channel id="Film4.uk">
+    <display-name lang="en">Film Four</display-name>
+  </channel>
+  <channel id="Other.uk">
+    <display-name lang="en">Film4</display-name>
+  </channel>
+  <channel id="ITV2.uk">
+    <display-name lang="en">ITV Two</display-name>
+  </channel>
+  <channel id="Quest.uk">
+    <display-name lang="en">Quest Plus</display-name>
+  </channel>
+  <channel id="Quest.ie">
+    <display-name lang="en">Quest Eire</display-name>
+  </channel>
+  <channel id="Decoy.uk">
+    <display-name lang="en">Mapped Name</display-name>
+  </channel>
+  <channel id="Target.uk">
+    <display-name lang="en">Target</display-name>
+  </channel>
+  <channel id="Unwanted.uk">
+    <display-name lang="en">Unwanted</display-name>
+  </channel>
+  <programme start="20261029060000 +0000" stop="20261029090000 +0000" channel="BBCOne.uk">
+    <title lang="en">Breakfast</title>
+    <desc lang="en">News at the Café.</desc>
+    <episode-num system="xmltv_ns">1.2.0/1</episode-num>
+  </programme>
+  <programme start="20261029060000 +0000" stop="20261029080000 +0000" channel="Unwanted.uk">
+    <title lang="en">Nobody Watches</title>
+  </programme>
+  <programme start="20261029060000 +0000" stop="20261029070000 +0000" channel="ITV2.uk">
+    <title lang="en">Cartoons</title>
+  </programme>
+  <programme start="20261029060000 +0000" stop="20261029070000 +0000" channel="Target.uk">
+    <title lang="en">Mapped Show</title>
+  </programme>
+  <programme start="20261029060000 +0000" stop="20261029070000 +0000" channel="Decoy.uk">
+    <title lang="en">Decoy Show</title>
+  </programme>
+  <programme start="20261029090000 +0000" stop="20261029100000 +0000" channel="BBCOne.uk">
+    <title lang="en">Morning Live</title>
+  </programme>
+</tv>
