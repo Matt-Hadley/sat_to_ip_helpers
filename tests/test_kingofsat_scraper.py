@@ -1,322 +1,149 @@
 import logging
 import os
-import unittest
 
 import pytest
 
 from sat_to_ip.kingofsat.scraper import KingOfSatScraper
 from sat_to_ip.kingofsat.transponder import Transponder
 
-# Suppress unnecessary debug info for unit tests
-logging.basicConfig(level=logging.WARNING)
-
-RESOURCES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources")
+FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "kingofsat_28.2E.html")
 
 
 def load_html_content() -> str:
-    """Load the saved KingOfSat 28.2°E page used as a realistic fixture."""
-    path = os.path.join(
-        RESOURCES, "Astra 2E _ Astra 2F _ Astra 2G (28.2°E) - All transmissions - frequencies - KingOfSat.html"
-    )
-    with open(path, encoding="utf-8") as file:
+    """Saved KingOfSat 28.2°E page (Clear, eng), fetched 2026-10-29."""
+    with open(FIXTURE, encoding="utf-8") as file:
         return file.read()
 
 
-VALID_HEADER_HTML = """
-        <table class="frq"><tr bgcolor="#999999">
-        <td class="pos" dir="ltr">Pos</td>
-        <td width="20%">Satellite</td>
-        <td width="7%">Frequency</td>
-        <td width="2%">Pol</td>
-        <td class="w3-hide-small" width="3%">Txp</td>
-        <td class="w3-hide-small" width="10%">Coverage area</td>
-        <td width="8%">Standard</td>
-        <td width="8%">Modulation</td>
-        <td width="8%">SR/FEC</td>
-        <td width="20%" class="w3-hide-small">Network, Bitrate</td>
-        <td class="w3-hide-small" width="4%">NID</td>
-        <td class="w3-hide-small" width="4%">TID</td>
-        <td dir="ltr" width="2%" align="right"><a href="contribution.php?f="><img src="/edit.gif" alt="" border=0></a></td>
-    </tr></table>
-    """
+def _row(
+    freq_pol: str = "10773.25 H",
+    standard: str = '<span class="dvbs2">DVB-S2</span>',
+    modulation: str = "8PSK",
+    sr: str = "<a>23000</a>",
+    summary: bool = True,
+) -> str:
+    """One transponder in the current KingOfSat layout."""
+    html = (
+        '<table class="frequencies-table frq kos-frequency-header"><tr class="frequency-row" data-frequency-id="1">'
+        '<td class="pos">28.2&deg;E</td>'
+        '<td><a class="bld">Astra 2E</a><img src="/x.gif"><span class="nbc">9</span></td>'
+        f'<td class="bld">{freq_pol}</td><td><a>45</a></td><td><a>U.K.</a></td>'
+        f"<td>{standard}</td><td>{modulation}</td><td>{sr}</td><td><a>3/4</a></td>"
+        "<td>&nbsp;</td><td>2026-10-29</td></tr></table>"
+    )
+    if summary:
+        html += (
+            '<div><table class="frq kos-stream-summary"><tr><td class="stream-type">TS</td>'
+            '<td class="stream-bitrate">50.1 Mb/s</td><td class="stream-network"></td>'
+            "<td>NID 2 - TSID 2045</td><td>2023-02-21</td></tr></table></div>"
+        )
+    return html
 
 
-class TestValidateHeaderTable(unittest.TestCase):
-    def test_valid_header_table(self):
-        """
-        Test if the header table is correctly validated with valid headers.
-        """
-        html_content = load_html_content()
-        scraper = KingOfSatScraper(html_content)
+def test_parse_fixture():
+    transponders = KingOfSatScraper(load_html_content()).parse_transponders()
 
-        # Validating the header table
-        is_valid = scraper._validate_header_table()
-
-        self.assertTrue(is_valid, "The header table should be valid with the correct column names.")
-
-    def test_missing_column_in_header(self):
-        """
-        Test the edge case where a column is missing from the header table.
-        """
-        html_content = load_html_content()
-
-        # Simulate missing column (removing one column from the header)
-        html_content_invalid = html_content.replace('<td class="pos" dir="ltr">Pos</td>', "")
-        scraper = KingOfSatScraper(html_content_invalid)
-
-        # Validating the header table
-        is_valid = scraper._validate_header_table()
-
-        self.assertFalse(is_valid, "The header table should be invalid if a column is missing.")
-
-    def test_extra_column_in_header(self):
-        """
-        Test the edge case where an extra column is added to the header table.
-        """
-        html_content = load_html_content()
-
-        # Simulate extra column (adding a column to the header)
-        html_content_invalid = html_content.replace("</tr></table>", "<td>Extra Column</td></tr></table>")
-        scraper = KingOfSatScraper(html_content_invalid)
-
-        # Validating the header table
-        is_valid = scraper._validate_header_table()
-
-        self.assertFalse(is_valid, "The header table should be invalid if there is an extra column.")
-
-    def test_invalid_header_order(self):
-        """
-        Test the edge case where the column order in the header is incorrect.
-        """
-        html_content = load_html_content()
-
-        # Simulate incorrect column order (e.g., switch 'Pos' and 'Satellite')
-        html_content_invalid = html_content.replace(
-            '<td class="pos" dir="ltr">Pos</td>', '<td class="pos" dir="ltr">Satellite</td>'
-        ).replace('<td width="20%">Satellite</td>', '<td width="20%">Pos</td>')
-        scraper = KingOfSatScraper(html_content_invalid)
-
-        # Validating the header table
-        is_valid = scraper._validate_header_table()
-
-        self.assertFalse(is_valid, "The header table should be invalid if the column order is incorrect.")
-
-    def test_valid_header_with_edge_case_content(self):
-        """
-        Test if the header table can be validated when there are special characters or unusual content.
-        """
-        html_content = load_html_content()
-
-        # Simulate a special character or strange formatting in the header
-        html_content_invalid = html_content.replace("Pos", "Pos ☃️")
-        scraper = KingOfSatScraper(html_content_invalid)
-
-        # Validating the header table
-        is_valid = scraper._validate_header_table()
-
-        self.assertFalse(is_valid, "The header table should be invalid if the column name contains special characters.")
+    assert len(transponders) == 35
+    assert transponders[0] == Transponder(
+        position="28.2°E",
+        satellite="Astra 2E",
+        frequency=10773.25,
+        polarization="H",
+        transponder_id=45,
+        beam="U.K.",
+        system="DVB-S2",
+        modulation="8PSK",
+        symbol_rate=23000,
+        fec="3/4",
+        network_bitrate="50.1 Mb/s",
+        nid=2,
+        tid=2045,
+    )
+    last = transponders[-1]
+    assert (last.frequency, last.polarization, last.system, last.modulation, last.symbol_rate) == (
+        11426.5,
+        "H",
+        "DVB-S",
+        "QPSK",
+        27500,
+    )
+    assert (last.nid, last.tid) == (59, 2315)
 
 
-class TestParseTransponders(unittest.TestCase):
-    def test_parse_transponders(self):
-        """
-        Test the parse_transponders method with the actual HTML file.
-        """
-        html_content = load_html_content()
-        scraper = KingOfSatScraper(html_content)
-        transponders = scraper.parse_transponders()
-
-        # Validate that transponders are parsed correctly
-        self.assertGreater(len(transponders), 0, "No transponders were parsed.")
-
-        assert len(transponders) == 39
-
-        first_transponder = transponders[0]
-        assert first_transponder.position == "28.2°E"
-        assert first_transponder.satellite == "Astra 2E"
-        assert first_transponder.frequency == 10773.0
-        assert first_transponder.polarization == "H"
-        assert first_transponder.transponder_id == 45
-        assert first_transponder.beam == "U.K."
-        assert first_transponder.system == "DVB-S2"
-        assert first_transponder.modulation == "8PSK"
-        assert first_transponder.symbol_rate == 23000.0
-        assert first_transponder.fec == "3/4"
-        assert first_transponder.network_bitrate == "50.1 Mb/s"
-        assert first_transponder.nid == 2
-        assert first_transponder.tid == 2045
-
-        last_transponder = transponders[-1]
-        assert last_transponder.position == "28.2°E"
-        assert last_transponder.satellite == "Astra 2E"
-        assert last_transponder.frequency == 12382.00
-        assert last_transponder.polarization == "H"
-        assert last_transponder.transponder_id == 35
-        assert last_transponder.beam == "U.K."
-        assert last_transponder.system == "DVB-S2"
-        assert last_transponder.modulation == "8PSK"
-        assert last_transponder.symbol_rate == 29500.0
-        assert last_transponder.fec == "2/3"
-        assert last_transponder.network_bitrate == "ASTRA, 57.1 Mb/s"
-        assert last_transponder.nid == 2
-        assert last_transponder.tid == 2035
-
-    def test_parse_transponder_with_missing_fields(self):
-        """
-        Test parser behavior when a transponder row is missing fields.
-        """
-        html_snippet = VALID_HEADER_HTML + """
-        <table class="frq"><tr>
-            <td class="pos">28.2°E</td>
-            <td><a>Astra 2E</a></td>
-            <td>11097.00</td>
-            <td>V</td>
-            <!-- Missing transponder ID and other columns -->
-        </tr></table>
-        """
-        scraper = KingOfSatScraper(html_snippet)
-        transponders = scraper.parse_transponders()
-        self.assertEqual(len(transponders), 0, "Should skip malformed row with missing fields.")
-
-    def test_parse_transponder_with_non_numeric_frequency(self):
-        """
-        Ensure parser handles non-numeric frequency gracefully.
-        """
-        html_snippet = VALID_HEADER_HTML + """
-        <table class="frq"><tr>
-            <td class="pos">28.2°E</td>
-            <td><a>Astra 2E</a></td>
-            <td>InvalidFreq</td>
-            <td>H</td>
-            <td><a>45</a></td>
-            <td><a>U.K.</a></td>
-            <td>DVB-S2</td>
-            <td>8PSK</td>
-            <td><a>23000</a> <a>3/4</a></td>
-            <td>50.1 Mb/s</td>
-            <td>2</td>
-            <td>2045</td>
-        </tr></table>
-        """
-        scraper = KingOfSatScraper(html_snippet)
-        transponders = scraper.parse_transponders()
-        self.assertEqual(len(transponders), 0, "Should skip rows with non-numeric frequency.")
-
-    def test_parse_transponder_with_nested_elements(self):
-        """
-        Test that parser handles nested tags inside td elements correctly.
-        """
-        html_snippet = VALID_HEADER_HTML + """
-        <table class="frq"><tr>
-            <td class="pos">28.2°E</td>
-            <td><span class="nbc">9</span><a>Astra 2E</a></td>
-            <td>10773.00</td>
-            <td>H</td>
-            <td><a>45</a></td>
-            <td><a>U.K.</a></td>
-            <td>DVB-S2</td>
-            <td>8PSK</td>
-            <td><a>23000</a> <a>3/4</a></td>
-            <td>50.1 Mb/s</td>
-            <td>2</td>
-            <td>2045</td>
-        </tr></table>
-        """
-        scraper = KingOfSatScraper(html_snippet)
-        transponders = scraper.parse_transponders()
-        self.assertEqual(len(transponders), 1)
-        self.assertEqual(transponders[0].satellite, "Astra 2E")
-
-    def test_parse_transponder_with_weird_symbol_rate_format(self):
-        """
-        Symbol rate and FEC not inside <a> tags.
-        """
-        html_snippet = VALID_HEADER_HTML + """
-        <table class="frq"><tr>
-            <td class="pos">28.2°E</td>
-            <td><a>Astra 2F</a></td>
-            <td>11097.00</td>
-            <td>V</td>
-            <td><a>99</a></td>
-            <td><a>U.K.</a></td>
-            <td>DVB-S2</td>
-            <td>QPSK</td>
-            <td>27500 5/6</td>
-            <td>55.0 Mb/s</td>
-            <td>1</td>
-            <td>2001</td>
-        </tr></table>
-        """
-        scraper = KingOfSatScraper(html_snippet)
-        transponders = scraper.parse_transponders()
-        self.assertEqual(len(transponders), 1)
-        # Since <a> not used, read the plain text
-        self.assertEqual(transponders[0].symbol_rate, 27500)
-        self.assertEqual(transponders[0].fec, "5/6")
-
-    def test_parse_transponder_with_extra_columns(self):
-        """
-        Transponder row has more columns than expected.
-        """
-        html_snippet = VALID_HEADER_HTML + """
-        <table class="frq"><tr>
-            <td class="pos">28.2°E</td>
-            <td><a>Astra 2G</a></td>
-            <td>11223.00</td>
-            <td>H</td>
-            <td><a>47</a></td>
-            <td><a>Europe</a></td>
-            <td>DVB-S2</td>
-            <td>8PSK</td>
-            <td><a>27500</a> <a>2/3</a></td>
-            <td>60.5 Mb/s</td>
-            <td>2</td>
-            <td>2047</td>
-            <td>Extra</td>
-            <td>MoreExtra</td>
-        </tr></table>
-        """
-        scraper = KingOfSatScraper(html_snippet)
-        transponders = scraper.parse_transponders()
-        self.assertEqual(len(transponders), 1)
-        self.assertEqual(transponders[0].transponder_id, 47)
-
-    def test_parse_transponder_with_corrupt_html(self):
-        """
-        Handle broken HTML structure gracefully.
-        """
-        html_snippet = VALID_HEADER_HTML + """
-        <table class="frq"><tr>
-            <td class="pos">28.2°E<td>
-            <td><a>Astra 2E</td>
-            <td>10773.00
-            <td>H</td><td><a>45</a>
-        """
-        scraper = KingOfSatScraper(html_snippet)
-        transponders = scraper.parse_transponders()
-        self.assertEqual(len(transponders), 0, "Should skip corrupt HTML rows without crashing.")
+def test_fixture_logs_one_summary_and_no_warnings(caplog):
+    with caplog.at_level(logging.DEBUG, logger="sat_to_ip.kingofsat.scraper"):
+        KingOfSatScraper(load_html_content()).parse_transponders()
+    assert [r.getMessage() for r in caplog.records] == ["Parsed 35 transponders, skipped 0 rows"]
 
 
-def test_no_header_table_returns_empty():
-    assert KingOfSatScraper("<html></html>").parse_transponders() == []
+def test_snippet_row_parses():
+    [t] = KingOfSatScraper(_row()).parse_transponders()
+    assert t.satellite == "Astra 2E"  # not "Astra 2E 9"
+    assert (t.frequency, t.polarization, t.system, t.modulation, t.symbol_rate, t.fec) == (
+        10773.25,
+        "H",
+        "DVB-S2",
+        "8PSK",
+        23000,
+        "3/4",
+    )
+    assert (t.network_bitrate, t.nid, t.tid) == ("50.1 Mb/s", 2, 2045)
 
 
-def test_header_table_without_row_is_invalid():
-    assert KingOfSatScraper('<table class="frq"></table>')._validate_header_table() is False
+def test_circular_polarisation_accepted():
+    [t] = KingOfSatScraper(_row(freq_pol="11000 l")).parse_transponders()
+    assert t.polarization == "L"
 
 
-def test_header_only_returns_empty():
-    assert KingOfSatScraper(VALID_HEADER_HTML).parse_transponders() == []
+def test_missing_summary_table_defaults():
+    [t] = KingOfSatScraper(_row(summary=False)).parse_transponders()
+    assert (t.network_bitrate, t.nid, t.tid) == ("", 0, 0)
 
 
-def test_data_table_without_row_is_skipped():
-    assert KingOfSatScraper(VALID_HEADER_HTML + '<table class="frq"></table>').parse_transponders() == []
+def test_next_transponder_is_not_taken_as_summary():
+    first, _ = KingOfSatScraper(_row(summary=False) + _row()).parse_transponders()
+    assert (first.nid, first.tid) == (0, 0)
 
 
-def test_row_without_symbol_rate_is_skipped():
-    cells = ["28.2°E", "<a>Astra 2F</a>", "11097", "V", "1", "UK", "DVB-S2", "8PSK", "", "x", "2", "2001"]
-    html = VALID_HEADER_HTML + '<table class="frq"><tr>' + "".join(f"<td>{c}</td>" for c in cells) + "</tr></table>"
+def test_summary_without_ids_or_bitrate():
+    html = _row(summary=False) + '<table class="frq kos-stream-summary"><tr><td>TS</td></tr></table>'
+    [t] = KingOfSatScraper(html).parse_transponders()
+    assert (t.network_bitrate, t.nid, t.tid) == ("", 0, 0)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"freq_pol": "10773.25 X"},
+        {"freq_pol": "10773.25"},
+        {"freq_pol": "abc H"},
+        {"modulation": "8psk&pol=v"},
+        {"modulation": ""},
+        {"standard": "DVB S2"},
+        {"standard": "DVB-S2&x=1"},
+        {"sr": ""},
+        {"sr": "<a>fast</a>"},
+    ],
+)
+def test_invalid_row_skipped_with_one_debug_line(kwargs, caplog):
+    html = _row(**kwargs) + _row()
+    with caplog.at_level(logging.DEBUG, logger="sat_to_ip.kingofsat.scraper"):
+        transponders = KingOfSatScraper(html).parse_transponders()
+    assert len(transponders) == 1
+    assert [r.levelno for r in caplog.records] == [logging.DEBUG, logging.INFO]
+    assert caplog.records[-1].getMessage() == "Parsed 1 transponders, skipped 1 rows"
+
+
+def test_short_row_skipped():
+    html = '<table><tr class="frequency-row"><td>28.2E</td><td>Astra</td></tr></table>'
     assert KingOfSatScraper(html).parse_transponders() == []
+
+
+def test_other_tables_ignored_silently(caplog):
+    html = '<table class="frq"><tr><td>Pos</td></tr></table><table class="frq"><tr><td>x</td></tr></table>'
+    with caplog.at_level(logging.DEBUG, logger="sat_to_ip.kingofsat.scraper"):
+        assert KingOfSatScraper(html).parse_transponders() == []
+    assert [r.getMessage() for r in caplog.records] == ["Parsed 0 transponders, skipped 0 rows"]
 
 
 def test_transponder_rejects_bad_polarization():
@@ -327,7 +154,3 @@ def test_transponder_rejects_bad_polarization():
 def test_transponder_uppercases_polarization():
     t = Transponder("28.2E", "Astra", 10773.0, "h", 1, "UK", "DVB-S2", "8PSK", 23000, "3/4", "", 2, 2045)
     assert t.polarization == "H"
-
-
-if __name__ == "__main__":
-    unittest.main()
