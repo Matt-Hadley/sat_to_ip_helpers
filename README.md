@@ -116,11 +116,15 @@ You can also edit the list by hand. It's a few blocks, each starting at a channe
 
 ```toml
 [[channels]]
-start = 101                     # BBC One HD is 101, ITV1 HD 102, Channel 4 HD 103
+start = 101                     # BBC One HD is 101, ITV1 HD 102, … BBC Three HD 105, CBBC HD 106
 names = [
   "BBC One HD",
   "ITV1 HD",
   "Channel 4 HD",
+  { name = "5DRAMA", service = 2105 },  # matched by its broadcast service, whatever it's called now
+  # timeshares: two channels taking turns on one stream, each published under its own number
+  { name = "BBC Three HD", additional_names = ["CBBC HD"], extra_pids = [264, 268] },
+  { name = "BBC Four HD", additional_names = ["CBeebies HD"], extra_pids = [267, 269] },
 ]
 
 [[channels]]
@@ -133,7 +137,9 @@ names = [
 
 - **Names** must match your receiver exactly. If a name appears twice (e.g. two regions of a channel), write `{ name = "BBC One HD", frequency = 10773 }` with the frequency in MHz.
 - **Renamed channels:** `{ name = "5DRAMA", service = 2105 }` matches the broadcast service itself, whatever it's called now, so the entry keeps working when a channel is renamed (5SELECT became 5DRAMA) or takes a seasonal name (Great! Romance is Great!Christmas until January). Each rescan picks up the new name, so your apps show what's on air. `sat-to-ip channels` writes `service` for you; an entry that only has a name stops matching once that channel is renamed, and the run says so.
-- **Timeshares:** some channels take turns on one broadcast slot, like CBBC by day and BBC Three in the evening, so a scan finds whichever is on air at the time. `{ name = "BBC Three HD", additional_names = ["CBBC HD"] }` matches either name, and the channel is published once under each name, numbered in that order. Both share the same stream, and each gets its own guide. A rescan follows the slot from one name to the other, whatever the time of day. (With `service` as well, only the service is matched; the names are just published.) A scan only sees the channel on air at the time, so the stream won't play when the other one is on: list both channels' program table (PMT) PIDs with `extra_pids = [264, 268]`, so the stream plays whenever the scan ran. Players can't open it without the table of the channel on air. A channel's PMT PID is in its stream address after a scan made while it's on air (`pids=0,16,17,18,20,264,…`: the one after 20).
+- **Timeshares:** some channels take turns on one broadcast slot, like CBBC by day and BBC Three in the evening, so a scan finds whichever is on air at the time.
+  - `additional_names` makes the entry match any of its names. The channel is published once under each name, numbered in that order, all on the same stream, each with its own guide. A rescan follows the slot from one name to the other, whatever the time of day. (With `service` as well, only the service is matched; the names are just published.)
+  - `extra_pids` adds PIDs to the stream. List every name's program table (PMT) PID: a scan only puts in the one on air at the time, and players can't open the stream without the table of the channel on air now. A channel's PMT PID is in its stream address after a scan made while it's on air (`pids=0,16,17,18,20,264,…`: the one after 20). The four above are right for 28.2°E today.
 - **`{ rest = "tv" }`**, `"radio"` or `"all"` takes every channel of that kind you haven't already listed.
 - **Numbers stay put:** if a channel disappears from the satellite, its number is kept free and the channels after it don't move.
 

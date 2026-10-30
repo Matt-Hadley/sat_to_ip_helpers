@@ -66,6 +66,9 @@ output_dir = "/srv/threadfin/livetv"        # mounted into the Threadfin contain
 #   start = the first channel's number; the rest count up. A missing channel keeps its number free.
 #   "Name"                                 a channel by name, exactly as your receiver shows it
 #   { name = "Name", frequency = 10773 }   that name on that frequency (MHz), if the name appears twice
+#   { name = "Name", service = 2105 }      that broadcast service, whatever it's called now
+#   { name = "A", additional_names = ["B"], extra_pids = [264, 268] }
+#                                          a timeshare: A and B take turns on one stream; list both PMT PIDs
 #   { rest = "tv" }                        every TV (or "radio", or "all") channel not listed before
 
 [[channels]]
@@ -77,8 +80,8 @@ names = [
   "Channel 4 HD",
   "5 HD",
   "ITV2 HD",
-  "BBC Three HD",
-  "BBC Four HD",
+  { name = "BBC Three HD", additional_names = ["CBBC HD"], extra_pids = [264, 268] },  # CBBC by day
+  { name = "BBC Four HD", additional_names = ["CBeebies HD"], extra_pids = [267, 269] },  # CBeebies by day
   "ITV3 HD",
   "ITV4 HD",
   "ITV Quiz HD",
