@@ -33,8 +33,10 @@ Open Threadfin at `http://<your-server>:34400/web/`.
 
 1. **Playlist → New → M3U:** enter `/livetv/tv.m3u`. Set **Tuner / Streams** to how many channels your receiver can stream at once. Add `/livetv/radio.m3u` as a second playlist only if you want radio in Plex.
 2. **XMLTV → New:** enter `/livetv/guide.xml`.
-3. **Mapping:** channels that match the guide switch themselves on. Check the list once, since anything without a match stays off.
-4. **Settings → Schedule for updating:** choose when Threadfin re-reads the files, e.g. `0500`, an hour after your weekly run.
+3. **Settings → EPG Source:** choose **XEPG**. With the default (PMS) the mapping page stays empty.
+4. **Filter → New → M3U:** pick the playlist and save. Channels only appear for mapping once a filter lets them through.
+5. **Mapping:** channels that match the guide switch themselves on. Check the list once, since anything without a match stays off.
+6. **Settings → Schedule for updating:** choose when Threadfin re-reads the files, e.g. `0500`, an hour after your weekly run.
 
 ## 3. Add Threadfin to Plex
 
@@ -81,3 +83,19 @@ Instead of waiting for Threadfin's schedule, sat-to-ip can tell it to reload:
    ```
 
 Note that this makes Threadfin reload *all* its playlists, not just these.
+
+## If channels show up but won't play
+
+Octopus NET sends its streams over RTSP with the picture on UDP, and it doesn't offer TCP or HTTP instead. Threadfin needs to receive that UDP:
+
+- **Linux:** add `network_mode: host` to the Threadfin service (and drop `ports:`), so the UDP reaches the container.
+- **Docker Desktop (Mac or Windows):** UDP from the box doesn't reach the container. Use Channels DVR as the source instead (below), or run Threadfin on a Linux machine.
+
+### Feeding Threadfin from Channels DVR
+
+If you already publish to [Channels DVR](channels-dvr.md), Threadfin can use its channel list and guide instead of sat-to-ip's files. Channels DVR handles the UDP, and you don't need the `threadfin` publisher or the folder from step 1:
+
+- **Playlist:** `http://<channels-dvr>:8089/devices/ANY/channels.m3u?format=ts`
+- **XMLTV:** `http://<channels-dvr>:8089/devices/ANY/guide/xmltv?duration=604800`
+
+Set Threadfin's **Settings → Buffer** to **FFmpeg**. Plex can't play Channels DVR's raw streams directly, and the FFmpeg buffer makes them playable.
