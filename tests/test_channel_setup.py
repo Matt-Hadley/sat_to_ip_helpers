@@ -226,7 +226,14 @@ def test_a_timeshare_entry_is_kept_and_takes_a_number_per_name(tmp_path):
     config = _config(tmp_path, f'[[channels]]\nstart = 101\nnames = [{entry}, "Ch 2"]\n', receiver=rx)
     _, said, _ = _run(config, answers=())
     assert _blocks(config) == [
-        {"start": 101, "names": [{"name": "BBC Three HD", "additional_names": ["CBBC HD"], "extra_pids": [264, 268]}, "Ch 2", "Ch 3"]}
+        {
+            "start": 101,
+            "names": [
+                {"name": "BBC Three HD", "additional_names": ["CBBC HD"], "extra_pids": [264, 268]},
+                "Ch 2",
+                "Ch 3",
+            ],
+        }
     ]
     assert "(TV 101–104)" in said[0]
 
