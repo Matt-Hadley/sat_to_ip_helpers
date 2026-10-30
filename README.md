@@ -63,7 +63,7 @@ Run it once, or let it run by itself once a week. If something looks wrong, for 
 If you don't have [pipx](https://pipx.pypa.io/stable/installation/) yet, install it first (on a Mac: `brew install pipx`). Then:
 
 ```bash
-pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers@v0.5.1
+pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers@v0.5.2
 ```
 
 That's the latest [release](https://github.com/Matt-Hadley/sat_to_ip_helpers/releases). To update later, run the same command with `--force` and the new release's tag.
@@ -133,7 +133,7 @@ names = [
 
 - **Names** must match your receiver exactly. If a name appears twice (e.g. two regions of a channel), write `{ name = "BBC One HD", frequency = 10773 }` with the frequency in MHz.
 - **Renamed channels:** `{ name = "5DRAMA", service = 2105 }` matches the broadcast service itself, whatever it's called now, so the entry keeps working when a channel is renamed (5SELECT became 5DRAMA) or takes a seasonal name (Great! Romance is Great!Christmas until January). Each rescan picks up the new name, so your apps show what's on air. `sat-to-ip channels` writes `service` for you; an entry that only has a name stops matching once that channel is renamed, and the run says so.
-- **Timeshares:** some channels take turns on one broadcast slot, like CBBC by day and BBC Three in the evening, so a scan finds whichever is on air at the time. `{ name = "BBC Three HD", additional_names = ["CBBC HD"] }` matches either name, and the channel is published once under each name, numbered in that order. Both share the same stream, and each gets its own guide. A rescan follows the slot from one name to the other, whatever the time of day. (With `service` as well, only the service is matched; the names are just published.)
+- **Timeshares:** some channels take turns on one broadcast slot, like CBBC by day and BBC Three in the evening, so a scan finds whichever is on air at the time. `{ name = "BBC Three HD", additional_names = ["CBBC HD"] }` matches either name, and the channel is published once under each name, numbered in that order. Both share the same stream, and each gets its own guide. A rescan follows the slot from one name to the other, whatever the time of day. (With `service` as well, only the service is matched; the names are just published.) A scan only sees the channel on air at the time, so the stream won't play when the other one is on: add the other channel's program table (PMT) PID with `extra_pids = [264]`. Players can't open the stream without it. The PMT PID is in the stream address of a scan made while that channel is on air (`pids=0,16,17,18,20,264,…`: the one after 20).
 - **`{ rest = "tv" }`**, `"radio"` or `"all"` takes every channel of that kind you haven't already listed.
 - **Numbers stay put:** if a channel disappears from the satellite, its number is kept free and the channels after it don't move.
 
@@ -216,7 +216,7 @@ Any scheduler works. On a Mac or Linux, `crontab -e` and add a line like this on
 
 Here `secrets.env` holds your `export OCTOPUS_PASSWORD=…` lines. Make it private with `chmod 600 secrets.env`.
 
-The scan briefly takes over the receiver's tuners, so pick a time when nothing is recording. A GitHub Actions workflow on a self-hosted runner works too; keep your config in a private repo. A job that installs from GitHub should pin a [release](https://github.com/Matt-Hadley/sat_to_ip_helpers/releases) (`pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers@v0.5.1`) rather than `@main`, so an update only reaches your setup when you choose it.
+The scan briefly takes over the receiver's tuners, so pick a time when nothing is recording. A GitHub Actions workflow on a self-hosted runner works too; keep your config in a private repo. A job that installs from GitHub should pin a [release](https://github.com/Matt-Hadley/sat_to_ip_helpers/releases) (`pipx install git+https://github.com/Matt-Hadley/sat_to_ip_helpers@v0.5.2`) rather than `@main`, so an update only reaches your setup when you choose it.
 
 ## Everyday commands
 

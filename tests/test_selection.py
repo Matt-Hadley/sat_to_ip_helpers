@@ -78,6 +78,9 @@ def test_names_are_trimmed_and_a_block_may_have_no_start():
         ([{"names": [{"name": "A", "frequency": "x"}]}], "names\\[0\\].frequency: must be a number"),
         ([{"names": [{"name": "A", "additional_names": "B"}]}], "additional_names: must be a list of channel names"),
         ([{"names": [{"name": "A", "additional_names": [" "]}]}], "additional_names: must be a list of channel names"),
+        ([{"names": [{"name": "A", "extra_pids": 264}]}], "extra_pids: must be a list of PIDs"),
+        ([{"names": [{"name": "A", "extra_pids": [8192]}]}], "extra_pids: must be a list of PIDs"),
+        ([{"names": [{"name": "A", "extra_pids": [True]}]}], "extra_pids: must be a list of PIDs"),
         (
             [{"start": 10, "names": [{"name": "A", "additional_names": ["B"]}]}, {"start": 11, "names": ["C"]}],
             "channels\\[1\\].start: 11 overlaps channels\\[0\\] \\(its channels run up to 11\\)",
@@ -186,6 +189,21 @@ def test_a_timeshare_is_published_once_per_name_whatever_is_on_air():
         (10, "CBBC HD", "k-CBBC HD/CBBC HD", "u"),
         (11, "B", "k-B", "u"),
     ]
+
+
+def test_extra_pids_are_added_to_the_stream_of_every_name():
+    entry = {"name": "BBC Three HD", "additional_names": ["CBBC HD"], "extra_pids": [264, 268]}
+    url = "rtsp://box:554/?src=1&freq=10847&pids=0,16,268,5600"
+    lineup = Lineup((Channel("k", "BBC Three HD", "tv", url),))
+    assert {c.stream_url for c in number_lineup(lineup, specs_from_config([{"names": [entry]}]))} == {
+        "rtsp://box:554/?src=1&freq=10847&pids=0,16,268,5600,264"
+    }
+
+
+@pytest.mark.parametrize("url", ["rtsp://box:554/?src=1&pids=all", "rtsp://box:554/?src=1", "http://box/ch.ts"])
+def test_extra_pids_leave_a_stream_without_a_pids_list_alone(url):
+    specs = specs_from_config([{"names": [{"name": "A", "extra_pids": [264]}]}])
+    assert number_lineup(Lineup((Channel("k", "A", "tv", url),)), specs).channels[0].stream_url == url
 
 
 def test_a_missing_timeshare_keeps_a_number_free_for_each_name():

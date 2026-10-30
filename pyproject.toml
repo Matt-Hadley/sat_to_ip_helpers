@@ -1,6 +1,6 @@
 [project]
 name = "sat-to-ip-helpers"
-version = "0.5.1"
+version = "0.5.2"
 description = "Publish SAT>IP channels (e.g. from an Octopus NET) with guide data to Channels DVR, Jellyfin and Plex"
 readme = "README.md"
 license = "MIT"
