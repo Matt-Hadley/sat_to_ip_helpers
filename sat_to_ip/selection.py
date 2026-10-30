@@ -7,7 +7,7 @@ and number the lineup.
       "BBC One HD",                               # a channel by name (the first one with that name)
       { name = "BBC One HD", frequency = 10773 }, # that name on that frequency (MHz), when it appears twice
       { name = "5DRAMA", service = 2105 },        # that broadcast service, whatever it's called now
-      { name = "BBC Three HD", additional_names = ["CBBC HD"], extra_pids = [264] },  # a timeshare, see below
+      { name = "BBC Three HD", additional_names = ["CBBC HD"], extra_pids = [264, 268] },  # a timeshare
       { rest = "tv" },                            # every TV / radio / channel ("all") not listed before
     ]
 
@@ -19,7 +19,7 @@ a scan finds it under whichever name is on air. Its entry matches any of its nam
 published once per name, numbered in that order, all with the same stream.
 
 A scan only sees the channel on air at the time, so its stream asks for that channel's program table (PMT) only.
-`extra_pids` adds the other channel's PMT PID to the stream, without which players can't open it.
+`extra_pids` adds PIDs to the stream: list every name's PMT PID, so it plays whichever channel a scan saw.
 """
 
 from collections.abc import Sequence
