@@ -339,11 +339,29 @@ def test_two_saved_twins_never_retune_onto_one_on_air_record(rx):
     assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [3, 4]
 
 
-def test_a_timeshare_never_follows_onto_a_record_another_saved_channel_holds(rx):
+def test_a_timeshare_saved_under_both_names_keeps_the_one_on_air(rx):
+    # a scan that straddled the handover saved both names; by day only CBBC is on air
     saved = [_moved(1, "BBC Three HD", 10847, 6951), _moved(2, "CBBC HD", 10847, 6952)]
     rx._client = _client(dms=saved)
     rx._client.get_available_channels.side_effect = [saved, [saved[1]], [saved[1]]]  # by day, scanned twice
     _refresh(rx, lambda pos, **_: [_transponder(freq=10847)], [frozenset({"bbc three hd", "cbbc hd"})])
+    assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [2]
+
+
+def test_a_channel_simulcast_during_a_move_ends_up_on_its_new_copy(rx):
+    saved = [_moved(1, "BBC R4", 11954, 6401, "audio"), _moved(2, "BBC R4", 10847, 6401, "audio")]
+    rx._client = _client(dms=saved)
+    scanned = [saved[1], _moved(3, "BBC R2", 11954, 6402, "audio")]  # 11954 scanned; R4 left it
+    rx._client.get_available_channels.side_effect = [saved, scanned, scanned]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=11954), _transponder(freq=10847)])
+    assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [2]
+
+
+def test_a_saved_copy_never_replaces_a_channel_on_a_transponder_the_scan_missed(rx):
+    saved = [_moved(1, "BBC R4", 11954, 6401, "audio"), _moved(2, "BBC R4", 10847, 6401, "audio")]
+    rx._client = _client(dms=saved)
+    rx._client.get_available_channels.side_effect = [saved, [saved[1]], [saved[1]]]  # 11954 not found at all
+    _refresh(rx, lambda pos, **_: [_transponder(freq=11954), _transponder(freq=10847)])
     assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [1, 2]
 
 

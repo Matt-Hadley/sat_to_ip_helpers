@@ -129,9 +129,18 @@ def _retune_moved(
             records.append(fresh)
             continue
         # two saved channels never share a record: not one retuned already, nor one the scan found unmoved
-        taken = {str(r.get("serviceid")) for r in [*records, *saved]}
-        free = [new for new in scanned if str(new.get("serviceid")) not in taken]
+        retuned = {str(r.get("serviceid")) for r in records}
+        others = {str(s.get("serviceid")) for s in saved} - retuned
+        free = [new for new in scanned if str(new.get("serviceid")) not in retuned | others]
         same = _candidates(ch, free, set(found), timeshares, swept)
+        if same == [] and _tuning(ch) in swept:
+            # it left a transponder the scan found, for a copy already saved (a simulcast during a move, or a
+            # timeshare's other name): drop the old record, so the entry takes the copy rather than a dead stream
+            saved_copies = [new for new in scanned if str(new.get("serviceid")) in others]
+            copies = _candidates(ch, saved_copies, set(found), timeshares, swept) or []
+            if len(copies) == 1:
+                logger.info(f"   {ch.get('name')!r} left {mhz(ch_freq(ch)):g} MHz; its copy already saved takes over")
+                continue
         if same is not None:
             old_mhz = mhz(ch_freq(ch))
             if len(same) == 1:
