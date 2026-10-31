@@ -42,11 +42,7 @@ class ChannelsDVRPublisher:
     def publish(self, lineup: Lineup, guide: GuideMatch | None, *, dry_run: bool) -> PublishResult:
         # Build every playlist before pushing any, so a refusal leaves all sources untouched
         playlists: list[tuple[Source, list[m3u.Entry]]] = []
-        for src in self.sources:
-            channels = lineup.of_kind(src.kind)
-            if not channels:
-                logger.info(f"No {src.kind} channels in the lineup; leaving {src.source_id} unchanged")
-                continue
+        for src in self.sources:  # a kind with no channels empties its source, as the file publishers do
             numbered = self.channel_numbers == "list"
             chosen = publishable(lineup, guide, src.kind, f"Channels DVR source {src.source_id!r}")
             playlists.append((src, [_entry(ch, guide, numbered) for ch in chosen]))
@@ -67,7 +63,7 @@ class ChannelsDVRPublisher:
             self.client.refresh_m3u_source(src.source_id)
         detail = "; ".join(f"{src.kind}: {len(entries)} → {src.source_id}" for src, entries in playlists)
         suffix = " (dry run; sources found)" if dry_run else ""
-        return PublishResult(self.name, sum(len(e) for _, e in playlists), detail + suffix)
+        return PublishResult(sum(len(e) for _, e in playlists), detail + suffix)
 
 
 def _entry(ch: Channel, guide: GuideMatch | None, numbered: bool) -> m3u.Entry:
@@ -96,6 +92,8 @@ def from_config(section: Section) -> ChannelsDVRPublisher:
             raise section.error(f"{kind}_display_name", f"set {kind}_source too, or remove this")
     if not sources:
         raise section.error("tv_source", "set tv_source and/or radio_source (the Channels DVR M3U source IDs)")
+    if len({src.source_id for src in sources}) < len(sources):
+        raise section.error("radio_source", "must differ from tv_source: radio would replace the TV channels")
     channel_numbers = section.get_str("channel_numbers", "channels_dvr")
     if channel_numbers not in CHANNEL_NUMBERS:
         raise section.error("channel_numbers", f"must be one of {', '.join(CHANNEL_NUMBERS)}, got {channel_numbers!r}")

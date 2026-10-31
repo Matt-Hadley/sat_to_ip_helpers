@@ -43,7 +43,7 @@ def _statuses(report):
 def test_full_run_refreshes_selects_and_publishes(tmp_path):
     rx, pub = FakeReceiver(found=[channel(4)]), FakePublisher()
     report = pipeline.run(_config(tmp_path, receiver=rx, publishers=[pub], specs="Ch 1\nCh 2\nCh 3\nCh 4\n"))
-    assert report.ok and report.exit_code == 0
+    assert report.exit_code == 0
     assert _statuses(report) == {"refresh": "ok", "select": "ok", "publish:pub": "ok"}
     assert rx.refreshed == 1 and len(rx.saved) == 1
     lineup, match, dry = pub.published[0]
@@ -78,7 +78,7 @@ def test_stages_option_runs_only_those(tmp_path):
 def test_receiver_without_capabilities_skips_those_stages(tmp_path):
     report = pipeline.run(_config(tmp_path, receiver=BasicReceiver()))
     assert _statuses(report) == {"refresh": "skipped", "select": "skipped", "publish:pub": "ok"}
-    assert report.ok
+    assert report.exit_code == 0
 
 
 def test_select_skipped_without_channel_blocks(tmp_path):
@@ -105,7 +105,7 @@ def test_removal_check_aborts_and_saves_nothing(tmp_path):
 def test_allow_removals_overrides_check(tmp_path):
     rx = FakeReceiver(channels=[channel(i) for i in range(1, 11)])
     report = pipeline.run(_config(tmp_path, receiver=rx, specs="Ch 1\n"), RunOptions(allow_removals=True))
-    assert report.ok and len(rx.saved[0]) == 1
+    assert report.exit_code == 0 and len(rx.saved[0]) == 1
 
 
 def test_select_logs_changes_and_unmatched_specs(tmp_path, caplog):
@@ -118,7 +118,7 @@ def test_dry_run_changes_nothing(tmp_path):
     rx, pub = FakeReceiver(found=[channel(4)]), FakePublisher()
     config = _config(tmp_path, receiver=rx, publishers=[pub], specs="Ch 1\nCh 2\nCh 3\nCh 4\n")
     report = pipeline.run(config, RunOptions(dry_run=True))
-    assert report.ok and report.outcomes[1].detail == "dry run: would save 4 channels"
+    assert report.exit_code == 0 and report.outcomes[1].detail == "dry run: would save 4 channels"
     assert rx.refreshed == 0 and rx.saved == []
     assert _statuses(report)["refresh"] == "skipped"
     assert pub.published[0][2] is True
@@ -168,7 +168,7 @@ def test_a_failure_outranks_a_refusal_in_the_exit_code():
     report.add("publish:a", "refused", "check")
     assert report.exit_code == pipeline.ExitCode.REFUSED
     report.add("publish:b", "failed", "unreachable")
-    assert report.exit_code == pipeline.ExitCode.FAILED and not report.ok
+    assert report.exit_code == pipeline.ExitCode.FAILED
 
 
 def test_shared_guide_matches_once(tmp_path):
@@ -262,7 +262,7 @@ def test_publish_allows_a_few_missing_streams_or_allow_removals(tmp_path):
     )
     pub = FakePublisher(guide=None)
     options = RunOptions(stages=frozenset({Stage.PUBLISH}), allow_removals=True)
-    assert pipeline.run(_config(tmp_path, receiver=rx, publishers=[pub]), options).ok
+    assert pipeline.run(_config(tmp_path, receiver=rx, publishers=[pub]), options).exit_code == 0
     assert len(pub.published[0][0]) == 2
 
 

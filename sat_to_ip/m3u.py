@@ -19,9 +19,6 @@ class Entry:
     url: str
     attrs: tuple[tuple[str, str], ...] = ()
 
-    def attr(self, key: str) -> str | None:
-        return next((v for k, v in self.attrs if k == key), None)
-
 
 def _split_extinf(line: str) -> tuple[str, str]:
     """Split '#EXTINF:-1 a="x, y",Label' at the first comma outside quotes: (header, label)."""

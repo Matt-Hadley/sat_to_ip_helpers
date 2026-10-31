@@ -135,12 +135,12 @@ names = [
 ]
 ```
 
-- **Names** must match your receiver exactly. If a name appears twice (e.g. two regions of a channel), write `{ name = "BBC One HD", frequency = 10773 }` with the frequency in MHz.
+- **Names** must match your receiver exactly. If a name appears twice (e.g. two regions of a channel), the entry keeps the one it chose before, or takes the one on the lowest frequency the first time. To choose a region, give its broadcast service: `{ name = "BBC One HD", service = 6301 }` (what `sat-to-ip channels` writes). `{ name = "BBC One HD", frequency = 10773 }` works too when two channels share a service ID, but it pins the channel to that frequency: if it moves, the entry stops matching.
 - **Renamed channels:** `{ name = "5DRAMA", service = 2105 }` matches the broadcast service itself, whatever it's called now, so the entry keeps working when a channel is renamed (5SELECT became 5DRAMA) or takes a seasonal name (Great! Romance is Great!Christmas until January). Each rescan picks up the new name, so your apps show what's on air. `sat-to-ip channels` writes `service` for you; an entry that only has a name stops matching once that channel is renamed, and the run says so.
 - **Timeshares:** some channels take turns on one broadcast slot, like CBBC by day and BBC Three in the evening, so a scan finds whichever is on air at the time.
-  - `additional_names` makes the entry match any of its names. The channel is published once under each name, numbered in that order, all on the same stream, each with its own guide. A rescan follows the slot from one name to the other, whatever the time of day. (With `service` as well, only the service is matched; the names are just published.)
+  - `additional_names` makes the entry match any of its names. The channel is published once under each name, numbered in that order, all on the same stream, each with its own guide. A rescan follows the slot from one name to the other, whatever the time of day. Don't add `service`: the slot's service ID changes with the name on air, so a timeshare matches by name.
   - `extra_pids` adds PIDs to the stream. List every name's program table (PMT) PID: a scan only puts in the one on air at the time, and players can't open the stream without the table of the channel on air now. A channel's PMT PID is in its stream address after a scan made while it's on air (`pids=0,16,17,18,20,264,…`: the one after 20). The four above are right for 28.2°E today.
-- **`{ rest = "tv" }`**, `"radio"` or `"all"` takes every channel of that kind you haven't already listed.
+- **`{ rest = "tv" }`**, `"radio"` or `"all"` takes every channel of that kind you haven't listed elsewhere, in any block.
 - **Numbers stay put:** if a channel disappears from the satellite, its number is kept free and the channels after it don't move.
 
 ### 6. Check, try, run

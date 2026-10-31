@@ -41,14 +41,6 @@ class Lineup:
     def of_kind(self, kind: Kind) -> tuple[Channel, ...]:
         return tuple(ch for ch in self.channels if ch.kind == kind)
 
-    @property
-    def tv(self) -> tuple[Channel, ...]:
-        return self.of_kind("tv")
-
-    @property
-    def radio(self) -> tuple[Channel, ...]:
-        return self.of_kind("radio")
-
 
 @dataclass(frozen=True)
 class GuideRef:
@@ -119,6 +111,5 @@ class SelectionPlan:
 
 @dataclass(frozen=True)
 class PublishResult:
-    target: str
     channels: int
     detail: str = ""

@@ -321,11 +321,29 @@ def test_refresh_restores_the_saved_list_the_scan_empties(rx):
 
 
 @pytest.mark.parametrize("failing", ["upload_transponders", "poll_scan_until_complete", "get_available_channels"])
-def test_a_failed_scan_puts_the_saved_list_back(rx, failing):
+@pytest.mark.parametrize("error", [IntegrationError("boom"), KeyboardInterrupt()])
+def test_a_failed_scan_puts_the_saved_list_back(rx, failing, error):
     rx._client = _client(dms=SAVED)
-    getattr(rx._client, failing).side_effect = IntegrationError("boom")
-    with pytest.raises(IntegrationError, match="boom"):
+    getattr(rx._client, failing).side_effect = error
+    with pytest.raises(type(error)):
         _refresh(rx, lambda pos, **_: [_transponder()])
+    assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [1, 2]
+
+
+def test_two_saved_twins_never_retune_onto_one_on_air_record(rx):
+    saved = [_moved(1, "BBC Three HD", 10847, 6951), _moved(2, "BBC Three HD", 10847, 6971)]
+    on_air = [_moved(3, "CBBC HD", 10847, 6952), _moved(4, "CBBC HD", 10847, 6972)]
+    rx._client = _client(dms=saved)
+    rx._client.get_available_channels.side_effect = [saved, on_air]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=10847)], [frozenset({"bbc three hd", "cbbc hd"})])
+    assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [3, 4]
+
+
+def test_a_timeshare_never_follows_onto_a_record_another_saved_channel_holds(rx):
+    saved = [_moved(1, "BBC Three HD", 10847, 6951), _moved(2, "CBBC HD", 10847, 6952)]
+    rx._client = _client(dms=saved)
+    rx._client.get_available_channels.side_effect = [saved, [saved[1]], [saved[1]]]  # by day, scanned twice
+    _refresh(rx, lambda pos, **_: [_transponder(freq=10847)], [frozenset({"bbc three hd", "cbbc hd"})])
     assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [1, 2]
 
 
@@ -468,7 +486,7 @@ def test_pipeline_runs_against_octopus_net_receiver(rx, tmp_path):
         create.return_value.fetch_transponders.return_value = [_transponder()]
         report = pipeline.run(config)
 
-    assert report.ok, report.summary()
+    assert report.exit_code == 0, report.summary()
     assert [o.name for o in report.outcomes] == ["refresh", "select", "publish:pub"]
     assert [c["serviceid"] for c in rx._client.save_channels.call_args.args[0]] == [1, 2, 3]
     lineup, _, _ = pub.published[0]
@@ -486,6 +504,7 @@ def test_pipeline_runs_against_octopus_net_receiver(rx, tmp_path):
         ),
         ("https://octo:8443", "http://10.0.0.5/stream?x=1", "http://octo/stream?x=1"),
         ("octo", "not a url", "not a url"),
+        ("http://[fd00::5]", "rtsp://10.0.0.5:554/?src=1", "rtsp://[fd00::5]:554/?src=1"),
     ],
 )
 def test_stream_urls_use_the_configured_host(host, url, expected):

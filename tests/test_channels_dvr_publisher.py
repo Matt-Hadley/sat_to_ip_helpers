@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -122,6 +121,7 @@ def test_all_options():
         ({"tv_source": "T", "channel_numbers": "receiver"}, "publishers[0].channel_numbers: must be one of"),
         ({"tv_source": "T", "channel_numbers": 1}, "publishers[0].channel_numbers"),
         ({"tv_source": "T", "tv_sorce": "x"}, "publishers[0]: unknown key(s) tv_sorce"),
+        ({"tv_source": "S", "radio_source": "S"}, "publishers[0].radio_source: must differ from tv_source"),
     ],
 )
 def test_config_errors_name_their_key(data, key):
@@ -151,7 +151,7 @@ def test_publishes_matched_channels_per_kind_with_guide_attributes(http_session)
     # everything the user set in Channels is put back; only the playlist changes
     for settings in put_settings(http_session).values():
         assert settings == {**USER_SETTINGS, "text": settings["text"]}
-    assert result.target == "dvr" and result.channels == 2
+    assert result.channels == 2
     assert result.detail == "tv: 1 → OctopusTV; radio: 1 → OctopusRadio"
 
 
@@ -241,13 +241,11 @@ def test_refuses_to_empty_a_source_in_dry_run_too(http_session):
         build().publish(LINEUP, guide, dry_run=True)
 
 
-def test_skips_a_source_when_the_lineup_has_none_of_its_kind(http_session, caplog):
+def test_empties_a_source_when_the_lineup_has_none_of_its_kind(http_session):
     tv_only = Lineup((ch(1, "BBC One"),))
-    with caplog.at_level(logging.INFO):
-        result = build().publish(tv_only, GUIDE, dry_run=False)
-    assert list(pushed(http_session)) == ["OctopusTV"]
-    assert "No radio channels in the lineup; leaving OctopusRadio unchanged" in caplog.text
-    assert result.channels == 1 and result.detail == "tv: 1 → OctopusTV"
+    result = build().publish(tv_only, GUIDE, dry_run=False)
+    assert pushed(http_session)["OctopusRadio"] == "#EXTM3U\n"
+    assert result.channels == 1 and result.detail == "tv: 1 → OctopusTV; radio: 0 → OctopusRadio"
 
 
 def test_http_error_is_integration_error(http_session):
@@ -286,7 +284,7 @@ def test_pipeline_run_with_real_guide_and_publisher(http_session, tmp_path):
         path=tmp_path / "c.toml",
     )
     report = pipeline.run(config, RunOptions(stages=frozenset({Stage.PUBLISH})))
-    assert report.ok, report.summary()
+    assert report.exit_code == 0, report.summary()
     assert [(o.name, o.status) for o in report.outcomes] == [("publish:dvr", "ok")]
     assert report.outcomes[0].detail == "6 channels; tv: 4 → OctopusTV; radio: 2 → OctopusRadio"
     assert pushed(http_session)["OctopusTV"] == (GOLDEN / "expected_tv.m3u").read_text()

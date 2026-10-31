@@ -19,7 +19,7 @@ from tests.fakes import channel
 def test_lineup_views():
     lineup = Lineup((channel(1), channel(2, kind="radio")))
     assert len(lineup) == 2 and [c.number for c in lineup] == [1, 2]
-    assert lineup.tv == (channel(1),) and lineup.radio == (channel(2, kind="radio"),)
+    assert lineup.of_kind("tv") == (channel(1),) and lineup.of_kind("radio") == (channel(2, kind="radio"),)
 
 
 def test_guide_match_ratio():
@@ -92,7 +92,7 @@ def test_m3u_round_trip():
     )
     entries = m3u.parse(text)
     assert entries[0] == m3u.Entry("BBC One HD", "http://o/1", (("tvg-id", "bbc1"), ("tvg-name", "BBC One")))
-    assert entries[0].attr("tvg-id") == "bbc1" and entries[1].attr("tvg-id") is None
+    assert dict(entries[0].attrs).get("tvg-id") == "bbc1" and dict(entries[1].attrs).get("tvg-id") is None
     assert m3u.render(entries) == text
 
 

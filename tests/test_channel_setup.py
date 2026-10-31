@@ -220,6 +220,22 @@ def test_editing_keeps_every_block_start_and_missing_channels_so_numbers_stay_pu
     assert "(TV 101–102, TV 201–201, radio 801–801)" in said[0] and said[1].startswith("Kept 1 listed")
 
 
+def test_unticking_a_named_channel_next_to_a_rest_keeps_it_out(tmp_path):
+    rx = FakeReceiver(channels=[channel(n, kind="radio") for n in (1, 2, 3)])
+    config = _config(tmp_path, '[[channels]]\nstart = 801\nnames = ["Ch 1", { rest = "radio" }]\n', receiver=rx)
+    _run(config, chosen=lambda ticked, others: [c for c in ticked if c.name != "Ch 1"], answers=())
+    assert _blocks(config) == [{"start": 801, "names": ["Ch 2", "Ch 3"]}]
+
+
+def test_a_rest_block_takes_a_number_for_each_of_its_channels(tmp_path):
+    radio = [channel(n, kind="radio") for n in (1, 2, 3)]
+    rx = FakeReceiver(channels=radio, found=[channel(4)])
+    config = _config(tmp_path, '[[channels]]\nstart = 801\nnames = [{ rest = "radio" }]\n', receiver=rx)
+    _, said, _ = _run(config, answers=("",))  # the suggested first TV number
+    assert _blocks(config) == [{"start": 801, "names": [{"rest": "radio"}]}, {"start": 901, "names": ["Ch 4"]}]
+    assert "radio 801–803" in said[0]
+
+
 def test_editing_keeps_the_comments_on_entries_that_stay(tmp_path):
     rx = FakeReceiver(channels=[channel(1), channel(2), channel(4), channel(5)], found=[channel(3)])
     names = """[

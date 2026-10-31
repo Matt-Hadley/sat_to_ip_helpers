@@ -33,7 +33,7 @@ def test_writes_matched_channels_with_attributes(tmp_path):
         )
     ]
     radio = m3u.parse((tmp_path / "radio.m3u").read_text())
-    assert radio[0].attr("group-title") == "Radio" and radio[0].attr("tvg-name") == "Radio 4"
+    assert dict(radio[0].attrs).get("group-title") == "Radio" and dict(radio[0].attrs).get("tvg-name") == "Radio 4"
     assert (tmp_path / "guide.xml").read_bytes() == XMLTV
 
 
@@ -41,7 +41,7 @@ def test_without_guide_writes_every_channel_and_no_tvg_id(tmp_path):
     out = write_lineup_files(tmp_path, _lineup(), None, dry_run=False)
     assert out.counts == {"tv": 2, "radio": 1}
     assert not (tmp_path / "guide.xml").exists()
-    assert all(e.attr("tvg-id") is None for e in m3u.parse((tmp_path / "tv.m3u").read_text()))
+    assert all(dict(e.attrs).get("tvg-id") is None for e in m3u.parse((tmp_path / "tv.m3u").read_text()))
 
 
 def test_guide_without_xmltv_writes_no_guide_file(tmp_path):
@@ -80,7 +80,11 @@ def test_number_in_label_for_jellyfin(tmp_path):
     lineup = Lineup((Channel("k", "5 USA", "tv", "http://o/5", 12),))
     write_lineup_files(tmp_path, lineup, None, dry_run=False, number_in_label=True)
     entry = m3u.parse((tmp_path / "tv.m3u").read_text())[0]
-    assert entry.label == "12 5 USA" and entry.attr("tvg-name") == "5 USA" and entry.attr("tvg-chno") == "12"
+    assert (
+        entry.label == "12 5 USA"
+        and dict(entry.attrs).get("tvg-name") == "5 USA"
+        and dict(entry.attrs).get("tvg-chno") == "12"
+    )
 
 
 def test_refuses_to_empty_a_playlist_when_a_kind_matches_nothing(tmp_path):

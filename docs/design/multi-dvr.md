@@ -169,7 +169,7 @@ Config-time validation also checks that every publisher's `guide` exists and is 
    - Each publisher runs in isolation; an exception is recorded and the next one runs.
    - Unmatched channels are left out of that target's playlist (the current Channels DVR behaviour) and logged.
    - A target never gets an emptied playlist: if a kind (TV or radio) has channels but none matched, that target fails.
-4. The `RunReport` lists every stage and target as ok / failed / skipped with a reason, logged as a summary. Exit code: 0 all ok, 1 any failure, 2 configuration error.
+4. The `RunReport` lists every stage and target as ok / failed / skipped with a reason, logged as a summary. Exit code: 0 all ok, 1 any failure, 2 configuration error, 3 refused by a safety check, 4 needs attention.
 
 File publishers write `tv.m3u`, `radio.m3u` and `guide.xml` atomically (temp file + `os.replace`) so a reader never sees half a file. A dry run builds and checks everything but writes no files and calls no write APIs.
 

@@ -20,7 +20,6 @@ def assert_publisher_contract(publisher: Publisher, lineup: Lineup, guide: Guide
     if publisher.guide is not None:
         assert guide is None or guide.kind in publisher.accepts_guides
     result = publisher.publish(lineup, guide, dry_run=True)
-    assert result.target == publisher.name
     expected = len(guide.refs) if guide is not None else len(lineup)
     assert result.channels == expected, f"published {result.channels}, expected {expected}"
     return result

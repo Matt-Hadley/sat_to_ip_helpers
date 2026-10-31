@@ -66,7 +66,7 @@ def choose_channels(
             f"{receiver.name} has no channels yet; scan first with: sat-to-ip run -c {config.path} --stages refresh"
         )
     specs = config.channel_specs
-    matched = match_specs(specs, everything) if specs else []
+    matched = match_specs(specs, everything, {ch.key: i for i, ch in enumerate(saved)}) if specs else []
     current = [ch for _, chs in matched for ch in chs] if specs else list(saved)
     keys = {ch.key for ch in current}
     chosen = pick(current, [ch for ch in everything if ch.key not in keys])
@@ -144,10 +144,10 @@ def _edit_blocks(
         for i in range(len(names)):
             spec, chs = next(entries)
             ticked = [ch for ch in chs if ch.key in chosen_keys]
-            if chs and len(ticked) < len(chs):  # some of what it matched was unticked: list the rest by name
+            if _loosened(spec, chs, ticked, everything, chosen_keys):  # list what's still ticked by name
                 replaced.append((i, [_entry(ch, everything) for ch in ticked]))
             # otherwise it stays as written, comment and all: a placeholder, a name, or a whole `rest`
-            block.size += len(ticked) * len(spec.names) if chs else len(spec.names)
+            block.size += len(ticked) * (len(spec.names) or 1) if chs else len(spec.names)  # a `rest`: one each
             block.kinds.update(ch.kind for ch in ticked)
         _replace(names, replaced)
         if not len(names):
@@ -176,6 +176,20 @@ def _edit_blocks(
         target.kinds.add(kind)
         next_free = max(next_free, _next_free(blocks))
     return blocks
+
+
+def _loosened(
+    spec: Spec,
+    chs: Sequence[ChannelRef],
+    ticked: Sequence[ChannelRef],
+    everything: Sequence[ChannelRef],
+    keys: set[str],
+) -> bool:
+    """Whether an entry, kept as written, would select something unticked: some of what it matched was unticked,
+    or it's a `rest`, which would take any unticked channel of its kind on the next run."""
+    if spec.keyword is not None:
+        return any(spec.matches(ch) and ch.key not in keys for ch in everything)
+    return bool(chs) and len(ticked) < len(chs)
 
 
 def _replace(names: Any, replaced: Sequence[tuple[int, list[Any]]]) -> None:

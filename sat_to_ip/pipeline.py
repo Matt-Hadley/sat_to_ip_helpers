@@ -75,10 +75,6 @@ class RunReport:
         log(f"{icon} {name}: {status}{' — ' + detail if detail else ''}")
 
     @property
-    def ok(self) -> bool:
-        return all(o.status not in ("failed", "refused") for o in self.outcomes)
-
-    @property
     def exit_code(self) -> ExitCode:
         statuses = {o.status for o in self.outcomes}
         if "failed" in statuses:
@@ -181,7 +177,7 @@ def _publish(config: Config, options: RunOptions, report: RunReport) -> None:
     except Exception as exc:
         _record_failure(report, Stage.PUBLISH, exc)
         return
-    logger.info(f"Lineup: {len(lineup.tv)} TV, {len(lineup.radio)} radio")
+    logger.info(f"Lineup: {len(lineup.of_kind('tv'))} TV, {len(lineup.of_kind('radio'))} radio")
 
     matches, guide_errors = _match_guides(config, lineup, {p.guide for p in config.publishers if p.guide})
     for pub in config.publishers:

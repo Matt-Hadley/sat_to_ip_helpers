@@ -10,7 +10,7 @@ from sat_to_ip.model import Channel, ChannelRef, GuideMatch, Kind, Lineup, Selec
 
 logger = logging.getLogger(__name__)
 
-# `extra` for a warning a run can't fix by itself: the CLI then exits 1 so an unattended run reports it
+# `extra` for a warning a run can't fix by itself: the CLI then exits 4 so an unattended run reports it
 NEEDS_ATTENTION = {"needs_attention": True}
 
 

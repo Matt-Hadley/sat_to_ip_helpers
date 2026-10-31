@@ -36,11 +36,9 @@ class ThreadfinPublisher:
     def publish(self, lineup: Lineup, guide: GuideMatch | None, *, dry_run: bool) -> PublishResult:
         out = write_lineup_files(self.output_dir, lineup, guide, dry_run=dry_run)
         if dry_run:
-            return PublishResult(self.name, out.channels, f"dry run: would write {out.directory}; no API update")
+            return PublishResult(out.channels, f"dry run: would write {out.directory}; no API update")
         if self.api_url is None:
-            return PublishResult(
-                self.name, out.channels, f"wrote {out.directory}; Threadfin picks it up on its schedule"
-            )
+            return PublishResult(out.channels, f"wrote {out.directory}; Threadfin picks it up on its schedule")
         cmds = ["update.xmltv", "update.m3u"] if guide is not None and guide.xmltv is not None else ["update.m3u"]
         try:
             self._update(cmds)
@@ -48,7 +46,7 @@ class ThreadfinPublisher:
             raise IntegrationError(
                 f"{self.name}: files written to {out.directory}, but the API update failed: {exc}"
             ) from exc
-        return PublishResult(self.name, out.channels, f"wrote {out.directory}; ran {', '.join(cmds)}")
+        return PublishResult(out.channels, f"wrote {out.directory}; ran {', '.join(cmds)}")
 
     def _update(self, cmds: list[str]) -> None:
         token = None

@@ -98,7 +98,7 @@ sequenceDiagram
 - In **publish**, a failing guide source (or one below `min_guide_match`) fails only the publishers that use it. Each publisher is isolated from the others.
 - Nothing is kept between runs: every stage reads live from the receiver.
 - **Dry run:** no refresh, no saves, no write API calls, no files written. Everything is still built and checked, and read-only calls (e.g. finding the Channels DVR sources or Jellyfin's task) still run.
-- **Exit codes:** `0` all ok, `1` anything failed, `2` config or usage error.
+- **Exit codes:** `0` all ok, `1` anything failed, `2` config or usage error, `3` a safety check refused a change, `4` it ran but something needs a person. The lowest non-zero one wins.
 
 ## Project layout
 

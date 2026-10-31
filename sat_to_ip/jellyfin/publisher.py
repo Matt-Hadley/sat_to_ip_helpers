@@ -37,9 +37,9 @@ class JellyfinPublisher:
         if dry_run:
             # Check the API key and that Live TV is installed now, rather than after the real run's writes
             note = "guide refresh off" if not self.refresh else f"Refresh Guide task found ({self._refresh_task_id()})"
-            return PublishResult(self.name, out.channels, f"dry run: would write {out.directory}; {note}")
+            return PublishResult(out.channels, f"dry run: would write {out.directory}; {note}")
         if not self.refresh:
-            return PublishResult(self.name, out.channels, f"wrote {out.directory}; guide refresh off")
+            return PublishResult(out.channels, f"wrote {out.directory}; guide refresh off")
         try:
             task_id = self._refresh_task_id()
             self.session.post(
@@ -49,7 +49,7 @@ class JellyfinPublisher:
             raise IntegrationError(
                 f"{self.name}: files written to {out.directory}, but starting Refresh Guide failed: {exc}"
             ) from exc
-        return PublishResult(self.name, out.channels, f"wrote {out.directory}; started Refresh Guide")
+        return PublishResult(out.channels, f"wrote {out.directory}; started Refresh Guide")
 
     @property
     def _headers(self) -> dict[str, str]:

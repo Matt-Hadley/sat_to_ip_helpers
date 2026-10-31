@@ -179,8 +179,11 @@ def test_pipeline_run_with_real_publisher(tmp_path):
     )
     report = pipeline.run(config, RunOptions(stages=frozenset({Stage.PUBLISH})))
 
-    assert report.ok, report.summary()
-    assert [e.attr("tvg-id") for e in m3u.parse((tmp_path / "out" / "tv.m3u").read_text())] == ["ch1.uk", "ch2.uk"]
+    assert report.exit_code == 0, report.summary()
+    assert [dict(e.attrs).get("tvg-id") for e in m3u.parse((tmp_path / "out" / "tv.m3u").read_text())] == [
+        "ch1.uk",
+        "ch2.uk",
+    ]
     assert [e.label for e in m3u.parse((tmp_path / "out" / "radio.m3u").read_text())] == ["3 Ch 3"]
     assert (tmp_path / "out" / "guide.xml").read_bytes() == b"<tv/>"
     session.post.assert_called_once()

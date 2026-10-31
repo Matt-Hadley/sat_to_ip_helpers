@@ -68,7 +68,7 @@ def _candidates(
         return None
     names = next((ts for ts in timeshares if ch.get("name", "").lower() in ts), frozenset())
     on_air = [new for new in scanned if new.get("name", "").lower() in names and mhz(ch_freq(new)) == here]
-    return on_air[:1] or [  # the first, as a channel list entry takes the first match
+    return sorted(on_air, key=channel_key)[:1] or [  # the one a channel list entry would take
         new
         for new in scanned
         if new.get("name") == ch.get("name")
@@ -95,7 +95,7 @@ def _retune_moved(
     old frequency (GB News left 11670 while it stayed listed), so what counts is what the scan found.
     """
     found = {str(ch.get("serviceid")): ch for ch in scanned}
-    records = []
+    records: list[OctopusChannel] = []
     for ch in saved:
         fresh = found.get(str(ch.get("serviceid")))
         if fresh is not None:  # found where it was: take the scan's current details, its name included
@@ -103,7 +103,11 @@ def _retune_moved(
                 logger.info(f"   Renamed {ch.get('name')!r} → {fresh.get('name')!r}")
             records.append(fresh)
             continue
-        same = _candidates(ch, scanned, set(found), timeshares)
+        # two saved channels never share a record: not one retuned already, nor one the scan found unmoved
+        taken = {str(r.get("serviceid")) for r in [*records, *saved]}
+        same = _candidates(
+            ch, [new for new in scanned if str(new.get("serviceid")) not in taken], set(found), timeshares
+        )
         if same is not None:
             old_mhz = mhz(ch_freq(ch))
             if len(same) == 1:
@@ -179,8 +183,8 @@ class OctopusNetReceiver:
                 # A scan can miss a whole transponder (each of three on 2026-10-29 missed different ones): try again
                 logger.info(f"   {len(lost)} saved channel(s) not found; scanning once more")
                 after = list({str(ch.get("serviceid")): ch for ch in [*after, *self._scan(client)]}.values())
-        except Exception:
-            if saved:  # a failed scan must not leave the box without its channel list
+        except BaseException:  # Ctrl-C too: a stopped scan must not leave the box without its channel list
+            if saved:
                 client.save_channels(saved)
             raise
         if not after:
@@ -266,6 +270,7 @@ class OctopusNetReceiver:
         parts = urlsplit(url)
         if not host or not parts.hostname:
             return url
+        host = f"[{host}]" if ":" in host else host  # an IPv6 address keeps its brackets
         return urlunsplit(parts._replace(netloc=f"{host}:{parts.port}" if parts.port else host))
 
 

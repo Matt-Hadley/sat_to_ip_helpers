@@ -4,11 +4,11 @@ and number the lineup.
     [[channels]]
     start = 101                                   # the first channel's number; the rest count up
     names = [
-      "BBC One HD",                               # a channel by name (the first one with that name)
-      { name = "BBC One HD", frequency = 10773 }, # that name on that frequency (MHz), when it appears twice
+      "BBC One HD",                               # a channel by name (see match_specs if several have it)
       { name = "5DRAMA", service = 2105 },        # that broadcast service, whatever it's called now
+      { name = "BBC One HD", frequency = 10773 }, # that name on that frequency (MHz) only
       { name = "BBC Three HD", additional_names = ["CBBC HD"], extra_pids = [264, 268] },  # a timeshare
-      { rest = "tv" },                            # every TV / radio / channel ("all") not listed before
+      { rest = "tv" },                            # every TV / radio / channel ("all") not listed elsewhere
     ]
 
 Numbers stay stable: a listed channel that's missing from the receiver keeps its number free, so the
@@ -22,7 +22,7 @@ A scan only sees the channel on air at the time, so its stream asks for that cha
 `extra_pids` adds PIDs to the stream: list every name's PMT PID, so it plays whichever channel a scan saw.
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -93,6 +93,9 @@ def _named(value: dict[str, Any], where: str, number: int | None) -> Spec:
     additional = value.get("additional_names", [])
     if not isinstance(additional, list) or not all(isinstance(n, str) and n.strip() for n in additional):
         raise ConfigError(f"{where}.additional_names: must be a list of channel names, got {additional!r}")
+    if additional and service is not None:
+        # a timeshare's service ID changes with the name on air, so it must match by name
+        raise ConfigError(f"{where}: remove service; a timeshare (additional_names) matches by name")
     pids = value.get("extra_pids", [])
     if not isinstance(pids, list) or not all(type(pid) is int and 0 <= pid < 8192 for pid in pids):
         raise ConfigError(f"{where}.extra_pids: must be a list of PIDs, whole numbers from 0 to 8191, got {pids!r}")
@@ -149,21 +152,37 @@ def specs_from_config(blocks: Any) -> list[Spec] | None:
     return specs
 
 
-def match_specs(specs: Sequence[Spec], channels: Sequence[ChannelRef]) -> list[tuple[Spec, list[ChannelRef]]]:
+def _turn(spec: Spec) -> tuple[bool, bool]:
+    """When an entry chooses: those with a frequency or service first, then plain names, then `rest`."""
+    return spec.keyword is not None, spec.frequency_mhz is None and spec.service is None
+
+
+def match_specs(
+    specs: Sequence[Spec], channels: Sequence[ChannelRef], saved: Mapping[str, int] | None = None
+) -> list[tuple[Spec, list[ChannelRef]]]:
     """Each entry with the channels it selects, in order. A channel is only ever selected once.
 
-    A name (with or without a frequency) takes the first match not already selected, so listing it twice
-    takes two channels of that name; `rest` takes every channel of that kind not already selected.
+    Entries with a frequency or service choose first, so a plain name never takes the channel one of them names,
+    and `rest` entries last, so `rest` means every channel not listed anywhere else.
+    A name (with or without a frequency) takes one match not already selected: the first in the receiver's saved
+    order (`saved`: key → position), else the one on the lowest frequency. plan_selection saves channels in the
+    order entries choose, so the saved order records each choice: a retuned channel keeps its entry, and a newly
+    found channel of the same name never displaces it. Listing a name twice takes two channels of that name.
     """
+    saved = saved or {}
     taken: set[str] = set()
-    result = []
-    for spec in specs:
-        found = [ch for ch in channels if ch.key not in taken and spec.matches(ch)]
-        if spec.keyword is None:
-            found = found[:1]
+    found_by_entry: dict[int, list[ChannelRef]] = {}
+    for i in sorted(range(len(specs)), key=lambda i: _turn(specs[i])):
+        found = [ch for ch in channels if ch.key not in taken and specs[i].matches(ch)]
+        if specs[i].keyword is None:
+            found = sorted(found, key=lambda ch: (saved.get(ch.key, len(saved)), ch.frequency_mhz or 0.0, ch.key))[:1]
         taken.update(ch.key for ch in found)
-        result.append((spec, found))
-    return result
+        found_by_entry[i] = found
+    return [(spec, found_by_entry[i]) for i, spec in enumerate(specs)]
+
+
+def _positions(channels: Iterable[ChannelRef | Channel]) -> dict[str, int]:
+    return {ch.key: i for i, ch in enumerate(channels)}
 
 
 def timeshares(specs: Sequence[Spec]) -> list[frozenset[str]]:
@@ -186,11 +205,12 @@ def _with_pids(url: str, pids: Sequence[int]) -> str:
 def plan_selection(
     saved: Sequence[ChannelRef], available: Sequence[ChannelRef], specs: Sequence[Spec]
 ) -> SelectionPlan:
-    """What saving the channel list would change: proposed channels in list order, plus entries that matched nothing."""
-    matched = match_specs(specs, [*saved, *available])
+    """What saving the channel list would change: the proposed channels in the order the entries chose them (see
+    match_specs), plus entries that matched nothing."""
+    matched = match_specs(specs, [*saved, *available], _positions(saved))
     return SelectionPlan(
         current=tuple(saved),
-        proposed=tuple(ch for _, found in matched for ch in found),
+        proposed=tuple(ch for _, found in sorted(matched, key=lambda m: _turn(m[0])) for ch in found),
         unmatched_specs=tuple(spec.text for spec, found in matched if not found and spec.keyword is None),
     )
 
@@ -208,7 +228,7 @@ def number_lineup(lineup: Lineup, specs: Sequence[Spec] | None) -> Lineup:
     by_key = {ch.key: ch for ch in lineup}
     numbered: list[Channel] = []
     next_number = 1
-    for spec, found in match_specs(specs or (), refs):
+    for spec, found in match_specs(specs or (), refs, _positions(lineup)):
         if spec.number is not None:
             if spec.number < next_number:
                 raise CheckError(

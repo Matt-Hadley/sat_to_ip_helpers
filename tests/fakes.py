@@ -92,7 +92,7 @@ class FakePublisher:
             raise RuntimeError("DVR down")
         self.published.append((lineup, guide, dry_run))
         count = len(guide.refs) if guide else len(lineup)
-        return PublishResult(self.name, count, "dry run" if dry_run else "")
+        return PublishResult(count, "dry run" if dry_run else "")
 
 
 # Builders for registry/config tests -------------------------------------------------------------

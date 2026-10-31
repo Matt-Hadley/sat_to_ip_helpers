@@ -79,6 +79,10 @@ def test_names_are_trimmed_and_a_block_may_have_no_start():
         ([{"names": [{"name": "A", "additional_names": "B"}]}], "additional_names: must be a list of channel names"),
         ([{"names": [{"name": "A", "additional_names": [" "]}]}], "additional_names: must be a list of channel names"),
         ([{"names": [{"name": "A", "extra_pids": 264}]}], "extra_pids: must be a list of PIDs"),
+        (
+            [{"names": [{"name": "A", "service": 1, "additional_names": ["B"]}]}],
+            "names\\[0\\]: remove service; a timeshare",
+        ),
         ([{"names": [{"name": "A", "extra_pids": [8192]}]}], "extra_pids: must be a list of PIDs"),
         ([{"names": [{"name": "A", "extra_pids": [True]}]}], "extra_pids: must be a list of PIDs"),
         (
@@ -114,6 +118,44 @@ def test_rest_entries_leave_room_checks_to_run_time():
 
 def _match(*entries):
     return [(s.text, [c.key for c in found]) for s, found in match_specs(_specs(*entries), ALL)]
+
+
+def test_an_entry_with_a_frequency_or_service_chooses_before_a_plain_name():
+    entries = ["BBC One HD", {"name": "BBC One HD", "frequency": 10773}, {"name": "x", "service": 7}, "ITV1 HD"]
+    channels = [BBC, BBC_SCOT, ChannelRef("k5", "ITV1 HD", "tv", 11000.0, "7"), ITV]
+    found = [(s.text, [c.key for c in f]) for s, f in match_specs(_specs(*entries), channels)]
+    assert found == [("BBC One HD", ["k2"]), ("BBC One HD@10773", ["k1"]), ("x#7", ["k5"]), ("ITV1 HD", ["k3"])]
+
+
+def test_rest_takes_only_what_no_other_entry_lists_wherever_it_is():
+    found = [(s.text, [c.key for c in f]) for s, f in match_specs(_specs({"rest": "tv"}, "ITV1 HD"), ALL)]
+    assert found == [("rest = tv", ["k1", "k2"]), ("ITV1 HD", ["k3"])]
+
+
+def test_a_name_picks_the_same_channel_whatever_order_the_receiver_lists_them():
+    for channels in ([BBC, BBC_SCOT], [BBC_SCOT, BBC]):
+        assert [[c.key for c in f] for _, f in match_specs(_specs("BBC One HD", {"rest": "tv"}), channels)] == [
+            ["k1"],
+            ["k2"],
+        ]
+
+
+def test_a_retuned_channel_keeps_its_entry_over_another_region_on_a_lower_frequency():
+    moved, other = ChannelRef("k9", "ITV1 HD", "tv", 11222.0), ChannelRef("k8", "ITV1 HD", "tv", 11097.0)
+    assert [c.key for c in plan_selection([moved], [other], _specs("ITV1 HD")).proposed] == ["k9"]
+
+
+def test_the_saved_order_records_which_region_a_name_chose_through_moves_and_new_regions():
+    mine, other = ChannelRef("k9", "ITV1 HD", "tv", 11222.0), ChannelRef("k8", "ITV1 HD", "tv", 10758.0)
+    specs = specs_from_config([{"start": 1, "names": [{"rest": "tv"}]}, {"start": 103, "names": ["ITV1 HD"]}])
+    plan = plan_selection([mine], [other], specs)  # a new region on a lower frequency
+    assert [c.key for c in plan.proposed] == ["k9", "k8"]  # the name's choice before rest's
+    for _ in range(2):  # and it stays put, publish included
+        plan = plan_selection(plan.proposed, [], specs)
+        assert [c.key for c in plan.proposed] == ["k9", "k8"]
+    lineup = Lineup(tuple(Channel(c.key, c.name, c.kind, "u", 0, c.frequency_mhz) for c in plan.proposed))
+    assert _numbers(number_lineup(lineup, specs)) == [(1, "ITV1 HD"), (103, "ITV1 HD")]
+    assert [c.key for c in number_lineup(lineup, specs)] == ["k8", "k9"]
 
 
 def test_name_takes_the_first_match_case_insensitively():
