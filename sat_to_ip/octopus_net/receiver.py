@@ -5,7 +5,7 @@ import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 from sat_to_ip import m3u
 from sat_to_ip.checks import NEEDS_ATTENTION
@@ -54,18 +54,28 @@ def _log_tuners(client: OctopusClient) -> None:
     )
 
 
+Tuning = tuple[float | None, str | None, str | None]
+
+
+def _tuning(ch: OctopusChannel) -> Tuning:
+    """The transponder a record is on: frequency, plus the input and polarisation from its SAT>IP request when it
+    has one, since one frequency can carry two transponders (11426.5 H and V on 28.2E) or two satellites."""
+    request = parse_qs(str(ch.get("satip_request", "")))
+    return mhz(ch_freq(ch)), next(iter(request.get("src", [])), None), next(iter(request.get("pol", [])), None)
+
+
 def _candidates(
     ch: OctopusChannel,
     scanned: list[OctopusChannel],
     found: set[str],
     timeshares: Sequence[frozenset[str]],
-    swept: set[float | None],
+    swept: set[Tuning],
 ) -> list[OctopusChannel] | None:
     """None when the scan found the saved channel where it was; else the scanned channels it may have moved to.
 
     The Octopus NET's serviceid includes the frequency, so a channel that moved comes back from the scan
     as a new record: the same DVB service ID on another frequency, under the same name or (renamed in the
-    same week) another. Another name only counts when the scan found its old frequency (`swept`): the channel
+    same week) another. Another name only counts when the scan found its old transponder (`swept`): the channel
     really left it, rather than a missed transponder making an unrelated service with that ID (on another
     satellite) look like it. A timeshare's DVB service ID changes with the name on air, so it's looked for first
     on its own frequency, under any of its names.
@@ -82,7 +92,7 @@ def _candidates(
     return (
         sorted(on_air, key=channel_key)[:1]  # the one a channel list entry would take
         or [new for new in elsewhere if new.get("name") == ch.get("name")]
-        or (elsewhere if here in swept else [])
+        or (elsewhere if _tuning(ch) in swept else [])
     )
 
 
@@ -91,7 +101,7 @@ def _lost(
 ) -> list[OctopusChannel]:
     """Saved channels the scan found neither where they were nor, unambiguously, anywhere else."""
     found = {str(ch.get("serviceid")) for ch in scanned}
-    swept = {mhz(ch_freq(ch)) for ch in scanned}
+    swept = {_tuning(ch) for ch in scanned}
     return [
         ch
         for ch in saved
@@ -109,7 +119,7 @@ def _retune_moved(
     old frequency (GB News left 11670 while it stayed listed), so what counts is what the scan found.
     """
     found = {str(ch.get("serviceid")): ch for ch in scanned}
-    swept = {mhz(ch_freq(ch)) for ch in scanned}
+    swept = {_tuning(ch) for ch in scanned}
     records: list[OctopusChannel] = []
     for ch in saved:
         fresh = found.get(str(ch.get("serviceid")))

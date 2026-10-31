@@ -22,6 +22,7 @@ class OctopusChannel(TypedDict, total=False):
     frequency: int | float | str
     freq: int | float | str
     position: int
+    satip_request: str  # e.g. "src=1&freq=10847&pol=v&msys=dvbs2&sr=23000&pids=…"
 
 
 def _channel_list(data: Any) -> list[OctopusChannel]:

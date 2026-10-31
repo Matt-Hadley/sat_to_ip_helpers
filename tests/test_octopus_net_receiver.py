@@ -356,6 +356,19 @@ def test_a_channel_that_moved_and_was_renamed_in_one_week_is_followed(rx):
     assert [(r["serviceid"], r["name"]) for r in rx._client.save_channels.call_args.args[0]] == [(9, "5DRAMA")]
 
 
+def test_the_other_polarisation_on_a_frequency_is_not_the_channels_transponder(rx, caplog):
+    def on(sid, name, dvb, pol, freq=11426.5):
+        return {**_moved(sid, name, freq, dvb), "satip_request": f"src=1&freq={freq}&pol={pol}"}
+
+    saved = [on(1, "Channel X HD", 4001, "v")]
+    rx._client = _client(dms=saved)
+    scanned = [on(2, "Other HD", 4002, "h"), {**_moved(9, "ZDF HD", 11953, 4001), "satip_request": "src=2"}]
+    rx._client.get_available_channels.side_effect = [saved, scanned, scanned]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=11426.5)])
+    assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [1]
+    assert "didn't find it there" in caplog.text
+
+
 def test_a_missed_transponder_never_turns_a_channel_into_another_with_its_service_id(rx, caplog):
     saved = [_moved(1, "BBC Two HD", 10847, 6940)]
     rx._client = _client(dms=saved)
