@@ -75,9 +75,9 @@ def _candidates(
 
     The Octopus NET's serviceid includes the frequency, so a channel that moved comes back from the scan
     as a new record: the same DVB service ID on another frequency, under the same name or (renamed in the
-    same week) another. Another name only counts when the scan found its old transponder (`swept`): the channel
-    really left it, rather than a missed transponder making an unrelated service with that ID (on another
-    satellite) look like it. A timeshare's DVB service ID changes with the name on air, so it's looked for first
+    same week) another. Another name only counts on the same input (satellite), and when the scan found its old
+    transponder (`swept`): the channel really left it, rather than a missed transponder or a closed channel
+    making an unrelated service with that ID on another satellite look like it. A timeshare's DVB service ID changes with the name on air, so it's looked for first
     on its own frequency, under any of its names.
     """
     here = mhz(ch_freq(ch))
@@ -92,7 +92,7 @@ def _candidates(
     return (
         sorted(on_air, key=channel_key)[:1]  # the one a channel list entry would take
         or [new for new in elsewhere if new.get("name") == ch.get("name")]
-        or (elsewhere if _tuning(ch) in swept else [])
+        or ([new for new in elsewhere if _tuning(new)[1] == _tuning(ch)[1]] if _tuning(ch) in swept else [])
     )
 
 

@@ -387,6 +387,19 @@ def test_the_other_polarisation_on_a_frequency_is_not_the_channels_transponder(r
     assert "didn't find it there" in caplog.text
 
 
+def test_a_closed_channel_never_turns_into_a_service_with_its_id_on_another_satellite(rx, caplog):
+    saved = [{**_moved(1, "5STAR", 10964, 6940), "satip_request": "src=1&freq=10964&pol=v"}]
+    rx._client = _client(dms=saved)
+    scanned = [
+        {**_moved(2, "5USA", 10964, 2102), "satip_request": "src=1&freq=10964&pol=v"},  # its transponder is on air
+        {**_moved(9, "ZDF HD", 11953, 6940), "satip_request": "src=2&freq=11953&pol=h"},
+    ]
+    rx._client.get_available_channels.side_effect = [saved, scanned, scanned]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=10964), _transponder(freq=11953)])
+    assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [1]
+    assert "didn't find it there" in caplog.text
+
+
 def test_a_missed_transponder_never_turns_a_channel_into_another_with_its_service_id(rx, caplog):
     saved = [_moved(1, "BBC Two HD", 10847, 6940)]
     rx._client = _client(dms=saved)
