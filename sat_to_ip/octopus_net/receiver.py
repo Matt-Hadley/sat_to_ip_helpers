@@ -55,13 +55,19 @@ def _log_tuners(client: OctopusClient) -> None:
 
 
 def _candidates(
-    ch: OctopusChannel, scanned: list[OctopusChannel], found: set[str], timeshares: Sequence[frozenset[str]]
+    ch: OctopusChannel,
+    scanned: list[OctopusChannel],
+    found: set[str],
+    timeshares: Sequence[frozenset[str]],
+    swept: set[float | None],
 ) -> list[OctopusChannel] | None:
     """None when the scan found the saved channel where it was; else the scanned channels it may have moved to.
 
     The Octopus NET's serviceid includes the frequency, so a channel that moved comes back from the scan
     as a new record: the same DVB service ID on another frequency, under the same name or (renamed in the
-    same week) another. A timeshare's DVB service ID changes with the name on air, so it's looked for first
+    same week) another. Another name only counts when the scan found its old frequency (`swept`): the channel
+    really left it, rather than a missed transponder making an unrelated service with that ID (on another
+    satellite) look like it. A timeshare's DVB service ID changes with the name on air, so it's looked for first
     on its own frequency, under any of its names.
     """
     here = mhz(ch_freq(ch))
@@ -76,7 +82,7 @@ def _candidates(
     return (
         sorted(on_air, key=channel_key)[:1]  # the one a channel list entry would take
         or [new for new in elsewhere if new.get("name") == ch.get("name")]
-        or elsewhere
+        or (elsewhere if here in swept else [])
     )
 
 
@@ -85,7 +91,12 @@ def _lost(
 ) -> list[OctopusChannel]:
     """Saved channels the scan found neither where they were nor, unambiguously, anywhere else."""
     found = {str(ch.get("serviceid")) for ch in scanned}
-    return [ch for ch in saved if (same := _candidates(ch, scanned, found, timeshares)) is not None and len(same) != 1]
+    swept = {mhz(ch_freq(ch)) for ch in scanned}
+    return [
+        ch
+        for ch in saved
+        if (same := _candidates(ch, scanned, found, timeshares, swept)) is not None and len(same) != 1
+    ]
 
 
 def _retune_moved(
@@ -98,6 +109,7 @@ def _retune_moved(
     old frequency (GB News left 11670 while it stayed listed), so what counts is what the scan found.
     """
     found = {str(ch.get("serviceid")): ch for ch in scanned}
+    swept = {mhz(ch_freq(ch)) for ch in scanned}
     records: list[OctopusChannel] = []
     for ch in saved:
         fresh = found.get(str(ch.get("serviceid")))
@@ -108,9 +120,8 @@ def _retune_moved(
             continue
         # two saved channels never share a record: not one retuned already, nor one the scan found unmoved
         taken = {str(r.get("serviceid")) for r in [*records, *saved]}
-        same = _candidates(
-            ch, [new for new in scanned if str(new.get("serviceid")) not in taken], set(found), timeshares
-        )
+        free = [new for new in scanned if str(new.get("serviceid")) not in taken]
+        same = _candidates(ch, free, set(found), timeshares, swept)
         if same is not None:
             old_mhz = mhz(ch_freq(ch))
             if len(same) == 1:
