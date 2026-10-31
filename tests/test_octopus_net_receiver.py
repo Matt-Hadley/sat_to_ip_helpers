@@ -347,6 +347,23 @@ def test_a_timeshare_never_follows_onto_a_record_another_saved_channel_holds(rx)
     assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [1, 2]
 
 
+def test_a_channel_that_moved_and_was_renamed_in_one_week_is_followed(rx):
+    saved = [_moved(1, "5SELECT", 10964, 2105)]
+    rx._client = _client(dms=saved)
+    rx._client.get_available_channels.side_effect = [saved, [_moved(9, "5DRAMA", 11023, 2105)]]
+    _refresh(rx, lambda pos, **_: [_transponder(freq=11023)])
+    assert [(r["serviceid"], r["name"]) for r in rx._client.save_channels.call_args.args[0]] == [(9, "5DRAMA")]
+
+
+def test_a_failed_final_save_puts_the_saved_list_back(rx):
+    rx._client = _client(dms=SAVED)
+    rx._client.get_available_channels.side_effect = [SAVED, SAVED]
+    rx._client.save_channels.side_effect = [IntegrationError("boom"), None]
+    with pytest.raises(IntegrationError, match="boom"):
+        _refresh(rx, lambda pos, **_: [_transponder(freq=10773), _transponder(freq=11954)])
+    assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [1, 2]
+
+
 def test_refresh_saves_nothing_when_nothing_was_saved(rx):
     rx._client = _client(dms=[])
     rx._client.get_available_channels.side_effect = [[], [*SAVED]]

@@ -60,21 +60,24 @@ def _candidates(
     """None when the scan found the saved channel where it was; else the scanned channels it may have moved to.
 
     The Octopus NET's serviceid includes the frequency, so a channel that moved comes back from the scan
-    as a new record: the same name and DVB service ID, on another frequency. A timeshare's DVB service ID
-    changes with the name on air, so it's looked for first on its own frequency, under any of its names.
+    as a new record: the same DVB service ID on another frequency, under the same name or (renamed in the
+    same week) another. A timeshare's DVB service ID changes with the name on air, so it's looked for first
+    on its own frequency, under any of its names.
     """
     here = mhz(ch_freq(ch))
     if here is None or str(ch.get("serviceid")) in found:
         return None
     names = next((ts for ts in timeshares if ch.get("name", "").lower() in ts), frozenset())
     on_air = [new for new in scanned if new.get("name", "").lower() in names and mhz(ch_freq(new)) == here]
-    return sorted(on_air, key=channel_key)[:1] or [  # the one a channel list entry would take
-        new
-        for new in scanned
-        if new.get("name") == ch.get("name")
-        and new.get("dvb_serviceid") == ch.get("dvb_serviceid")
-        and mhz(ch_freq(new)) is not None
+    sid = ch.get("dvb_serviceid")
+    elsewhere = [
+        new for new in scanned if sid is not None and new.get("dvb_serviceid") == sid and mhz(ch_freq(new)) is not None
     ]
+    return (
+        sorted(on_air, key=channel_key)[:1]  # the one a channel list entry would take
+        or [new for new in elsewhere if new.get("name") == ch.get("name")]
+        or elsewhere
+    )
 
 
 def _lost(
@@ -183,16 +186,16 @@ class OctopusNetReceiver:
                 # A scan can miss a whole transponder (each of three on 2026-10-29 missed different ones): try again
                 logger.info(f"   {len(lost)} saved channel(s) not found; scanning once more")
                 after = list({str(ch.get("serviceid")): ch for ch in [*after, *self._scan(client)]}.values())
-        except BaseException:  # Ctrl-C too: a stopped scan must not leave the box without its channel list
+            if not after:
+                _log_tuners(client)
+            log_scan_diff(before, after)
+            if saved:
+                records = _retune_moved(saved, after, timeshares) if complete else saved
+                client.save_channels([{**ch, "position": i} for i, ch in enumerate(records)])
+        except BaseException:  # Ctrl-C too: a stopped scan or save must not leave the box without its channel list
             if saved:
                 client.save_channels(saved)
             raise
-        if not after:
-            _log_tuners(client)
-        log_scan_diff(before, after)
-        if saved:
-            records = _retune_moved(saved, after, timeshares) if complete else saved
-            client.save_channels([{**ch, "position": i} for i, ch in enumerate(records)])
 
     def _scan(self, client: OctopusClient) -> list[OctopusChannel]:
         client.start_scan(self.positions)
