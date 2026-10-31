@@ -89,12 +89,11 @@ def test_get_dms_channels_posts_with_selected_param():
 # ---------------------------------------------------------------------------
 
 
-def test_get_available_channels_sends_ignore_ids():
+def test_get_available_channels_ignores_nothing():
     client, session = _client()
     session.request.return_value.json.return_value = []
-    client.get_available_channels(["111", "222"])
-    data = session.request.call_args.kwargs["data"]
-    assert data == {"ignore": "111,222"}
+    client.get_available_channels()
+    assert session.request.call_args.kwargs["data"] == {"ignore": ""}
 
 
 # ---------------------------------------------------------------------------
@@ -150,8 +149,8 @@ def test_poll_scan_returns_when_octopus_returns_404():
     # Mock three 404s to satisfy the done_confirmations check
     session.get.return_value.status_code = 404
     session.get.return_value.text = ""
-    result = client.poll_scan_until_complete(interval=0)
-    assert result == {}
+    client.poll_scan_until_complete(interval=0)
+    assert session.get.call_count == 3
 
 
 def test_poll_scan_raises_timeout():
@@ -209,7 +208,7 @@ def test_poll_scan_survives_transient_errors_and_bad_json_then_completes():
         done,
     ]
     with patch("sat_to_ip.octopus_net.client.time.sleep"):
-        assert client.poll_scan_until_complete(interval=0) == {}
+        client.poll_scan_until_complete(interval=0)
     assert session.get.call_count == 8
 
 
@@ -299,6 +298,13 @@ def test_non_json_reply_is_an_integration_error():
 def test_scan_status_error_is_an_integration_error():
     client, session = _client()
     session.get.return_value = _resp(500, text="boom")
+    with pytest.raises(IntegrationError, match="scan status failed \\(HTTP 500\\)"):
+        client.poll_scan_until_complete(interval=0)
+
+
+def test_an_empty_error_reply_is_not_a_finished_scan():
+    client, session = _client()
+    session.get.return_value = _resp(500)
     with pytest.raises(IntegrationError, match="scan status failed \\(HTTP 500\\)"):
         client.poll_scan_until_complete(interval=0)
 

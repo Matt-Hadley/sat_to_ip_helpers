@@ -169,15 +169,20 @@ class OctopusNetReceiver:
 
         client = self._octopus()
         saved = client.get_dms_channels()  # the Octopus NET empties its saved list when it scans: put it back after
-        client.upload_transponders(build_upload_payload(sources))
-        before = client.get_available_channels([])
-        logger.info(f"   Pre-scan: {len(before)} channels available")
         complete = len(sources) == len(self.positions)  # with a position missing, its channels would all look lost
-        after = self._scan(client)
-        if complete and (lost := _lost(saved, after, timeshares)):
-            # A scan can miss a whole transponder (each of three on 2026-10-29 missed different ones): try once more
-            logger.info(f"   {len(lost)} saved channel(s) not found; scanning once more")
-            after = list({str(ch.get("serviceid")): ch for ch in [*after, *self._scan(client)]}.values())
+        try:
+            client.upload_transponders(build_upload_payload(sources))
+            before = client.get_available_channels()
+            logger.info(f"   Pre-scan: {len(before)} channels available")
+            after = self._scan(client)
+            if complete and (lost := _lost(saved, after, timeshares)):
+                # A scan can miss a whole transponder (each of three on 2026-10-29 missed different ones): try again
+                logger.info(f"   {len(lost)} saved channel(s) not found; scanning once more")
+                after = list({str(ch.get("serviceid")): ch for ch in [*after, *self._scan(client)]}.values())
+        except Exception:
+            if saved:  # a failed scan must not leave the box without its channel list
+                client.save_channels(saved)
+            raise
         if not after:
             _log_tuners(client)
         log_scan_diff(before, after)
@@ -188,7 +193,7 @@ class OctopusNetReceiver:
     def _scan(self, client: OctopusClient) -> list[OctopusChannel]:
         client.start_scan(self.positions)
         client.poll_scan_until_complete(interval=self.scan_poll_interval, timeout=self.scan_timeout)
-        found = client.get_available_channels([])
+        found = client.get_available_channels()
         logger.info(f"   Post-scan: {len(found)} channels found")
         return found
 
@@ -203,7 +208,7 @@ class OctopusNetReceiver:
         no_freq = {str(ch.get("serviceid")) for ch in dms if mhz(ch_freq(ch)) is None}
         available = [
             ch
-            for ch in client.get_available_channels([])
+            for ch in client.get_available_channels()
             if channel_key(ch) not in saved and str(ch.get("serviceid")) not in no_freq
         ]
         self._known = {channel_key(ch): ch for ch in dms + available}

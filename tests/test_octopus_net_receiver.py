@@ -38,9 +38,7 @@ AVAILABLE = [_ch(3, "ITV HD", freq=11386), _ch(4, "BBC One HD", freq=10847), _ch
 def _client(dms=DMS, available=AVAILABLE, m3u_text=""):
     client = MagicMock()
     client.get_dms_channels.side_effect = lambda: [dict(c) for c in dms]
-    client.get_available_channels.side_effect = lambda ignore: [
-        dict(c) for c in available if str(c["serviceid"]) not in ignore
-    ]
+    client.get_available_channels.side_effect = lambda: [dict(c) for c in available]
     client.download_m3u.return_value = m3u_text
     return client
 
@@ -319,6 +317,15 @@ def test_refresh_restores_the_saved_list_the_scan_empties(rx):
     _refresh(rx, lambda pos, **_: [_transponder(freq=10773), _transponder(freq=11954)])
     calls = [c[0] for c in rx._client.method_calls]
     assert calls.index("get_dms_channels") < calls.index("upload_transponders") < calls.index("save_channels")
+    assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [1, 2]
+
+
+@pytest.mark.parametrize("failing", ["upload_transponders", "poll_scan_until_complete", "get_available_channels"])
+def test_a_failed_scan_puts_the_saved_list_back(rx, failing):
+    rx._client = _client(dms=SAVED)
+    getattr(rx._client, failing).side_effect = IntegrationError("boom")
+    with pytest.raises(IntegrationError, match="boom"):
+        _refresh(rx, lambda pos, **_: [_transponder()])
     assert [r["serviceid"] for r in rx._client.save_channels.call_args.args[0]] == [1, 2]
 
 

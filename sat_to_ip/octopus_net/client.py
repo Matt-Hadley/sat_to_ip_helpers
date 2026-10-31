@@ -114,7 +114,7 @@ class OctopusClient:
         self._call("POST", "/startsearch-satip", "starting the scan", json={"target-s": target_s})
         logger.info(f"Scan started: {target_s}")
 
-    def poll_scan_until_complete(self, interval: int = 1, timeout: int = 600) -> dict[str, Any]:
+    def poll_scan_until_complete(self, interval: int = 1, timeout: int = 600) -> None:
         """Poll /status/octoscan-satip until the scan finishes.
 
         The Octopus returns 200 + JSON progress while scanning, and 404 once
@@ -140,11 +140,11 @@ class OctopusClient:
                 logger.warning(f"Transient connection error during scan poll, retrying: {exc}")
                 time.sleep(interval)
                 continue
-            if resp.status_code == 404 or not resp.text.strip():
+            if resp.status_code == 404 or (resp.status_code < 400 and not resp.text.strip()):
                 done_confirmations += 1
                 if done_confirmations >= 3:
                     logger.info("Scan complete")
-                    return {}
+                    return
                 time.sleep(interval)
                 continue
             done_confirmations = 0
@@ -177,10 +177,10 @@ class OctopusClient:
         # The Octopus NET lists them sorted by name; `position` is the saved order (records without one go last)
         return sorted(dms, key=lambda ch: ch.get("position", len(dms)))
 
-    def get_available_channels(self, ignore_ids: list[str]) -> list[OctopusChannel]:
+    def get_available_channels(self) -> list[OctopusChannel]:
         """Return channels from the last scan that are not yet in the DMS."""
         doing = "reading the channels it found"
-        resp = self._call("POST", "/channels/data", doing, data={"ignore": ",".join(ignore_ids)})
+        resp = self._call("POST", "/channels/data", doing, data={"ignore": ""})
         return _channel_list(self._json(resp, doing))
 
     def save_channels(self, channels: list[OctopusChannel]) -> None:

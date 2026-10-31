@@ -220,6 +220,27 @@ def test_editing_keeps_every_block_start_and_missing_channels_so_numbers_stay_pu
     assert "(TV 101–102, TV 201–201, radio 801–801)" in said[0] and said[1].startswith("Kept 1 listed")
 
 
+def test_editing_keeps_the_comments_on_entries_that_stay(tmp_path):
+    rx = FakeReceiver(channels=[channel(1), channel(2), channel(4), channel(5)], found=[channel(3)])
+    names = """[
+  # the main ones
+  "Ch 1",  # keep this note
+  "Ch 2",  # dropped with its channel
+  { rest = "tv" },
+]"""
+    radio = '[[channels]]\nstart = 801\nnames = ["Gone FM"]\n'  # a second block: no blank lines may pile up
+    config = _config(tmp_path, f"[[channels]]\nstart = 101  # TV\nnames = {names}\n\n{radio}", receiver=rx)
+    _run(config, chosen=lambda ticked, others: [c for c in ticked if c.name not in ("Ch 2", "Ch 5")], answers=())
+    assert _blocks(config) == [{"start": 101, "names": ["Ch 1", "Ch 4", "Ch 3"]}, {"start": 801, "names": ["Gone FM"]}]
+    text = config.path.read_text()
+    assert "start = 101  # TV" in text and "# the main ones" in text and '"Ch 1",  # keep this note' in text
+    assert "dropped with its channel" not in text
+    again = load_config(config.path, {})
+    object.__setattr__(again, "receiver", rx)
+    _run(again, chosen=lambda ticked, others: ticked, answers=())  # ticking the same again changes nothing
+    assert config.path.read_text() == text
+
+
 def test_a_timeshare_entry_is_kept_and_takes_a_number_per_name(tmp_path):
     rx = FakeReceiver(channels=[channel(1, "CBBC HD"), channel(2)], found=[channel(3)])
     entry = '{ name = "BBC Three HD", additional_names = ["CBBC HD"], extra_pids = [264, 268] }'

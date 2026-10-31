@@ -1,6 +1,7 @@
 """`sat-to-ip channels`: tick channels from what the receiver has found, and save them as [[channels]] blocks.
 
-Only the [[channels]] part of the config is rewritten; tomlkit keeps every other setting and comment as it was.
+Only the [[channels]] part of the config is rewritten; tomlkit keeps every other setting and comment as it was,
+and existing blocks are edited in place, so comments on the entries that stay are kept too.
 New entries name the broadcast service (`service`) when the receiver knows it, so they keep matching after a rename.
 Existing blocks keep their start, their order and their entries, so channel numbers don't move: an unticked
 channel is dropped, a listed channel the receiver doesn't have stays (it keeps its number free), and newly
@@ -28,13 +29,17 @@ KINDS: tuple[tuple[Kind, str], ...] = (("tv", "TV"), ("radio", "radio"))
 
 
 class _Block:
-    """One [[channels]] block being written: its start (None: carries on from the block before) and entries."""
+    """One [[channels]] block being written: its start (None: carries on from the block before) and entries.
 
-    def __init__(self, start: int | None, entries: list[Any] | None = None, size: int = 0):
+    An existing block keeps its tomlkit `table`, edited in place; `entries` are then the ones to append to it.
+    """
+
+    def __init__(self, start: int | None, entries: list[Any] | None = None, size: int = 0, table: Any = None):
         self.start = start
         self.entries = entries if entries is not None else []
         self.size = size  # how many numbers it takes: ticked channels plus kept placeholders
         self.kinds: set[Kind] = set()
+        self.table = table
 
     def label(self) -> str:
         kinds = " + ".join(k if k == "radio" else "TV" for k in sorted(self.kinds, reverse=True))
@@ -72,12 +77,12 @@ def choose_channels(
     chosen_keys = {ch.key for ch in chosen}
     new = [ch for ch in chosen if ch.key not in keys]
     text = config.path.read_text(encoding="utf-8")
-    raw: Any = tomllib.loads(text).get("channels")
     # `matched` lines up with the blocks as loaded; edited since, the new blocks would get the wrong entries
-    if specs_from_config(raw) != (list(specs) if specs is not None else None):
+    if specs_from_config(tomllib.loads(text).get("channels")) != (list(specs) if specs is not None else None):
         raise ConfigError(f"{config.path}: [[channels]] changed while picking; nothing saved. Run this again.")
+    doc = tomlkit.parse(text)
     if specs:
-        blocks = _edit_blocks(raw, matched, chosen_keys, new, everything, ask, say)
+        blocks = _edit_blocks(doc["channels"], matched, chosen_keys, new, everything, ask, say)
     else:
         # channels already saved keep their order; newly ticked ones follow
         ordered = [ch for ch in current if ch.key in chosen_keys] + new
@@ -86,7 +91,7 @@ def choose_channels(
         say("Nothing saved.")
         return False
 
-    text = _with_blocks(text, blocks)
+    text = _with_blocks(doc, blocks)
     specs_from_config(tomllib.loads(text)["channels"])  # never write a config that wouldn't load
     write_atomic(config.path, text)
     say(f"Saved {len(chosen)} channels to {config.path} ({', '.join(b.label() for b in blocks)}).")
@@ -119,7 +124,7 @@ def _new_blocks(
 
 
 def _edit_blocks(
-    raw: list[dict[str, Any]],
+    tables: Any,
     matched: Sequence[tuple[Spec, list[ChannelRef]]],
     chosen_keys: set[str],
     new: Sequence[ChannelRef],
@@ -127,22 +132,25 @@ def _edit_blocks(
     ask: Ask,
     say: Say,
 ) -> list[_Block] | None:
-    """The existing blocks with unticked channels dropped and newly ticked ones appended."""
+    """The existing blocks (tomlkit tables, edited in place) with unticked channels dropped, and newly
+    ticked ones appended."""
     entries = iter(matched)  # specs_from_config made one spec per entry, in file order
     blocks: list[_Block] = []
     last_of_kind: dict[Kind, _Block] = {}
-    for raw_block in raw:
-        block = _Block(raw_block.get("start"))
-        for value in raw_block["names"]:
+    for table in tables:
+        names = table["names"]
+        block = _Block(table.get("start"), table=table)
+        replaced: list[tuple[int, list[Any]]] = []
+        for i in range(len(names)):
             spec, chs = next(entries)
             ticked = [ch for ch in chs if ch.key in chosen_keys]
-            if not chs or len(ticked) == len(chs):
-                block.entries.append(value)  # as written: a placeholder, a name, or a whole `rest`
-            else:  # some of what it matched was unticked: list the rest by name
-                block.entries += [_entry(ch, everything) for ch in ticked]
+            if chs and len(ticked) < len(chs):  # some of what it matched was unticked: list the rest by name
+                replaced.append((i, [_entry(ch, everything) for ch in ticked]))
+            # otherwise it stays as written, comment and all: a placeholder, a name, or a whole `rest`
             block.size += len(ticked) * len(spec.names) if chs else len(spec.names)
             block.kinds.update(ch.kind for ch in ticked)
-        if not block.entries:
+        _replace(names, replaced)
+        if not len(names):
             # shortcut: an emptied block is dropped, so a following block without `start` moves up; give
             # every block a start (the picker always does) to avoid that
             continue
@@ -168,6 +176,14 @@ def _edit_blocks(
         target.kinds.add(kind)
         next_free = max(next_free, _next_free(blocks))
     return blocks
+
+
+def _replace(names: Any, replaced: Sequence[tuple[int, list[Any]]]) -> None:
+    """Swap entries of a tomlkit array for others, in place, so the comments on the rest stay."""
+    for i, values in reversed(replaced):
+        del names[i]
+        for offset, value in enumerate(values):
+            names.insert(i + offset, _inline(value))
 
 
 def _next_free(blocks: Sequence[_Block]) -> int:
@@ -217,10 +233,20 @@ def _inline(value: Any) -> Any:
     return value
 
 
-def _with_blocks(text: str, blocks: Sequence[_Block]) -> str:
-    doc = tomlkit.parse(text)
-    aot = tomlkit.aot()
+def _with_blocks(doc: Any, blocks: Sequence[_Block]) -> str:
+    """The config with these blocks as its [[channels]]. Existing blocks are edited where they are, so the file
+    keeps its layout; new ones (never before an existing one) go after them."""
+    if "channels" not in doc:
+        doc.append("channels", tomlkit.aot())
+    aot = doc["channels"]
+    kept = [id(block.table) for block in blocks if block.table is not None]
+    for i in reversed(range(len(aot))):
+        if id(aot[i]) not in kept:
+            del aot[i]  # emptied
     for block in blocks:
+        if block.table is not None:
+            block.table["names"].extend(_inline(value) for value in block.entries)
+            continue
         table = tomlkit.table()
         if block.start is not None:
             table["start"] = block.start
@@ -228,9 +254,6 @@ def _with_blocks(text: str, blocks: Sequence[_Block]) -> str:
         names.extend(_inline(value) for value in block.entries)
         table["names"] = names.multiline(True)
         aot.append(table)
-    aot[-1].add(tomlkit.nl())  # a blank line before whatever section follows
-    if "channels" in doc:
-        doc["channels"] = aot  # replaced where it was, so the file keeps its layout
-    else:
-        doc.append("channels", aot)
+    if blocks[-1].table is None:
+        aot[-1].add(tomlkit.nl())  # a blank line before whatever section follows
     return tomlkit.dumps(doc)

@@ -122,6 +122,14 @@ def test_non_json_task_list(tmp_path):
         pub.publish(_lineup(), _guide(), dry_run=False)
 
 
+@pytest.mark.parametrize("reply", [{"error": "proxy"}, ["RefreshGuide"]])
+def test_a_reply_that_is_not_a_task_list(tmp_path, reply):
+    pub, session = _publisher(tmp_path)
+    session.get.return_value.json.return_value = reply
+    with pytest.raises(IntegrationError, match="not a task list"):
+        pub.publish(_lineup(), _guide(), dry_run=False)
+
+
 def test_task_not_found_fails_after_files_are_written(tmp_path):
     pub, session = _publisher(tmp_path)
     session.get.return_value.json.return_value = [{"Key": "Other", "Id": "x"}]

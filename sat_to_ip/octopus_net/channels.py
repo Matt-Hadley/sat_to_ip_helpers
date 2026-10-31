@@ -2,7 +2,6 @@
 
 import logging
 import math
-from dataclasses import dataclass, field
 from typing import Any
 
 from sat_to_ip.octopus_net.client import OctopusChannel
@@ -36,41 +35,23 @@ def channel_key(ch: OctopusChannel) -> str:
     return f"octopus_net:{sid}" + (f"@{round(freq)}" if freq is not None else "")
 
 
-@dataclass
-class ScanDiff:
-    added: list[OctopusChannel] = field(default_factory=list)
-    removed: list[OctopusChannel] = field(default_factory=list)
-
-    @property
-    def has_changes(self) -> bool:
-        return bool(self.added or self.removed)
-
-
-def compute_scan_diff(before: list[OctopusChannel], after: list[OctopusChannel]) -> ScanDiff:
-    """Return a ScanDiff comparing two channel lists by serviceid.
+def log_scan_diff(before: list[OctopusChannel], after: list[OctopusChannel]) -> None:
+    """Log channels added or removed between two scans, by serviceid.
 
     The Octopus NET's serviceid includes the frequency, so a moved channel shows as removed + added
     (refresh's retune step logs the move itself).
     """
     before_by_id = {ch["serviceid"]: ch for ch in before if "serviceid" in ch}
     after_by_id = {ch["serviceid"]: ch for ch in after if "serviceid" in ch}
-
     added = [ch for sid, ch in after_by_id.items() if sid not in before_by_id]
     removed = [ch for sid, ch in before_by_id.items() if sid not in after_by_id]
-    return ScanDiff(added=added, removed=removed)
-
-
-def log_scan_diff(before: list[OctopusChannel], after: list[OctopusChannel]) -> None:
-    """Log channels added or removed between two scans."""
-    diff = compute_scan_diff(before, after)
-    if not diff.has_changes:
+    if not added and not removed:
         logger.info("   No changes detected vs previous scan")
-        return
-    if diff.added:
-        logger.info(f"   New channels ({len(diff.added)}):")
-        for ch in diff.added:
+    if added:
+        logger.info(f"   New channels ({len(added)}):")
+        for ch in added:
             logger.info(f"     + {ch.get('name', '?')}  freq={ch_freq(ch)}  type={ch.get('type', '?')}")
-    if diff.removed:
-        logger.warning(f"   ⚠️  Channels no longer found ({len(diff.removed)}):")
-        for ch in diff.removed:
+    if removed:
+        logger.warning(f"   ⚠️  Channels no longer found ({len(removed)}):")
+        for ch in removed:
             logger.warning(f"     - {ch.get('name', '?')}  freq={ch_freq(ch)}")

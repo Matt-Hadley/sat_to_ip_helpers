@@ -65,6 +65,8 @@ class JellyfinPublisher:
             raise IntegrationError(f"{self.name}: can't read Jellyfin's scheduled tasks at {self.url}: {exc}") from exc
         except ValueError as exc:
             raise IntegrationError(f"{self.name}: unexpected reply from {self.url}/ScheduledTasks") from exc
+        if not isinstance(tasks, list) or not all(isinstance(t, dict) for t in tasks):
+            raise IntegrationError(f"{self.name}: unexpected reply from {self.url}/ScheduledTasks (not a task list)")
         task = next((t for t in tasks if t.get("Key") == REFRESH_GUIDE_KEY), None)
         if task is None:
             raise IntegrationError(f"no scheduled task with Key {REFRESH_GUIDE_KEY!r} (is Live TV installed?)")
